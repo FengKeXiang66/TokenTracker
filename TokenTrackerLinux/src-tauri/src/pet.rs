@@ -194,6 +194,14 @@ pub fn default_position(size: &str, work_area: Rect) -> (i32, i32) {
     (x, y)
 }
 
+/// Centre of the sprite for a window at `(x, y)` — what decides which monitor
+/// the pet is on. The window's own corner can hang off-screen (bubble band).
+pub fn sprite_center(size: &str, (x, y): (i32, i32)) -> (i32, i32) {
+    let (width, height) = window_size(size);
+    let (sx, sy, side) = sprite_rect(width, height);
+    (x + (sx + side / 2.0) as i32, y + (sy + side / 2.0) as i32)
+}
+
 /// Keep the whole sprite on screen. The transparent bubble band may hang off
 /// the top edge, which is what lets the pet sit right under the top bar.
 pub fn clamp_position(size: &str, (x, y): (i32, i32), screen: Rect) -> (i32, i32) {
@@ -528,7 +536,13 @@ fn primary_work_area(window: &gtk::ApplicationWindow) -> Option<Rect> {
     })
 }
 
-fn screen_at(window: &gtk::ApplicationWindow, x: i32, y: i32) -> Option<Rect> {
+/// The monitor the pet's sprite is on (the nearest one if it's in a gap).
+fn screen_for_pet(
+    window: &gtk::ApplicationWindow,
+    size: &str,
+    position: (i32, i32),
+) -> Option<Rect> {
+    let (x, y) = sprite_center(size, position);
     use gtk::prelude::WidgetExt;
     let display = window.display();
     let monitor = display
@@ -623,7 +637,7 @@ fn start_overlay_drag<R: Runtime>(app: &AppHandle<R>, window: &WebviewWindow<R>)
         if !mask.contains(gtk::gdk::ModifierType::BUTTON1_MASK) {
             let size = app.state::<PetState>().get().size;
             let position = gtk_window.position();
-            let clamped = screen_at(&gtk_window, px, py)
+            let clamped = screen_for_pet(&gtk_window, &size, position)
                 .map(|screen| clamp_position(&size, position, screen))
                 .unwrap_or(position);
             if clamped != position {
@@ -744,8 +758,8 @@ fn show_pet_window<R: Runtime>(app: &AppHandle<R>, window: &WebviewWindow<R>, si
             gdk_window.set_override_redirect(true);
         }
         let saved = load_position(app);
-        let (anchor_x, anchor_y) = saved.unwrap_or((0, 0));
-        let position = match (saved, screen_at(&gtk_window, anchor_x, anchor_y)) {
+        let screen = saved.and_then(|saved| screen_for_pet(&gtk_window, size, saved));
+        let position = match (saved, screen) {
             (Some(saved), Some(screen)) => clamp_position(size, saved, screen),
             _ => primary_work_area(&gtk_window)
                 .map(|area| default_position(size, area))
@@ -900,6 +914,24 @@ mod tests {
         );
         // In range: untouched.
         assert_eq!(clamp_position("medium", (300, 200), SCREEN), (300, 200));
+    }
+
+    #[test]
+    fn the_sprite_centre_decides_the_monitor_not_the_window_corner() {
+        let (w, h) = window_size("medium");
+        let (sx, sy, side) = sprite_rect(w, h);
+        // A pet on a second monitor to the right, with its band hanging above.
+        let (cx, cy) = sprite_center("medium", (2000, -100));
+        assert_eq!(cx, 2000 + (sx + side / 2.0) as i32);
+        assert_eq!(cy, -100 + (sy + side / 2.0) as i32);
+        assert!(
+            cx > SCREEN.width,
+            "centre is on the monitor right of SCREEN"
+        );
+        assert!(
+            cy >= 0,
+            "centre is on screen even though the window corner is not"
+        );
     }
 
     #[test]
