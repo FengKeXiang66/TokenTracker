@@ -155,6 +155,32 @@ describe("startLinuxPetHost", () => {
     expect(summaryUrl).toContain("account=1");
   });
 
+  it("reports increases without a hardcoded model name", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let tokens = 1000;
+    const fetchImpl = async (url) => {
+      if (url.startsWith("/functions/tokentracker-usage-summary")) {
+        return jsonResponse({ totals: { total_tokens: tokens, total_cost_usd: "1" } });
+      }
+      return jsonResponse({ sources: [] });
+    };
+    const status = vi.fn();
+    window.addEventListener("pet:model-status", status);
+    const usage = vi.fn();
+    window.addEventListener("pet:usage", usage);
+    stop = startLinuxPetHost({ fetchImpl });
+    await vi.waitFor(() => expect(usage).toHaveBeenCalledTimes(1));
+    tokens = 1500;
+    await vi.advanceTimersByTimeAsync(60_000);
+    await vi.waitFor(() => expect(status).toHaveBeenCalled());
+    window.removeEventListener("pet:model-status", status);
+    window.removeEventListener("pet:usage", usage);
+    vi.useRealTimers();
+    const detail = status.mock.calls[0][0].detail;
+    expect(detail.tokensDelta).toBe(500);
+    expect(detail.modelName).toBeUndefined();
+  });
+
   it("reports the pet as disconnected when the server is unreachable", async () => {
     const connected = vi.fn();
     window.addEventListener("pet:connected", connected);

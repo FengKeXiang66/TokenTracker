@@ -251,8 +251,8 @@ export function startLinuxPetHost({
 
     const stats = buildStats(summary.body, heatmap, topModels);
     if (lastStats && lastStats.todayTokens > 0 && stats.todayTokens > lastStats.todayTokens) {
+      // No per-model attribution here; the page labels it with its localized "New usage".
       emit("pet:model-status", {
-        modelName: "AI Model",
         tokensDelta: stats.todayTokens - lastStats.todayTokens,
         costDelta: stats.todayCostUsd - lastStats.todayCostUsd,
       });

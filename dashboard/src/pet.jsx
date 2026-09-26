@@ -915,7 +915,9 @@ function Pet() {
   if (!bubbleText) {
     if (modelStatus) {
       const costValue = modelStatus.costDelta * currency.rate;
-      bubbleText = `${modelStatus.modelName} · +${formatTokens(modelStatus.tokensDelta)} (${currency.symbol}${costValue.toFixed(3)})`;
+      // A host that can't attribute the increase to a model sends no name.
+      const label = modelStatus.modelName || L.newUsage;
+      bubbleText = `${label} · +${formatTokens(modelStatus.tokensDelta)} (${currency.symbol}${costValue.toFixed(3)})`;
     } else if (hovering) {
       bubbleText = usageText;
     }

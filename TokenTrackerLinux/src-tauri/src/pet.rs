@@ -248,15 +248,18 @@ impl PetState {
         change(&mut settings);
         *settings = settings.clone().normalized();
         let snapshot = settings.clone();
-        drop(settings);
         if snapshot == before && !force {
             return snapshot;
         }
+        // Write while still holding the lock: the context relay and dashboard
+        // changes save from different threads through the same tmp file, and
+        // an older snapshot must never land after a newer one.
         if let Some(path) = &self.path {
             if let Err(error) = write_json_atomic(path, &snapshot) {
                 eprintln!("[TokenTracker] failed to save pet settings: {error}");
             }
         }
+        drop(settings);
         snapshot
     }
 }
@@ -462,10 +465,11 @@ fn handle_dashboard_message<R: Runtime>(app: &AppHandle<R>, message: &Value) {
 // ── Pet process ─────────────────────────────────────────────────────────────
 
 /// Must run before GTK initialises. Prefers XWayland whenever it is available;
-/// without it the pet still works as an ordinary (managed) Wayland window.
+/// GTK falls back to Wayland if the X server can't be reached, and the pet then
+/// works as an ordinary (managed) Wayland window.
 pub fn prefer_x11_backend() {
     if std::env::var_os("DISPLAY").is_some() {
-        std::env::set_var("GDK_BACKEND", "x11");
+        std::env::set_var("GDK_BACKEND", "x11,wayland");
     }
 }
 
