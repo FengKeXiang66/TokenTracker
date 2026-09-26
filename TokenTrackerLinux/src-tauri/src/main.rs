@@ -243,18 +243,18 @@ fn start_health_monitor() {
 }
 
 fn main() {
+    configure_webkit_runtime();
+
     let initial_args: Vec<String> = std::env::args().collect();
     let context = tauri::generate_context!();
 
-    // `--pet <url>` runs the floating pet in its own process (see pet.rs).
+    // `--pet <url>` runs the floating pet in its own process (see pet.rs). Still
+    // single-threaded here, so setting GDK_BACKEND before GTK starts is sound.
     if let Some(base_url) = pet::pet_process_url(&initial_args) {
         pet::prefer_x11_backend();
-        configure_webkit_runtime();
         pet::run_pet_process(base_url, context);
         return;
     }
-
-    configure_webkit_runtime();
 
     tauri::Builder::default()
         .manage(PendingAuthCode::default())
