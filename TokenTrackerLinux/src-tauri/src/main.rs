@@ -1,4 +1,4 @@
-use tokentracker_linux::{external, oauth, paths, server, tray};
+use tokentracker_linux::{external, oauth, paths, pet, server, tray};
 
 use std::sync::Mutex;
 
@@ -133,6 +133,9 @@ fn start_dashboard(app: AppHandle, window: WebviewWindow) {
         // A `tokentracker://` callback may have arrived before the server was
         // ready, in which case it was parked as a pending code.
         oauth::deliver_pending_callback(&navigate_app);
+        // The pet page is served by the same server, so a pet left on at the
+        // last quit can only come back now.
+        pet::sync_window(&navigate_app);
     });
 }
 
@@ -247,7 +250,7 @@ fn main() {
     tauri::Builder::default()
         .manage(PendingAuthCode::default())
         .manage(DashboardBaseUrl::default())
-        .invoke_handler(tauri::generate_handler![oauth::open_oauth])
+        .invoke_handler(tauri::generate_handler![oauth::open_oauth, pet::pet_bridge])
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             for arg in argv {
                 if oauth::handle_callback(app, &arg) {
@@ -260,6 +263,7 @@ fn main() {
             if let Err(error) = oauth::ensure_appimage_protocol_registration() {
                 eprintln!("[TokenTracker] AppImage OAuth callback registration failed: {error}");
             }
+            app.manage(pet::PetState::load(pet::settings_path(app.handle())));
             tray::install(app)?;
 
             for arg in &initial_args {
@@ -306,7 +310,12 @@ fn main() {
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
-                let _ = window.hide();
+                if window.label() == pet::PET_LABEL {
+                    // Closing the pet (e.g. Alt+F4) turns it off, like the tray toggle.
+                    pet::set_visible(window.app_handle(), false);
+                } else {
+                    let _ = window.hide();
+                }
             }
         })
         .build(tauri::generate_context!())

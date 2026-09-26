@@ -20,6 +20,7 @@ import { petVisualScale } from "./lib/pet-appearance.js";
 import { BotAnimated } from "./ui/foundation/BotAnimated.jsx";
 import { PetAtlasAnimated } from "./ui/foundation/PetAtlasAnimated.jsx";
 import { usePetCatalog } from "./hooks/use-pet-catalog.js";
+import { startLinuxPetHost } from "./lib/pet-linux-host.js";
 
 /**
  * Standalone floating-pet entry for the Windows tray app (PetWindow.cs loads
@@ -144,7 +145,14 @@ function readPetBotColor() {
 }
 
 function post(type) {
-  try { window.chrome?.webview?.postMessage(type); } catch { /* not in WebView2 */ }
+  try {
+    if (window.chrome?.webview) {
+      window.chrome.webview.postMessage(type);
+      return;
+    }
+    // Linux Tauri host (TokenTrackerLinux/src-tauri/src/pet.rs).
+    window.__TAURI_INTERNALS__?.invoke("pet_bridge", { message: type })?.catch?.(() => {});
+  } catch { /* no native host */ }
 }
 
 function readPetBubbleBand() {
@@ -1000,6 +1008,9 @@ function Pet() {
     </div>
   );
 }
+
+// The Linux app has no native poller: the page feeds itself from the local API.
+if (window.__TAURI_INTERNALS__ && !window.chrome?.webview) startLinuxPetHost();
 
 createRoot(document.getElementById("pet-root")).render(
   <React.StrictMode>
