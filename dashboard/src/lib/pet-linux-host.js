@@ -2,20 +2,22 @@
  * Linux host for the floating pet page (`pet.html`).
  *
  * On Windows and macOS the native app polls usage and pushes it into the pet
- * page through `window.__ttPet*` globals + `pet:*` events. The Linux Tauri
- * window loads `pet.html` from the same loopback origin as the dashboard, so it
- * can read the local API and the dashboard's localStorage directly. This module
- * does that job in the page itself, mirroring TokenTrackerWin/UsagePoller.cs so
- * the Linux pet shows the same numbers as the other desktop hosts.
+ * page through `window.__ttPet*` globals + `pet:*` events. The Linux pet window
+ * loads `pet.html` from the same loopback server as the dashboard, so it reads
+ * the local API itself, mirroring TokenTrackerWin/UsagePoller.cs so the Linux
+ * pet shows the same numbers as the other desktop hosts.
  *
- * The Rust side (TokenTrackerLinux/src-tauri/src/pet.rs) still owns the window:
- * size, character, bot colour, drag and the input region.
+ * The pet runs in its own process with its own WebKit storage, so the
+ * dashboard's currency / locale / theme arrive from the Rust side
+ * (TokenTrackerLinux/src-tauri/src/pet.rs) as `window.__ttPetStorage`, raw
+ * localStorage values parsed here with the dashboard's own helpers. Rust also
+ * owns the window: size, character, bot colour, drag and the input region.
  */
 
 import {
   CURRENCY_STORAGE_KEY,
+  EXCHANGE_RATES_STORAGE_KEY,
   getCurrencySymbol,
-  getInitialExchangeRates,
   getRateFor,
   normalizeCurrency,
 } from "./currency";
@@ -115,7 +117,29 @@ function readStorage(storage, key) {
 /** Currency the dashboard is set to, so the bubble shows the same unit. */
 export function readCurrency(storage) {
   const code = normalizeCurrency(readStorage(storage, CURRENCY_STORAGE_KEY));
-  return { symbol: getCurrencySymbol(code), rate: getRateFor(getInitialExchangeRates().rates, code) };
+  let rates = null;
+  try { rates = JSON.parse(readStorage(storage, EXCHANGE_RATES_STORAGE_KEY) || "null"); } catch { /* defaults */ }
+  return { symbol: getCurrencySymbol(code), rate: getRateFor(rates, code) };
+}
+
+// Keys as the dashboard stores them → fields Rust relays in __ttPetStorage.
+const RELAYED_KEYS = {
+  [CURRENCY_STORAGE_KEY]: "currency",
+  [EXCHANGE_RATES_STORAGE_KEY]: "exchangeRates",
+  [LOCALE_STORAGE_KEY]: "locale",
+  [THEME_STORAGE_KEY]: "theme",
+};
+
+/** The dashboard's preferences as relayed by the host, or this page's own storage. */
+export function relayedStorage(win) {
+  const relayed = win.__ttPetStorage;
+  if (!relayed || typeof relayed !== "object") return win.localStorage;
+  return {
+    getItem: (key) => {
+      const value = relayed[RELAYED_KEYS[key]];
+      return typeof value === "string" ? value : null;
+    },
+  };
 }
 
 export function readDark(storage, win) {
@@ -149,7 +173,7 @@ export function startLinuxPetHost({
   };
 
   const pushContext = () => {
-    const storage = win.localStorage;
+    const storage = relayedStorage(win);
     win.__ttPetCurrency = readCurrency(storage);
     win.__ttPetLocale = readStorage(storage, LOCALE_STORAGE_KEY) || "system";
     win.__ttPetDark = readDark(storage, win);
@@ -255,13 +279,12 @@ export function startLinuxPetHost({
   };
   const onMove = () => setHover(true);
   const onLeave = () => setHover(false);
-  // The dashboard window shares this origin's localStorage, so currency, locale
-  // and theme changes made there arrive here as `storage` events.
+  // The host re-pushes __ttPetStorage whenever the dashboard's preferences change.
   const onStorage = () => pushContext();
 
   win.document.addEventListener("mousemove", onMove);
   win.document.documentElement.addEventListener("mouseleave", onLeave);
-  win.addEventListener("storage", onStorage);
+  win.addEventListener("pet:storage", onStorage);
 
   pushContext();
   tick();
@@ -271,6 +294,6 @@ export function startLinuxPetHost({
     if (timer != null) win.clearTimeout(timer);
     win.document.removeEventListener("mousemove", onMove);
     win.document.documentElement.removeEventListener("mouseleave", onLeave);
-    win.removeEventListener("storage", onStorage);
+    win.removeEventListener("pet:storage", onStorage);
   };
 }

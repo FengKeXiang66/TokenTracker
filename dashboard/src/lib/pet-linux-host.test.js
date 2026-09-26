@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildStats,
   buildTopModels,
+  readCurrency,
   readDark,
+  relayedStorage,
   resolveDisplayTokens,
   startLinuxPetHost,
 } from "./pet-linux-host.js";
@@ -85,6 +87,36 @@ describe("readDark", () => {
     expect(readDark(storage({ "tokentracker-theme": "light" }), win)).toBe(false);
     expect(readDark(storage({ "tokentracker-theme": "dark" }), win)).toBe(true);
     expect(readDark(storage({ "tokentracker-theme": "system" }), win)).toBe(true);
+  });
+});
+
+describe("relayed dashboard preferences", () => {
+  it("reads currency and rates relayed by the host", () => {
+    const store = relayedStorage({
+      __ttPetStorage: { currency: "EUR", exchangeRates: JSON.stringify({ EUR: 0.5 }), theme: "dark" },
+    });
+    expect(readCurrency(store)).toEqual({ symbol: "€", rate: 0.5 });
+    expect(readDark(store, {})).toBe(true);
+  });
+
+  it("falls back to default rates and USD", () => {
+    expect(readCurrency(relayedStorage({ __ttPetStorage: {} }))).toEqual({ symbol: "$", rate: 1 });
+    expect(readCurrency(relayedStorage({ __ttPetStorage: { currency: "EUR", exchangeRates: "{bad" } })).rate)
+      .toBeGreaterThan(0);
+  });
+
+  it("re-pushes context when the host relays new preferences", () => {
+    const currency = vi.fn();
+    window.addEventListener("pet:currency", currency);
+    const stop = startLinuxPetHost({ fetchImpl: async () => ({ ok: false }) });
+    currency.mockClear();
+    window.__ttPetStorage = { currency: "GBP" };
+    window.dispatchEvent(new Event("pet:storage"));
+    stop();
+    window.removeEventListener("pet:currency", currency);
+    expect(currency).toHaveBeenCalled();
+    expect(window.__ttPetCurrency.symbol).toBe("£");
+    delete window.__ttPetStorage;
   });
 });
 

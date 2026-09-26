@@ -135,7 +135,7 @@ fn start_dashboard(app: AppHandle, window: WebviewWindow) {
         oauth::deliver_pending_callback(&navigate_app);
         // The pet page is served by the same server, so a pet left on at the
         // last quit can only come back now.
-        pet::sync_window(&navigate_app);
+        pet::sync_pet(&navigate_app);
     });
 }
 
@@ -243,9 +243,18 @@ fn start_health_monitor() {
 }
 
 fn main() {
-    configure_webkit_runtime();
-
     let initial_args: Vec<String> = std::env::args().collect();
+    let context = tauri::generate_context!();
+
+    // `--pet <url>` runs the floating pet in its own process (see pet.rs).
+    if let Some(base_url) = pet::pet_process_url(&initial_args) {
+        pet::prefer_x11_backend();
+        configure_webkit_runtime();
+        pet::run_pet_process(base_url, context);
+        return;
+    }
+
+    configure_webkit_runtime();
 
     tauri::Builder::default()
         .manage(PendingAuthCode::default())
@@ -264,6 +273,8 @@ fn main() {
                 eprintln!("[TokenTracker] AppImage OAuth callback registration failed: {error}");
             }
             app.manage(pet::PetState::load(pet::settings_path(app.handle())));
+            app.manage(pet::PetProcess::default());
+            pet::start_context_relay(app.handle().clone());
             tray::install(app)?;
 
             for arg in &initial_args {
@@ -310,18 +321,17 @@ fn main() {
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
-                if window.label() == pet::PET_LABEL {
-                    // Closing the pet (e.g. Alt+F4) turns it off, like the tray toggle.
-                    pet::set_visible(window.app_handle(), false);
-                } else {
-                    let _ = window.hide();
-                }
+                let _ = window.hide();
             }
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("failed to build TokenTracker Linux client")
-        .run(|_app, event| {
-            if matches!(event, tauri::RunEvent::ExitRequested { .. }) {
+        .run(|app, event| {
+            if matches!(
+                event,
+                tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit
+            ) {
+                pet::stop_pet(app);
                 stop_server();
             }
         });
