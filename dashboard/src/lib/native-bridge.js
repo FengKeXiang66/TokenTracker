@@ -86,6 +86,12 @@ export function isNativeLinuxApp() {
   return Boolean(window.__TAURI_INTERNALS__);
 }
 
+/** Set by the Linux app (`desktop.rs`) when the session runs GNOME Shell. */
+export function isGnomeShellSession() {
+  if (typeof window === "undefined") return false;
+  return window.__TOKENTRACKER_GNOME_SHELL__ === true;
+}
+
 function getHandler() {
   if (typeof window === "undefined") return null;
   return window.webkit?.messageHandlers?.nativeBridge ?? null;

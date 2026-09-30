@@ -1,4 +1,4 @@
-use tokentracker_linux::{external, oauth, paths, server, tray};
+use tokentracker_linux::{desktop, external, oauth, paths, server, tray};
 
 use std::sync::Mutex;
 
@@ -277,6 +277,7 @@ fn main() {
                 tauri::WebviewUrl::App("index.html".into()),
             )
             .initialization_script(NATIVE_OAUTH_BRIDGE)
+            .initialization_script(desktop::init_script())
             // `target="_blank"` links (provider status pages, leaderboard
             // profiles) belong in the system browser. WebKitGTK opens nothing
             // at all unless this handler is installed.
