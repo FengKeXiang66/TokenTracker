@@ -43,13 +43,17 @@ function TopBarPreview() {
       <div className="absolute -left-10 top-4 h-36 w-56 rounded-full bg-orange-500/20 blur-3xl" />
       <div className="absolute -right-8 top-8 h-32 w-48 rounded-full bg-purple-600/25 blur-3xl" />
 
-      {/* top bar */}
-      <div className="absolute inset-x-0 top-0 flex h-[22px] items-center justify-between bg-black px-2.5">
-        <span className="h-[7px] w-7 rounded-full bg-white/70" />
-        <span className="absolute left-1/2 h-[3px] w-10 -translate-x-1/2 rounded-full bg-white/60" />
-        <div className="flex items-center gap-2">
+      {/* top bar. The sides grow equally so the clock sits centred, but it
+          stays in the flow: on a narrow card the indicator pushes it left
+          instead of sliding under it. */}
+      <div className="absolute inset-x-0 top-0 flex h-[22px] items-center gap-2 bg-black px-2.5">
+        <div className="flex min-w-0 flex-1 basis-0 items-center">
+          <span className="h-[7px] w-7 rounded-full bg-white/70" />
+        </div>
+        <span className="h-[3px] w-10 shrink rounded-full bg-white/60" />
+        <div className="flex flex-1 basis-0 items-center justify-end gap-2">
           {/* the TokenTracker indicator, highlighted like an open menu */}
-          <span className="flex items-center gap-1 rounded-full bg-white/15 px-1.5 py-0.5 text-[9px] font-semibold tracking-tight text-white/90 tabular-nums">
+          <span className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-white/15 px-1.5 py-0.5 text-[9px] font-semibold tracking-tight text-white/90 tabular-nums">
             <ClawdGlyph className="h-[9px] w-[15px] translate-y-[0.5px] text-white/90" />
             {PREVIEW_READOUT}
           </span>
@@ -118,15 +122,19 @@ export function LinuxTopBarCard({ enterDelay = 0 }) {
             </svg>
           </button>
 
-          <TopBarPreview />
-
-          <div className="mt-4 min-w-0">
+          {/* Text first so the dismiss button has its own corner rather than
+              sitting on the preview's top bar. */}
+          <div className="min-w-0 pr-6">
             <div className="text-sm font-medium tracking-tight text-oai-gray-900 dark:text-oai-white">
               {copy("dashboard.linux_topbar.title")}
             </div>
             <div className="text-xs text-oai-gray-500 dark:text-oai-gray-400 mt-1 leading-snug">
               {copy("dashboard.linux_topbar.hint")}
             </div>
+          </div>
+
+          <div className="mt-3">
+            <TopBarPreview />
           </div>
 
           <div className="mt-3 flex items-center gap-3">
