@@ -18,6 +18,20 @@ Tested on 46 (Ubuntu 24.04, Wayland), and on 49 (Fedora 43) and 50
 (Fedora 44) in headless shells; 45, 47 and 48 are untested. Styled for the
 dark shell theme.
 
+## Install
+
+The `.deb`, `.rpm` and Arch packages install it to
+`/usr/share/gnome-shell/extensions`. After installing the app, log out and
+back in once so GNOME Shell sees it (Wayland can't reload the shell in
+place), then turn it on in the Extensions app or run:
+
+```bash
+gnome-extensions enable tokentracker@tokentracker.cc
+```
+
+The AppImage can't install anything outside itself, so with the AppImage
+install from a checkout instead.
+
 ## Install from a checkout
 
 ```bash

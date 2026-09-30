@@ -24,6 +24,22 @@
     ],
     "icon": [
       "icons/icon.png"
-    ]
+    ],
+    "linux": {
+      "deb": {
+        "files": {
+          "/usr/share/gnome-shell/extensions/tokentracker@tokentracker.cc/metadata.json": "../gnome-extension/tokentracker@tokentracker.cc/metadata.json",
+          "/usr/share/gnome-shell/extensions/tokentracker@tokentracker.cc/extension.js": "../gnome-extension/tokentracker@tokentracker.cc/extension.js",
+          "/usr/share/gnome-shell/extensions/tokentracker@tokentracker.cc/stylesheet.css": "../gnome-extension/tokentracker@tokentracker.cc/stylesheet.css"
+        }
+      },
+      "rpm": {
+        "files": {
+          "/usr/share/gnome-shell/extensions/tokentracker@tokentracker.cc/metadata.json": "../gnome-extension/tokentracker@tokentracker.cc/metadata.json",
+          "/usr/share/gnome-shell/extensions/tokentracker@tokentracker.cc/extension.js": "../gnome-extension/tokentracker@tokentracker.cc/extension.js",
+          "/usr/share/gnome-shell/extensions/tokentracker@tokentracker.cc/stylesheet.css": "../gnome-extension/tokentracker@tokentracker.cc/stylesheet.css"
+        }
+      }
+    }
   }
 }

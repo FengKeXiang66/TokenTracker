@@ -43,6 +43,9 @@ required_paths=(
   usr/share/applications/tokentracker-linux.desktop
   usr/share/icons/hicolor/512x512/apps/tokentracker-linux.png
   usr/share/licenses/tokentracker-linux/LICENSE
+  usr/share/gnome-shell/extensions/tokentracker@tokentracker.cc/metadata.json
+  usr/share/gnome-shell/extensions/tokentracker@tokentracker.cc/extension.js
+  usr/share/gnome-shell/extensions/tokentracker@tokentracker.cc/stylesheet.css
 )
 for required in "${required_paths[@]}"; do
   [[ -e "$TMPDIR_PACKAGE/$required" ]] || {
