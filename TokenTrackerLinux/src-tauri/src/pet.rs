@@ -16,8 +16,9 @@
 //! writes them to `pet.json`; the pet process watches that file. The pet
 //! process owns only its position (`pet-position.json`).
 
+use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
-use std::process::{Child, Command};
+use std::process::{Child, ChildStdout, Command, Stdio};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime};
 
@@ -34,6 +35,8 @@ const MAIN_LABEL: &str = "main";
 const PET_ARG: &str = "--pet";
 const SETTINGS_FILE: &str = "pet.json";
 const POSITION_FILE: &str = "pet-position.json";
+/// What the pet writes to its stdout to ask the app to show the dashboard.
+const OPEN_DASHBOARD_REQUEST: &str = "tokentracker:open-dashboard";
 /// How often the pet process checks for settings changes and a vanished parent.
 const WATCH_INTERVAL: Duration = Duration::from_millis(500);
 /// Drag follows the pointer at display rate.
@@ -321,12 +324,14 @@ pub fn pet_process_url(args: &[String]) -> Option<String> {
 
 /// Start or stop the pet process to match the saved settings.
 pub fn sync_pet<R: Runtime>(app: &AppHandle<R>) {
-    let visible = app.state::<PetState>().get().visible;
-    let base_url = app.state::<DashboardBaseUrl>().get();
     let process = app.state::<PetProcess>();
     let Ok(mut child) = process.0.lock() else {
         return;
     };
+    // Read under the lock: the relay thread and a tray toggle can both get
+    // here, and a stale `visible` would restart a pet that was just stopped.
+    let visible = app.state::<PetState>().get().visible;
+    let base_url = app.state::<DashboardBaseUrl>().get();
 
     let running = match child.as_mut() {
         Some(existing) => matches!(existing.try_wait(), Ok(None)),
@@ -355,10 +360,40 @@ pub fn sync_pet<R: Runtime>(app: &AppHandle<R>) {
             return;
         }
     };
-    match Command::new(exe).arg(PET_ARG).arg(&base_url).spawn() {
-        Ok(spawned) => *child = Some(spawned),
+    match Command::new(exe)
+        .arg(PET_ARG)
+        .arg(&base_url)
+        .stdout(Stdio::piped())
+        .spawn()
+    {
+        Ok(mut spawned) => {
+            if let Some(stdout) = spawned.stdout.take() {
+                relay_pet_requests(app.clone(), stdout);
+            }
+            *child = Some(spawned);
+        }
         Err(error) => eprintln!("[TokenTracker] failed to start the pet: {error}"),
     }
+}
+
+/// The pet asks for the dashboard over its stdout rather than launching the
+/// app itself, which would start a second process (and a full app, under the
+/// pet's XWayland backend, if this one were gone). Anything else it prints is
+/// passed through.
+fn relay_pet_requests<R: Runtime>(app: AppHandle<R>, stdout: ChildStdout) {
+    std::thread::spawn(move || {
+        for line in BufReader::new(stdout).lines() {
+            let Ok(line) = line else {
+                break;
+            };
+            if line == OPEN_DASHBOARD_REQUEST {
+                let raise = app.clone();
+                let _ = app.run_on_main_thread(move || crate::tray::show_main_window(&raise));
+            } else {
+                println!("{line}");
+            }
+        }
+    });
 }
 
 /// How often the dashboard's display preferences are relayed to the pet.
@@ -382,13 +417,15 @@ const CONTEXT_RELAY_SCRIPT: &str = r#"
 "#;
 
 /// While the pet is shown, keep its currency, language and theme in step with
-/// the dashboard's settings. Only writes `pet.json` when something changed.
+/// the dashboard's settings, and bring it back if its process died. Only writes
+/// `pet.json` when something changed.
 pub fn start_context_relay(app: AppHandle) {
     std::thread::spawn(move || loop {
         std::thread::sleep(CONTEXT_RELAY_INTERVAL);
         if !app.state::<PetState>().get().visible {
             continue;
         }
+        sync_pet(&app);
         let relay = app.clone();
         let _ = app.run_on_main_thread(move || {
             if let Some(main) = relay.get_webview_window(MAIN_LABEL) {
@@ -681,12 +718,11 @@ fn handle_pet_message<R: Runtime>(app: &AppHandle<R>, window: &WebviewWindow<R>,
                 eprintln!("[TokenTracker] pet drag failed: {error}");
             }
         }
-        // Launching the app again hands off to the running instance, which
-        // raises the dashboard (tauri-plugin-single-instance).
+        // Read by relay_pet_requests in the app process.
         "pet:context-menu" => {
-            if let Ok(exe) = std::env::current_exe() {
-                let _ = Command::new(exe).spawn();
-            }
+            let mut out = std::io::stdout().lock();
+            let _ = writeln!(out, "{OPEN_DASHBOARD_REQUEST}");
+            let _ = out.flush();
         }
         // The bubble band is fixed on Linux (see BUBBLE_BAND).
         _ => {}
