@@ -1,4 +1,4 @@
-use tokentracker_linux::desktop::is_gnome_shell;
+use tokentracker_linux::desktop::{is_gnome_shell, lists_top_bar_extension};
 
 #[test]
 fn gnome_shell_sessions_are_recognised() {
@@ -27,4 +27,15 @@ fn other_desktops_are_not_gnome_shell() {
     ] {
         assert!(!is_gnome_shell(value), "{value}");
     }
+}
+
+#[test]
+fn enabled_extension_list_is_matched_by_exact_uuid() {
+    assert!(lists_top_bar_extension(
+        "['ubuntu-dock@ubuntu.com', 'tokentracker@tokentracker.cc']"
+    ));
+    assert!(!lists_top_bar_extension("@as []"));
+    assert!(!lists_top_bar_extension(
+        "['old-tokentracker@tokentracker.cc']"
+    ));
 }

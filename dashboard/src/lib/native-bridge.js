@@ -86,10 +86,13 @@ export function isNativeLinuxApp() {
   return Boolean(window.__TAURI_INTERNALS__);
 }
 
-/** Set by the Linux app (`desktop.rs`) when the session runs GNOME Shell. */
-export function isGnomeShellSession() {
+/**
+ * Set by the Linux app (`desktop.rs`) on GNOME Shell when the top-bar
+ * extension is installed but not turned on.
+ */
+export function canOfferTopBarExtension() {
   if (typeof window === "undefined") return false;
-  return window.__TOKENTRACKER_GNOME_SHELL__ === true;
+  return window.__TOKENTRACKER_OFFER_TOP_BAR__ === true;
 }
 
 function getHandler() {

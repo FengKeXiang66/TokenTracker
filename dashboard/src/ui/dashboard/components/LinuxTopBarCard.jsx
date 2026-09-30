@@ -2,7 +2,7 @@ import React, { useCallback, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ArrowUpRight } from "lucide-react";
 import { copy } from "../../../lib/copy.ts";
-import { isGnomeShellSession, isNativeLinuxApp } from "../../../lib/native-bridge.js";
+import { canOfferTopBarExtension, isNativeLinuxApp } from "../../../lib/native-bridge.js";
 import { ClawdGlyph } from "./IslandOnboardingCard.jsx";
 
 const DISMISS_KEY = "linuxTopBarCardDismissed";
@@ -81,7 +81,8 @@ function TopBarPreview() {
  * Home-page discovery card for the GNOME Shell top-bar extension — the Linux
  * counterpart of the macOS menu bar item, whose promo is hidden on Linux.
  *
- * Linux app on GNOME Shell only; the extension can't load anywhere else. "Set up" opens the extension's install guide in the system
+ * Linux app only, on GNOME Shell with the extension installed (the .deb, .rpm
+ * and Arch packages ship it) but not yet on. "Set up" opens the extension's install guide in the system
  * browser (the app routes target="_blank" links there). Dismiss hides it
  * permanently via localStorage.
  */
@@ -94,7 +95,7 @@ export function LinuxTopBarCard({ enterDelay = 0 }) {
     writeDismissed();
   }, []);
 
-  const show = isNativeLinuxApp() && isGnomeShellSession() && !dismissed;
+  const show = isNativeLinuxApp() && canOfferTopBarExtension() && !dismissed;
 
   return (
     <AnimatePresence initial={false}>

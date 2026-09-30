@@ -5,11 +5,11 @@ import { setCopyLocale } from "../../../lib/copy";
 import { EN_LOCALE } from "../../../lib/locale";
 import { LinuxTopBarCard } from "./LinuxTopBarCard.jsx";
 
-const host = vi.hoisted(() => ({ linux: true, gnome: true }));
+const host = vi.hoisted(() => ({ linux: true, offer: true }));
 
 vi.mock("../../../lib/native-bridge.js", () => ({
   isNativeLinuxApp: () => host.linux,
-  isGnomeShellSession: () => host.gnome,
+  canOfferTopBarExtension: () => host.offer,
   isNativeWindowsApp: () => false,
 }));
 
@@ -35,7 +35,7 @@ describe("LinuxTopBarCard", () => {
     setCopyLocale(EN_LOCALE);
     localStorage.clear();
     host.linux = true;
-    host.gnome = true;
+    host.offer = true;
   });
 
   it("links Linux users to the GNOME extension's setup guide in the browser", () => {
@@ -54,8 +54,8 @@ describe("LinuxTopBarCard", () => {
     expect(screen.queryByText("Track usage in your top bar")).toBeNull();
   });
 
-  it("never shows outside GNOME Shell, where the extension can't load", () => {
-    host.gnome = false;
+  it("stays hidden unless the app says the extension is installed and off", () => {
+    host.offer = false;
     render(<LinuxTopBarCard />);
     expect(screen.queryByText("Track usage in your top bar")).toBeNull();
   });
