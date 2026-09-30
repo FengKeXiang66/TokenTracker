@@ -28,12 +28,12 @@ function writeDismissed() {
  * Home-page discovery card for the Linux app's floating desktop pet — the
  * Linux stand-in for the macOS promos hidden there (PR 674).
  *
- * Linux app only. Shows while the pet is off; "Show pet" turns it on through
+ * Linux app only. Shows once the pet is known to be off; "Show pet" turns it on through
  * the same pet bridge the Pet page uses, which also hides the card. Dismiss
  * hides it permanently via localStorage.
  */
 export function LinuxPetCard({ enterDelay = 0 }) {
-  const { available, settings, setSetting } = usePetSettings();
+  const { available, loaded, settings, setSetting } = usePetSettings();
   const [dismissed, setDismissed] = useState(readDismissed);
   const reduceMotion = useReducedMotion();
 
@@ -46,7 +46,9 @@ export function LinuxPetCard({ enterDelay = 0 }) {
     setSetting("visible", true);
   }, [setSetting]);
 
-  const show = isNativeLinuxApp() && available && !settings.visible && !dismissed;
+  // Wait for the host's reply: `visible` reads false until it arrives, which
+  // would flash the card at users whose pet is already on.
+  const show = isNativeLinuxApp() && available && loaded && !settings.visible && !dismissed;
 
   return (
     <AnimatePresence initial={false}>

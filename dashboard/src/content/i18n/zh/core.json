@@ -380,7 +380,7 @@
   "dashboard.island.enabled_toast": "灵动岛已开启，抬头看看刘海吧",
   "dashboard.island.dismiss_aria": "关闭灵动岛提示",
   "dashboard.linux_pet.title": "认识一下桌面宠物",
-  "dashboard.linux_pet.hint": "Clawd 浮在所有窗口之上——悬停查看今日 Token、花费和额度，随处拖动。",
+  "dashboard.linux_pet.hint": "桌面上的小伙伴——悬停查看今日 Token、花费和额度，随处拖动。",
   "dashboard.linux_pet.show": "显示宠物",
   "dashboard.linux_pet.settings_link": "宠物设置",
   "dashboard.linux_pet.dismiss_aria": "关闭桌面宠物提示",

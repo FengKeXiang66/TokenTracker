@@ -297,7 +297,7 @@
   "dashboard.island.enabled_toast": "靈動島已開啟，抬頭看看瀏海吧",
   "dashboard.island.dismiss_aria": "關閉靈動島提示",
   "dashboard.linux_pet.title": "認識一下桌面寵物",
-  "dashboard.linux_pet.hint": "Clawd 浮在所有視窗之上——懸停查看今日 Token、花費和額度，隨處拖動。",
+  "dashboard.linux_pet.hint": "桌面上的小夥伴——懸停查看今日 Token、花費和額度，隨處拖動。",
   "dashboard.linux_pet.show": "顯示寵物",
   "dashboard.linux_pet.settings_link": "寵物設定",
   "dashboard.linux_pet.dismiss_aria": "關閉桌面寵物提示",
