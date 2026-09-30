@@ -503,7 +503,8 @@ jobs:
             for required in \
               "tokentracker/bin/tracker.js" \
               "tokentracker/package.json" \
-              "tokentracker/dashboard/dist/index.html"
+              "tokentracker/dashboard/dist/index.html" \
+              "tokentracker/dashboard/dist/pet.html"
             do
               if [ ! -e "$(dirname "$node_bin")/$required" ]; then
                 echo "::error::$label is missing EmbeddedServer/$required"

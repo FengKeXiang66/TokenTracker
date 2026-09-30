@@ -161,6 +161,7 @@ test('Arch package validator checks the shipped runtime contract', () => {
     'usr/lib/tokentracker-linux/node',
     'usr/lib/tokentracker-linux/tokentracker/bin/tracker.js',
     'usr/lib/tokentracker-linux/tokentracker/dashboard/dist/index.html',
+    'usr/lib/tokentracker-linux/tokentracker/dashboard/dist/pet.html',
     'usr/share/applications/tokentracker-linux.desktop',
     'usr/share/icons/hicolor/512x512/apps/tokentracker-linux.png',
     'usr/share/licenses/tokentracker-linux/LICENSE',
@@ -182,4 +183,12 @@ test('Linux release builds the floating pet page into the dashboard', () => {
   const stepEnd = buildStep.indexOf('run: npm run dashboard:build');
   assert.ok(stepEnd > 0, 'Linux job must build the dashboard');
   assert.match(buildStep.slice(0, stepEnd), /TOKENTRACKER_BUILD_PET: "1"/);
+});
+
+test('Arch package builds the floating pet page and every package requires it', () => {
+  // Without pet.html the pet window loads the server's plain "Not Found" in a
+  // transparent always-on-top window.
+  assert.match(pkgbuild, /^\s*TOKENTRACKER_BUILD_PET=1 npm run dashboard:build$/m);
+  const linuxJob = release.slice(release.indexOf('\n  linux:'), release.indexOf('\n  publish:'));
+  assert.match(linuxJob, /"tokentracker\/dashboard\/dist\/pet\.html"/);
 });
