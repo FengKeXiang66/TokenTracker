@@ -1,8 +1,22 @@
 {
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/((?!assets/).*\\.(?:png|svg|webp|gif|ico|woff2|woff|ttf))",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=3600" }
+      ]
+    }
+  ],
   "rewrites": [
     { "source": "/ip-check", "destination": "/ip-check.html" },
     { "source": "/leaderboard", "destination": "/leaderboard.html" },
     { "source": "/share/(.*)", "destination": "/share.html" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/((?!assets/|brand-logos/|clawd/|pets/|achievements/.|api/|functions/|.*\\.).*)", "destination": "/index.html" }
   ]
 }

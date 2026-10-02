@@ -23,13 +23,13 @@ const ROUTE_PAGES = [
 test("vercel.json rewrites map route SEO pages before the SPA catch-all", () => {
   const config = JSON.parse(read("dashboard/vercel.json"));
   const rewrites = config.rewrites || [];
-  const catchAllIndex = rewrites.findIndex((r) => r.source === "/(.*)");
+  const catchAllIndex = rewrites.findIndex((r) => r.destination === "/index.html");
   assert.ok(catchAllIndex >= 0, "expected SPA catch-all rewrite to exist");
 
   for (const { route, file } of ROUTE_PAGES) {
     const index = rewrites.findIndex((r) => r.source === route && r.destination === file);
     assert.ok(index >= 0, `expected rewrite ${route} -> ${file}`);
-    assert.ok(index < catchAllIndex, `${route} rewrite must precede the /(.*) catch-all`);
+    assert.ok(index < catchAllIndex, `${route} rewrite must precede the SPA fallback`);
   }
 });
 

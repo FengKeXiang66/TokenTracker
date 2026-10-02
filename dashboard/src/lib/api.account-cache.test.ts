@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   fetchCloudUsageSummary, fetchCloudUsageDaily, fetchCloudUsageHeatmap,
-  getUsageHeatmap, invalidateAccountResponseCache,
+  getUsageHeatmap, getUsageLimits, getUserStatus, getUsageSummary, invalidateAccountResponseCache,
 } from "./api";
 import { expandHeatmapCompact } from "./heatmap-compact";
 
 vi.mock("./insforge-config", () => ({
-  getInsforgeRemoteUrl: () => "https://edge.example.test",
+  getInsforgeRemoteUrl: () => "https://srctyff5.us-east.insforge.app",
   getInsforgeAnonKey: () => "anon-key",
 }));
 vi.mock("./mock-data", () => ({ isMockEnabled: () => false }));
@@ -127,5 +127,44 @@ describe("compact heatmap browser routes", () => {
     const dense = expandHeatmapCompact(compact);
     vi.stubGlobal("fetch", vi.fn(async () => json(dense)));
     expect(await fetchCloudUsageHeatmap({ accessToken: jwt(), weeks: 52 })).toEqual(dense);
+  });
+});
+
+
+describe("local API host boundary", () => {
+  it.each(["www.tokentracker.cc", "preview.example.test"])("rejects local-only reads on %s before any network request", async (hostname) => {
+    vi.stubGlobal("window", { location: { hostname, origin: `https://${hostname}` } });
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    await expect(getUsageLimits()).rejects.toMatchObject({ status: 404, code: "LOCAL_API_UNAVAILABLE" });
+    await expect(getUserStatus()).rejects.toMatchObject({ status: 404, code: "LOCAL_API_UNAVAILABLE" });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("keeps authenticated public account reads on the verified direct cloud origin", async () => {
+    vi.stubGlobal("window", { location: { hostname: "www.tokentracker.cc", origin: "https://www.tokentracker.cc" } });
+    const fetch = vi.fn(async (_url: string) => json({ totals: { total_tokens: 42 } }));
+    vi.stubGlobal("fetch", fetch);
+    const token = jwt("cloud-owner");
+    expect(await getUsageSummary({ accessToken: token, from: "2026-10-01", to: "2026-10-02" })).toEqual({ totals: { total_tokens: 42 } });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const url = new URL(fetch.mock.calls[0][0]);
+    expect(url.origin).toBe("https://srctyff5.function2.insforge.app");
+    expect(url.pathname).toBe("/tokentracker-account-summary");
+    expect((fetch.mock.calls[0] as any)[1]?.headers.Authorization).toBe(`Bearer ${token}`);
+  });
+
+  it.each(["localhost", "127.0.0.1"])("preserves local reads on %s", async (hostname) => {
+    vi.stubGlobal("window", { location: { hostname, origin: `http://${hostname}:7680` } });
+    const fetch = vi.fn(async (_url: string) => json({ data: [], totals: { total_tokens: 42 } }));
+    vi.stubGlobal("fetch", fetch);
+    await getUsageLimits();
+    await getUserStatus();
+    await getUsageSummary({ accessToken: jwt(), from: "2026-10-01", to: "2026-10-02" });
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(fetch.mock.calls.map(([input]) => new URL(input).origin)).toEqual(Array(3).fill(`http://${hostname}:7680`));
+    expect(fetch.mock.calls.map(([input]) => new URL(input).pathname)).toEqual([
+      "/functions/tokentracker-usage-limits", "/functions/tokentracker-user-status", "/functions/tokentracker-usage-summary",
+    ]);
   });
 });

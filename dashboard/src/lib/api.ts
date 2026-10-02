@@ -160,7 +160,7 @@ const USAGE_TO_ACCOUNT_SLUG: Record<string, string> = {
   "tokentracker-usage-model-breakdown": "tokentracker-account-model-breakdown",
 };
 
-function isLocalhostHost() {
+export function isLocalhostHost() {
   return (
     typeof window !== "undefined" &&
     (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
@@ -201,6 +201,12 @@ async function fetchLocalJson(slug: string, params?: AnyRecord, options?: AnyRec
     });
   }
 
+  if (!isLocalhostHost()) {
+    const error: any = new Error("Local API is unavailable on this host");
+    error.status = 404;
+    error.code = "LOCAL_API_UNAVAILABLE";
+    throw error;
+  }
   const url = new URL(`/functions/${slug}`, window.location.origin);
   if (params) {
     for (const [key, value] of Object.entries(params)) {
