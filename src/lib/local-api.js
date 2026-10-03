@@ -13,6 +13,7 @@ const {
 const { accountSlugFor, fetchAccountUsage, mintAccessToken, invalidateCloudAccountPayloadCache, getCloudAccountSessionGeneration } = require("./cloud-account");
 const { getOrCreateMachineId, computeStableMachineId } = require("./machine-id");
 const { functionUrlFor, fetchFunctionResponse } = require("./function-url");
+const { createCloudDeviceTokenStore } = require("./cloud-device-token");
 
 const SYNC_TIMEOUT_MS = 120_000;
 // A failed account-view request should not stall every dashboard refresh
@@ -896,7 +897,14 @@ function runSyncCommand(extraEnv = {}, opts = {}) {
     if (opts.drain === true) args.push("--drain");
     if (opts.waitForLock === true) args.push("--wait-for-lock");
     const child = spawn(process.execPath, args, {
-      env: { ...process.env, ...extraEnv },
+      env: {
+        ...process.env, ...extraEnv,
+        ...(extraEnv.TOKENTRACKER_DEVICE_TOKEN ? {
+          TOKENTRACKER_INSFORGE_BASE_URL: extraEnv.TOKENTRACKER_INSFORGE_BASE_URL || resolveRuntimeConfig().baseUrl,
+          TOKENTRACKER_INSFORGE_ANON_KEY: resolveRuntimeConfig().anonKey,
+        } : {}),
+        TOKENTRACKER_LOCAL_SYNC_DEVICE_TOKEN: extraEnv.TOKENTRACKER_DEVICE_TOKEN || "",
+      },
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";
@@ -1144,19 +1152,29 @@ function createLocalApiHandler({ queuePath, serverVersion = null }) {
   const localAuthToken = crypto.randomBytes(24).toString("hex");
   const trackerDataDir = path.join(os.homedir(), ".tokentracker", "tracker");
   const cookiePath = path.join(trackerDataDir, "relay-cookies.json");
+  const localSyncDeviceTokenStore = createCloudDeviceTokenStore(path.join(trackerDataDir, "cloud-device-token.json"));
   const localSyncDeviceTokenCache = new Map();
   const localSyncDeviceTokenInflight = new Map();
   let localSyncDeviceTokenUserId = "";
   function clearLocalSyncDeviceTokenCache() {
     localSyncDeviceTokenCache.clear();
     localSyncDeviceTokenInflight.clear();
+    localSyncDeviceTokenStore.clear();
     localSyncDeviceTokenUserId = "";
   }
-  function currentCloudUploadFailure(syncStartedAt, { backoff = false } = {}) {
+  function invalidateLocalSyncDeviceToken(token) {
+    if (!token) return;
+    for (const [key, value] of localSyncDeviceTokenCache) {
+      if (value === token) localSyncDeviceTokenCache.delete(key);
+    }
+    localSyncDeviceTokenStore.invalidate(token);
+  }
+  function currentCloudUploadFailure(syncStartedAt, { backoff = false, deviceToken, attemptId } = {}) {
     try {
       const state = JSON.parse(fs.readFileSync(path.join(path.dirname(qp), "upload.throttle.json"), "utf8"));
-      if (Date.parse(state.lastErrorAt || "") >= syncStartedAt && Number(state.lastErrorStatus) > 0) {
-        if (state.lastErrorCode === "CLOUD_DEVICE_TOKEN_REJECTED") clearLocalSyncDeviceTokenCache();
+      if (attemptId && state.lastErrorAttemptId === attemptId &&
+          Date.parse(state.lastErrorAt || "") >= syncStartedAt && Number(state.lastErrorStatus) > 0) {
+        if (state.lastErrorCode === "CLOUD_DEVICE_TOKEN_REJECTED") invalidateLocalSyncDeviceToken(deviceToken);
         return { code: state.lastErrorCode || "CLOUD_UPLOAD_FAILED", status: Number(state.lastErrorStatus) };
       }
       if (backoff && Number(state.backoffUntilMs || 0) > syncStartedAt) {
@@ -1170,7 +1188,7 @@ function createLocalApiHandler({ queuePath, serverVersion = null }) {
   // request for one account must not clear another account's failure), and
   // suppress the duplicate fan-out while the first cloud probe is pending.
   const accountViewFailures = new Map();
-  const accountViewInFlight = new Set();
+  const accountViewInFlight = new Map();
   let accountUploadState = readAccountUploadState();
 
   function readAccountUploadState() {
@@ -1417,6 +1435,10 @@ function createLocalApiHandler({ queuePath, serverVersion = null }) {
       anonKey: runtime.anonKey,
       refreshToken,
       timeoutMs: runtime.httpTimeoutMs,
+      throwOnFailure: true,
+    }).catch((error) => {
+      if (error.status === 401 && sessionAtStart === getCloudAccountSessionGeneration()) clearLocalSyncDeviceTokenCache();
+      throw error;
     });
     if (!minted?.accessToken || sessionAtStart !== getCloudAccountSessionGeneration()) return null;
     const rotatedRefreshToken =
@@ -1439,8 +1461,14 @@ function createLocalApiHandler({ queuePath, serverVersion = null }) {
     if (userId) localSyncDeviceTokenUserId = userId;
     const identity = userId || `refresh:${rotatedRefreshToken || refreshToken}`;
     const cacheKey = localSyncDeviceTokenCacheKey(identity, machineId, baseUrl);
-    const cachedToken = localSyncDeviceTokenCache.get(cacheKey);
-    if (cachedToken) return cachedToken;
+    const binding = { userId, baseUrl, machineId };
+    const cachedToken = localSyncDeviceTokenCache.get(cacheKey) ||
+      (userId ? localSyncDeviceTokenStore.get(binding) : null);
+    if (cachedToken) {
+      localSyncDeviceTokenCache.set(cacheKey, cachedToken);
+      if (userId) localSyncDeviceTokenStore.set(binding, cachedToken);
+      return cachedToken;
+    }
     const inflightToken = localSyncDeviceTokenInflight.get(cacheKey);
     if (inflightToken?.sessionGeneration === sessionAtStart) return inflightToken.promise;
 
@@ -1482,13 +1510,19 @@ function createLocalApiHandler({ queuePath, serverVersion = null }) {
       });
       if (sessionAtStart !== getCloudAccountSessionGeneration() || !getCloudSyncPref() || cloudPrefAtStart !== cloudSyncPrefGeneration) return null;
       if (!res.ok) {
-        if (res.status === 401) clearLocalSyncDeviceTokenCache();
+        if (res.status === 401 && sessionAtStart === getCloudAccountSessionGeneration()) {
+          localSyncDeviceTokenCache.delete(cacheKey);
+          localSyncDeviceTokenStore.clear(binding);
+        }
         return null;
       }
       const data = await res.json().catch(() => null);
       const token = typeof data?.token === "string" ? data.token.trim() : "";
       if (sessionAtStart !== getCloudAccountSessionGeneration() || !getCloudSyncPref() || cloudPrefAtStart !== cloudSyncPrefGeneration) return null;
-      if (token) localSyncDeviceTokenCache.set(cacheKey, token);
+      if (token) {
+        localSyncDeviceTokenCache.set(cacheKey, token);
+        if (userId) localSyncDeviceTokenStore.set(binding, token);
+      }
       return token || null;
     })();
     localSyncDeviceTokenInflight.set(cacheKey, { promise: issuePromise, sessionGeneration: sessionAtStart });
@@ -1535,32 +1569,46 @@ function createLocalApiHandler({ queuePath, serverVersion = null }) {
     invalidateAfterAccountUpload();
     const runtime = resolveRuntimeConfig();
     const failureKey = `${runtime.baseUrl}\0${refreshToken}`;
-    const requestKey = `${failureKey}\0${usageSlug}\0${url.searchParams.toString()}`;
+    const sessionAtStart = getCloudAccountSessionGeneration();
+    const cloudPrefAtStart = cloudSyncPrefGeneration;
+    const params = new URLSearchParams(url.searchParams);
+    params.sort();
+    const requestKey = `${failureKey}\0${sessionAtStart}\0${cloudPrefAtStart}\0${accountUploadState}\0${usageSlug}\0${params}`;
     if (url.searchParams.get("refresh") !== "1" && accountViewFailureUntil(failureKey) > Date.now()) {
       return "transient-backoff";
     }
-    // Six native dashboard requests normally arrive together. If the cloud is
-    // already being probed for this session, let the remaining requests use
-    // their local fallback instead of opening more timeout-bound sockets.
-    if (accountViewInFlight.has(requestKey)) {
-      return "transient-inflight";
-    }
-    accountViewInFlight.add(requestKey);
     const envTimeout = process.env.TOKENTRACKER_HTTP_TIMEOUT_MS
       ? parseInt(process.env.TOKENTRACKER_HTTP_TIMEOUT_MS, 10)
       : 0;
     const timeoutMs = envTimeout > 0 ? envTimeout : 4000;
-    const sessionAtStart = getCloudAccountSessionGeneration();
-    const cloudPrefAtStart = cloudSyncPrefGeneration;
     try {
-      const out = await fetchAccountUsage({
-        usageSlug,
-        searchParams: url.searchParams,
-        baseUrl: runtime.baseUrl || DEFAULT_BASE_URL,
-        anonKey: runtime.anonKey,
-        refreshToken,
-        timeoutMs,
-      });
+      // An identical overlapping read shares the entire probe, including its
+      // token mint. A healthy pending read must not look like a cloud outage
+      // and trigger the native client's account recovery loop.
+      let pending = accountViewInFlight.get(requestKey);
+      if (!pending) {
+        pending = fetchAccountUsage({
+          usageSlug,
+          searchParams: url.searchParams,
+          baseUrl: runtime.baseUrl || DEFAULT_BASE_URL,
+          anonKey: runtime.anonKey,
+          refreshToken,
+          timeoutMs,
+          onSessionRefreshed: (session) => {
+            if (sessionAtStart !== getCloudAccountSessionGeneration()) {
+              throw Object.assign(new Error("Account session changed"), { code: "auth_session_changed" });
+            }
+            if (session.refreshToken) setRelayRefreshToken(session.refreshToken);
+            if (session.csrfToken) setRelayCsrfToken(session.csrfToken);
+          },
+        });
+        accountViewInFlight.set(requestKey, pending);
+        const cleanup = () => {
+          if (accountViewInFlight.get(requestKey) === pending) accountViewInFlight.delete(requestKey);
+        };
+        pending.then(cleanup, cleanup);
+      }
+      const out = await pending;
       // `null` here means the slug has no cloud equivalent, or the session
       // vanished mid-request — a routing/session fact, not an outage.
       if (!out) return ACCOUNT_FALLBACK_SIGNED_OUT;
@@ -1571,8 +1619,6 @@ function createLocalApiHandler({ queuePath, serverVersion = null }) {
         rememberAccountViewFailure(failureKey);
         return "transient-upstream";
       }
-      if (out.rotatedRefreshToken) setRelayRefreshToken(out.rotatedRefreshToken);
-      if (out.rotatedCsrfToken) setRelayCsrfToken(out.rotatedCsrfToken);
       if (!getCloudSyncPref()) return ACCOUNT_FALLBACK_CLOUD_SYNC_OFF;
       if (cloudPrefAtStart !== cloudSyncPrefGeneration) {
         json(res, { error: "Cloud sync preference changed", code: "CLOUD_SYNC_CHANGED" }, 409);
@@ -1587,8 +1633,15 @@ function createLocalApiHandler({ queuePath, serverVersion = null }) {
       res.end(JSON.stringify(out.data));
       return "served";
     } catch (e) {
-      if (e.code === "auth_session_changed") {
-        json(res, { error: "Account session changed", code: e.code }, 409);
+      const currentSession = getCloudAccountSessionGeneration();
+      if (e.code === "auth_session_changed" ||
+          (sessionAtStart !== currentSession && e.invalidatedSessionGeneration !== currentSession)) {
+        json(res, { error: "Account session changed", code: "auth_session_changed" }, 409);
+        return "served";
+      }
+      if (!getCloudSyncPref()) return ACCOUNT_FALLBACK_CLOUD_SYNC_OFF;
+      if (cloudPrefAtStart !== cloudSyncPrefGeneration) {
+        json(res, { error: "Cloud sync preference changed", code: "CLOUD_SYNC_CHANGED" }, 409);
         return "served";
       }
       // Signed in + cloud sync on, but the cloud read failed (offline, token
@@ -1601,8 +1654,6 @@ function createLocalApiHandler({ queuePath, serverVersion = null }) {
       }
       rememberAccountViewFailure(failureKey);
       return reason;
-    } finally {
-      accountViewInFlight.delete(requestKey);
     }
   }
 
@@ -2162,6 +2213,7 @@ function createLocalApiHandler({ queuePath, serverVersion = null }) {
           }
         }
         const syncStartedAt = Date.now();
+        extraEnv.TOKENTRACKER_LOCAL_SYNC_ATTEMPT_ID = crypto.randomUUID();
         const result = await runSyncCommand(extraEnv, {
           drain,
           auto,
@@ -2171,11 +2223,11 @@ function createLocalApiHandler({ queuePath, serverVersion = null }) {
           waitForLock:
             !drain && !background && Boolean(extraEnv.TOKENTRACKER_DEVICE_TOKEN),
         }).catch((error) => {
-          const failure = currentCloudUploadFailure(syncStartedAt, { backoff: auto && drain });
+          const failure = currentCloudUploadFailure(syncStartedAt, { backoff: auto && drain, deviceToken: extraEnv.TOKENTRACKER_DEVICE_TOKEN, attemptId: extraEnv.TOKENTRACKER_LOCAL_SYNC_ATTEMPT_ID });
           if (failure) Object.assign(error, failure);
           throw error;
         });
-        const failure = currentCloudUploadFailure(syncStartedAt);
+        const failure = currentCloudUploadFailure(syncStartedAt, { deviceToken: extraEnv.TOKENTRACKER_DEVICE_TOKEN, attemptId: extraEnv.TOKENTRACKER_LOCAL_SYNC_ATTEMPT_ID });
         if (failure) throw Object.assign(new Error("Cloud upload failed"), failure);
         invalidateAfterAccountUpload();
         if (drain) invalidateCloudAccountPayloadCache();

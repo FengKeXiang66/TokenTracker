@@ -42,9 +42,11 @@ test("every account-* endpoint delegates guarded device scoping through the shar
     assert.ok(
       src.includes('rpc("account_usage_grouped_cached"') ||
         src.includes('rpc("account_summary_compact"') ||
+        src.includes('rpc("account_summary_wire"') ||
         src.includes('rpc("account_heatmap_compact"') ||
         src.includes('rpc("account_heatmap_wire"') ||
         src.includes('rpc("account_model_breakdown_compact"') ||
+        src.includes('rpc("account_model_breakdown_wire"') ||
         src.includes('rpc("account_daily_compact"') ||
         src.includes('rpc("account_daily_wire"'),
       `${name}: must use the cached atomic device-scoping RPC`,
@@ -57,14 +59,14 @@ test("every account-* endpoint delegates guarded device scoping through the shar
 });
 
 test("account wire wrappers preserve user and device scoping through the existing compact RPCs", () => {
-  const wireMigration = fs.readFileSync(
-    path.join(ROOT, "migrations/20261002090000_compact-account-model-wire.sql"), "utf8",
-  );
-  for (const [endpoint, compactMigration] of [
-    ["heatmap", "20260918041500_fold-account-summary-and-heatmap-aggregation.sql"],
-    ["daily", "20260918050000_fold-account-daily-aggregation.sql"],
+  for (const [endpoint, compactMigration, wireMigrationFile] of [
+    ["heatmap", "20260918041500_fold-account-summary-and-heatmap-aggregation.sql", "20261002090000_compact-account-model-wire.sql"],
+    ["daily", "20260918050000_fold-account-daily-aggregation.sql", "20261002090000_compact-account-model-wire.sql"],
+    ["summary", "20260918041500_fold-account-summary-and-heatmap-aggregation.sql", "20261003093000_compact-account-summary-model-wire.sql"],
+    ["model_breakdown", "20260918043000_fold-account-model-breakdown-aggregation.sql", "20261003093000_compact-account-summary-model-wire.sql"],
   ]) {
-    assert.match(readEdge(`tokentracker-account-${endpoint}.ts`),
+    const wireMigration = fs.readFileSync(path.join(ROOT, "migrations", wireMigrationFile), "utf8");
+    assert.match(readEdge(`tokentracker-account-${endpoint.replaceAll("_", "-")}.ts`),
       new RegExp(`rpc\\("account_${endpoint}_wire"`, "u"));
     assert.match(wireMigration,
       new RegExp(`public\\.account_${endpoint}_compact\\(p_user_id, p_device_id, p_from, p_to, p_tz, p_offset_min, p_range_from, p_range_to\\)`, "u"),

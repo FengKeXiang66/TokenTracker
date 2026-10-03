@@ -3337,7 +3337,19 @@ async function cmdSync(argv, context = {}) {
     if (legacyBaseUrlMigration?.replacementDeviceToken) {
       runtimeConfig.deviceToken = legacyBaseUrlMigration.replacementDeviceToken;
     }
-    const runtime = resolveRuntimeConfig({ config: runtimeConfig, env: process.env });
+    // An authenticated local API supplies this capability for this upload.
+    // Keep a separately configured CLI account from overriding its owner.
+    const runtime = resolveRuntimeConfig({
+      cli: {
+        deviceToken: process.env.TOKENTRACKER_LOCAL_SYNC_DEVICE_TOKEN,
+        ...(process.env.TOKENTRACKER_LOCAL_SYNC_DEVICE_TOKEN ? {
+          baseUrl: process.env.TOKENTRACKER_INSFORGE_BASE_URL,
+          anonKey: process.env.TOKENTRACKER_INSFORGE_ANON_KEY,
+        } : {}),
+      },
+      config: runtimeConfig,
+      env: process.env,
+    });
 
     let uploadResult = { inserted: 0, skipped: 0 };
     let uploadAttempted = false;
@@ -3464,6 +3476,7 @@ async function cmdSync(argv, context = {}) {
           nowMs: Date.now(),
           state: uploadThrottleState,
           error: e,
+          attemptId: process.env.TOKENTRACKER_LOCAL_SYNC_ATTEMPT_ID,
         });
         await writeJson(uploadThrottlePath, uploadThrottleState);
         if (!opts.auto) {

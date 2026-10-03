@@ -84,6 +84,52 @@ async function call(handler, opts) {
   return res;
 }
 
+async function startAccountHttpFixture(t, refreshToken = "seed") {
+  const http = require("node:http");
+  const queuePath = path.join(tmpHome, "queue.jsonl");
+  writeQueue(queuePath, [SAMPLE_ROW]);
+  const trackerDir = path.join(tmpHome, ".tokentracker", "tracker");
+  fs.mkdirSync(trackerDir, { recursive: true });
+  const cookiePath = path.join(trackerDir, "relay-cookies.json");
+  fs.writeFileSync(cookiePath, JSON.stringify({
+    insforge_refresh_token: `insforge_refresh_token=${refreshToken}; Path=/; HttpOnly; SameSite=Lax`,
+  }));
+  const handler = freshHandler(queuePath);
+  const server = http.createServer((req, res) => {
+    handler(req, res, new URL(req.url, "http://localhost")).catch(() => { res.statusCode = 500; res.end(); });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const realFetch = global.fetch;
+  t.after(() => { global.fetch = realFetch; });
+  t.after(() => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }));
+  return {
+    root: `http://127.0.0.1:${server.address().port}`,
+    realFetch,
+    cookiePath,
+    readCookies: () => JSON.parse(fs.readFileSync(cookiePath, "utf8")),
+  };
+}
+
+async function startAccountUpstreamFixture(t, reply) {
+  const http = require("node:http");
+  const realFetch = global.fetch;
+  const server = http.createServer(async (req, res) => {
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    const rawBody = Buffer.concat(chunks).toString("utf8");
+    res.setHeader("Content-Type", "application/json");
+    await reply(req, res, new URL(req.url, "http://localhost"), rawBody ? JSON.parse(rawBody) : {});
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  global.fetch = (url, init) => {
+    const upstream = new URL(url);
+    return realFetch(origin + upstream.pathname + upstream.search, init);
+  };
+  t.after(() => { global.fetch = realFetch; });
+  t.after(() => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }));
+}
+
 function writeQueue(queuePath, rows) {
   fs.writeFileSync(queuePath, rows.map((r) => JSON.stringify(r)).join("\n") + "\n");
 }
@@ -254,21 +300,87 @@ test("concurrent account-view fan-out shares one pending cloud probe", async () 
     const endpoint = "/functions/tokentracker-usage-summary?from=2026-04-20&to=2026-04-20&account=1";
     const firstPromise = call(handler, { endpoint });
     await startedPromise;
-    // The second request arrives while the first refresh-token probe is still
-    // pending. It must immediately use the local fallback rather than opening
-    // another timeout-bound network request.
-    const second = await call(handler, { endpoint });
+    // Both callers await the same probe and receive the same outage reason.
+    const secondPromise = call(handler, { endpoint });
     assert.equal(refreshCalls, 1);
-    assert.equal(second._headers["x-tokentracker-account-view"], "0");
-    assert.equal(second.json().totals.total_tokens, 120);
-
     release();
-    const first = await firstPromise;
+    const [first, second] = await Promise.all([firstPromise, secondPromise]);
     assert.equal(first._headers["x-tokentracker-account-view"], "0");
     assert.equal(first.json().totals.total_tokens, 120);
+    assert.equal(second._headers["x-tokentracker-account-view"], "0");
+    assert.equal(second._headers["x-tokentracker-account-fallback"], first._headers["x-tokentracker-account-fallback"]);
+    assert.equal(second.json().totals.total_tokens, 120);
   } finally {
     global.fetch = realFetch;
   }
+});
+
+test("HTTP account fan-out shares a healthy read while manual refresh supersedes its pending cache", async (t) => {
+  const http = require("node:http");
+  const queuePath = path.join(tmpHome, "queue.jsonl");
+  writeQueue(queuePath, [SAMPLE_ROW]);
+  const trackerDir = path.join(tmpHome, ".tokentracker", "tracker");
+  fs.mkdirSync(trackerDir, { recursive: true });
+  fs.writeFileSync(path.join(trackerDir, "relay-cookies.json"), JSON.stringify({
+    insforge_refresh_token: "insforge_refresh_token=fanout; Path=/; HttpOnly; SameSite=Lax",
+  }));
+  const handler = freshHandler(queuePath);
+  let received = 0;
+  const waits = new Map();
+  const server = http.createServer((req, res) => {
+    received += 1;
+    waits.get(received)?.();
+    handler(req, res, new URL(req.url, "http://localhost")).catch(() => { res.statusCode = 500; res.end(); });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }));
+  const untilReceived = (n) => received >= n ? Promise.resolve() : new Promise((resolve) => waits.set(n, resolve));
+  const realFetch = global.fetch;
+  let mintCalls = 0;
+  let edgeCalls = 0;
+  const releases = [];
+  const token = `e30.${Buffer.from(JSON.stringify({ sub: "fanout-user", exp: Date.now() / 1000 + 3600 })).toString("base64url")}.sig`;
+  global.fetch = async (url) => {
+    if (String(url).includes("/api/auth/refresh")) {
+      mintCalls += 1;
+      return { ok: true, json: async () => ({ accessToken: token }) };
+    }
+    edgeCalls += 1;
+    return new Promise((resolve) => releases.push((value) => resolve({ ok: true, json: async () => ({ totals: { total_tokens: value } }) })));
+  };
+  t.after(() => { global.fetch = realFetch; });
+  const root = `http://127.0.0.1:${server.address().port}`;
+  const endpoint = "/functions/tokentracker-usage-summary?from=2026-10-01&to=2026-10-02&account=1";
+  const reordered = "/functions/tokentracker-usage-summary?account=1&to=2026-10-02&from=2026-10-01";
+  const ordinary = [realFetch(root + endpoint), realFetch(root + reordered), realFetch(root + endpoint)];
+  await untilReceived(3);
+  await new Promise(setImmediate);
+  assert.equal(mintCalls, 1);
+  assert.equal(edgeCalls, 1);
+  // A manual request bypasses the pending ordinary result, but concurrent
+  // manual consumers still share their own fresh read.
+  const manual = [realFetch(root + endpoint + "&refresh=1"), realFetch(root + reordered + "&refresh=1")];
+  await untilReceived(5);
+  await new Promise(setImmediate);
+  assert.equal(edgeCalls, 2);
+  releases[1](456);
+  for (const response of await Promise.all(manual)) {
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("x-tokentracker-account-view"), "1");
+    assert.equal(response.headers.get("x-tokentracker-account-fallback"), null);
+    assert.equal((await response.json()).totals.total_tokens, 456);
+  }
+  releases[0](123);
+  for (const response of await Promise.all(ordinary)) {
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("x-tokentracker-account-view"), "1");
+    assert.equal(response.headers.get("x-tokentracker-account-fallback"), null);
+    assert.equal((await response.json()).totals.total_tokens, 123);
+  }
+  const cached = await realFetch(root + endpoint);
+  assert.equal((await cached.json()).totals.total_tokens, 456);
+  assert.equal(mintCalls, 1);
+  assert.equal(edgeCalls, 2);
 });
 
 test("usage-summary?account=1 serves the cross-device aggregate when signed in + cloud sync on", async () => {
@@ -744,11 +856,18 @@ test("loopback account reads invalidate on successful-upload state, reset, and e
   t.after(() => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }));
   const realFetch = global.fetch;
   let edgeCalls = 0;
+  let holdNextRead;
   const token = `e30.${Buffer.from(JSON.stringify({ sub: "upload-user", exp: Date.now() / 1000 + 3600 })).toString("base64url")}.sig`;
   global.fetch = async (url) => {
     if (String(url).includes("/api/auth/refresh")) return { ok: true, json: async () => ({ accessToken: token }) };
-    edgeCalls += 1;
-    return { ok: true, json: async () => ({ totals: { total_tokens: edgeCalls } }) };
+    const value = ++edgeCalls;
+    if (holdNextRead) {
+      const hold = holdNextRead;
+      holdNextRead = null;
+      hold.started();
+      await hold.gate;
+    }
+    return { ok: true, json: async () => ({ totals: { total_tokens: value } }) };
   };
   t.after(() => { global.fetch = realFetch; });
   const root = `http://127.0.0.1:${server.address().port}`;
@@ -775,6 +894,20 @@ test("loopback account reads invalidate on successful-upload state, reset, and e
   assert.equal(await read("&refresh=1"), 6);
   assert.equal(await read(), 6);
   assert.equal(edgeCalls, 6);
+  let started;
+  const seen = new Promise((resolve) => { started = resolve; });
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  holdNextRead = { started, gate };
+  fs.writeFileSync(statePath, JSON.stringify({ offset: 300, updatedAt: "before-pending" }));
+  const beforeUpload = read();
+  await seen;
+  fs.writeFileSync(statePath, JSON.stringify({ offset: 400, updatedAt: "during-pending" }));
+  assert.equal(await read(), 8, "the completed upload must start a new read rather than join the older flight");
+  release();
+  assert.equal(await beforeUpload, 7);
+  assert.equal(await read(), 8, "the older response cannot repopulate the upload-invalidated cache");
+  assert.equal(edgeCalls, 8);
 });
 
 test("logout and account switch during an HTTP account read cannot restore the old relay token", async (t) => {
@@ -786,8 +919,12 @@ test("logout and account switch during an HTTP account read cannot restore the o
   const cookiePath = path.join(trackerDir, "relay-cookies.json");
   fs.writeFileSync(cookiePath, JSON.stringify({ insforge_refresh_token: "insforge_refresh_token=a; Path=/; HttpOnly; SameSite=Lax" }));
   const handler = freshHandler(queuePath);
+  let readsArrived = 0;
+  let bothArrived;
+  const bothReadsArrived = new Promise((resolve) => { bothArrived = resolve; });
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, "http://localhost");
+    if (url.pathname.endsWith("tokentracker-usage-summary") && ++readsArrived === 2) bothArrived();
     handler(req, res, url).catch(() => { res.statusCode = 500; res.end(); });
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -807,7 +944,8 @@ test("logout and account switch during an HTTP account read cannot restore the o
     if (pathname === "/api/auth/sign-in") return new Response(JSON.stringify({ refreshToken: "b", csrfToken: "csrf-b" }), { headers: { "content-type": "application/json" } });
     if (pathname === "/api/auth/refresh") {
       const account = JSON.parse(init.body).refresh_token;
-      return { ok: true, json: async () => ({ accessToken: account === "a" ? tokenA : tokenB, refreshToken: account === "a" ? "rotated-a" : "rotated-b" }) };
+      const isA = account === "a" || account === "rotated-a";
+      return { ok: true, json: async () => ({ accessToken: isA ? tokenA : tokenB, refreshToken: isA ? "rotated-a" : "rotated-b" }) };
     }
     if (init.headers.Authorization === `Bearer ${tokenA}`) {
       started();
@@ -819,6 +957,9 @@ test("logout and account switch during an HTTP account read cannot restore the o
   const endpoint = "/functions/tokentracker-usage-summary?from=2026-04-20&to=2026-04-20&account=1";
   const oldRead = realFetch(root + endpoint);
   await seenA;
+  const oldReadTwin = realFetch(root + endpoint);
+  await bothReadsArrived;
+  await new Promise(setImmediate);
   assert.equal((await realFetch(root + "/api/auth/logout", { method: "POST" })).status, 200);
   assert.equal(fs.existsSync(cookiePath), false);
   assert.equal((await realFetch(root + "/api/auth/sign-in", { method: "POST" })).status, 200);
@@ -826,10 +967,11 @@ test("logout and account switch during an HTTP account read cannot restore the o
   assert.equal(newRead.headers.get("x-tokentracker-account-view"), "1");
   assert.equal((await newRead.json()).totals.total_tokens, 987);
   release({ ok: true, json: async () => ({ totals: { total_tokens: 12345 } }) });
-  const oldResponse = await oldRead;
-  assert.equal(oldResponse.status, 409);
-  assert.equal(oldResponse.headers.get("x-tokentracker-account-view"), null);
-  assert.deepEqual(await oldResponse.json(), { error: "Account session changed", code: "auth_session_changed" });
+  for (const oldResponse of await Promise.all([oldRead, oldReadTwin])) {
+    assert.equal(oldResponse.status, 409);
+    assert.equal(oldResponse.headers.get("x-tokentracker-account-view"), null);
+    assert.deepEqual(await oldResponse.json(), { error: "Account session changed", code: "auth_session_changed" });
+  }
   const persisted = JSON.parse(fs.readFileSync(cookiePath, "utf8"));
   assert.ok(persisted.insforge_refresh_token.includes("rotated-b"));
   assert.ok(!persisted.insforge_refresh_token.includes("rotated-a"));
@@ -876,4 +1018,317 @@ test("a late HTTP auth refresh cannot overwrite a new login's relay cookies", as
   const persisted = JSON.parse(fs.readFileSync(cookiePath, "utf8"));
   assert.ok(persisted.insforge_refresh_token.startsWith("insforge_refresh_token=b;"));
   assert.ok(!persisted.insforge_refresh_token.includes("rotated-a"));
+});
+
+test("different HTTP account queries reuse the rotated session while the first cloud GET is pending", async (t) => {
+  const { root, realFetch, readCookies } = await startAccountHttpFixture(t);
+  let refreshCalls = 0;
+  let edgeCalls = 0;
+  let started;
+  const firstEdgeStarted = new Promise((resolve) => { started = resolve; });
+  let release;
+  const firstEdge = new Promise((resolve) => { release = resolve; });
+  const token = `e30.${Buffer.from(JSON.stringify({ sub: "early-persist-user", exp: Date.now() / 1000 + 3600 })).toString("base64url")}.sig`;
+  global.fetch = async (url, init) => {
+    if (String(url).includes("/api/auth/refresh")) {
+      refreshCalls += 1;
+      assert.equal(JSON.parse(init.body).refresh_token, "seed");
+      if (refreshCalls > 1) return new Response("{}", { status: 401 });
+      return new Response(JSON.stringify({ accessToken: token, refreshToken: "rotated", csrfToken: "fresh-csrf" }));
+    }
+    const value = ++edgeCalls;
+    if (value === 1) { started(); await firstEdge; }
+    return new Response(JSON.stringify({ totals: { total_tokens: value } }));
+  };
+  const path = "/functions/tokentracker-usage-summary?account=1&from=";
+  const first = realFetch(root + path + "2026-10-01&to=2026-10-01");
+  await firstEdgeStarted;
+  assert.ok(readCookies().insforge_refresh_token.startsWith("insforge_refresh_token=rotated;"));
+  assert.ok(Object.values(readCookies()).some((cookie) => cookie.includes("fresh-csrf")));
+  const second = await realFetch(root + path + "2026-10-02&to=2026-10-02");
+  assert.equal(second.status, 200);
+  assert.equal(second.headers.get("x-tokentracker-account-view"), "1");
+  assert.equal((await second.json()).totals.total_tokens, 2);
+  assert.equal(refreshCalls, 1, "the second query must not refresh the already-consumed seed");
+  assert.equal(edgeCalls, 2);
+  release();
+  const response = await first;
+  assert.equal(response.headers.get("x-tokentracker-account-view"), "1");
+  assert.equal((await response.json()).totals.total_tokens, 1);
+});
+
+test("a failed HTTP account GET preserves its rotated session for the next read", async (t) => {
+  const { root, realFetch, readCookies } = await startAccountHttpFixture(t);
+  let refreshCalls = 0;
+  let edgeCalls = 0;
+  const token = `e30.${Buffer.from(JSON.stringify({ sub: "failed-edge-user", exp: Date.now() / 1000 + 3600 })).toString("base64url")}.sig`;
+  global.fetch = async (url) => {
+    if (String(url).includes("/api/auth/refresh")) {
+      refreshCalls += 1;
+      if (refreshCalls > 1) return new Response("{}", { status: 401 });
+      return new Response(JSON.stringify({ accessToken: token, refreshToken: "rotated", csrfToken: "fresh-csrf" }));
+    }
+    edgeCalls += 1;
+    return edgeCalls === 1 ? new Response("{}", { status: 503 })
+      : new Response(JSON.stringify({ totals: { total_tokens: 789 } }));
+  };
+  const path = "/functions/tokentracker-usage-summary?account=1&from=2026-10-01&to=2026-10-01";
+  const failure = await realFetch(root + path);
+  assert.equal(failure.status, 200);
+  assert.equal(failure.headers.get("x-tokentracker-account-view"), "0");
+  assert.equal(failure.headers.get("x-tokentracker-account-fallback"), "transient-upstream");
+  assert.ok(readCookies().insforge_refresh_token.startsWith("insforge_refresh_token=rotated;"));
+  assert.ok(Object.values(readCookies()).some((cookie) => cookie.includes("fresh-csrf")));
+  const retry = await realFetch(root + path + "&refresh=1");
+  assert.equal(retry.status, 200);
+  assert.equal(retry.headers.get("x-tokentracker-account-view"), "1");
+  assert.equal((await retry.json()).totals.total_tokens, 789);
+  assert.equal(refreshCalls, 1);
+  assert.equal(edgeCalls, 2);
+});
+
+test("an HTTP account mint completing after logout and login cannot persist the old rotation", async (t) => {
+  const { root, realFetch, readCookies, cookiePath } = await startAccountHttpFixture(t, "a");
+  let started;
+  const mintStarted = new Promise((resolve) => { started = resolve; });
+  let release;
+  const mintA = new Promise((resolve) => { release = resolve; });
+  let edgeACalls = 0;
+  const jwt = (sub) => `e30.${Buffer.from(JSON.stringify({ sub, exp: Date.now() / 1000 + 3600 })).toString("base64url")}.sig`;
+  const tokenA = jwt("old-mint-a");
+  const tokenB = jwt("new-login-b");
+  global.fetch = async (url, init) => {
+    const pathname = new URL(url).pathname;
+    if (pathname === "/api/auth/logout") return new Response("{}");
+    if (pathname === "/api/auth/sign-in") return new Response(JSON.stringify({ refreshToken: "b", csrfToken: "csrf-b" }), {
+      headers: { "Content-Type": "application/json" },
+    });
+    if (pathname === "/api/auth/refresh") {
+      if (JSON.parse(init.body).refresh_token === "a") { started(); return mintA; }
+      return new Response(JSON.stringify({ accessToken: tokenB, refreshToken: "rotated-b", csrfToken: "fresh-csrf-b" }));
+    }
+    if (init.headers.Authorization === `Bearer ${tokenA}`) edgeACalls += 1;
+    return new Response(JSON.stringify({ totals: { total_tokens: 987 } }));
+  };
+  const path = "/functions/tokentracker-usage-summary?account=1&from=2026-10-01&to=2026-10-01";
+  const old = realFetch(root + path);
+  await mintStarted;
+  assert.equal((await realFetch(root + "/api/auth/logout", { method: "POST" })).status, 200);
+  assert.equal(fs.existsSync(cookiePath), false);
+  assert.equal((await realFetch(root + "/api/auth/sign-in", { method: "POST" })).status, 200);
+  const newer = await realFetch(root + path);
+  assert.equal(newer.headers.get("x-tokentracker-account-view"), "1");
+  assert.equal((await newer.json()).totals.total_tokens, 987);
+  release(new Response(JSON.stringify({ accessToken: tokenA, refreshToken: "rotated-a", csrfToken: "fresh-csrf-a" })));
+  const rejected = await old;
+  assert.equal(rejected.status, 409);
+  assert.deepEqual(await rejected.json(), { error: "Account session changed", code: "auth_session_changed" });
+  assert.equal(edgeACalls, 0);
+  const saved = readCookies();
+  assert.ok(saved.insforge_refresh_token.startsWith("insforge_refresh_token=rotated-b;"));
+  assert.ok(Object.values(saved).some((cookie) => cookie.includes("fresh-csrf-b")));
+  assert.ok(!JSON.stringify(saved).includes("rotated-a"));
+  assert.ok(!JSON.stringify(saved).includes("fresh-csrf-a"));
+});
+
+test("closing cloud sync during an HTTP account mint keeps the rotation but publishes local data", async (t) => {
+  const { root, realFetch, readCookies } = await startAccountHttpFixture(t);
+  let started;
+  const mintStarted = new Promise((resolve) => { started = resolve; });
+  let release;
+  const mint = new Promise((resolve) => { release = resolve; });
+  let edgeCalls = 0;
+  let refreshCalls = 0;
+  const token = `e30.${Buffer.from(JSON.stringify({ sub: "cloud-off-user", exp: Date.now() / 1000 + 3600 })).toString("base64url")}.sig`;
+  global.fetch = async (url) => {
+    if (String(url).includes("/api/auth/refresh")) { refreshCalls += 1; started(); return mint; }
+    edgeCalls += 1;
+    return new Response(JSON.stringify({ totals: { total_tokens: 987654 } }));
+  };
+  const path = "/functions/tokentracker-usage-summary?account=1&from=2026-10-01&to=2026-10-01";
+  const pending = realFetch(root + path);
+  await mintStarted;
+  const localAuth = await (await realFetch(root + "/api/local-auth")).json();
+  const off = await realFetch(root + "/functions/tokentracker-cloud-sync-pref", {
+    method: "POST", headers: { "Content-Type": "application/json", "X-TokenTracker-Local-Auth": localAuth.token },
+    body: JSON.stringify({ enabled: false }),
+  });
+  assert.equal(off.status, 200);
+  release(new Response(JSON.stringify({ accessToken: token, refreshToken: "rotated", csrfToken: "fresh-csrf" })));
+  const response = await pending;
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("x-tokentracker-account-view"), "0");
+  assert.equal(response.headers.get("x-tokentracker-account-fallback"), "cloud-sync-off");
+  assert.notEqual((await response.json()).totals.total_tokens, 987654);
+  assert.ok(readCookies().insforge_refresh_token.startsWith("insforge_refresh_token=rotated;"));
+  assert.ok(Object.values(readCookies()).some((cookie) => cookie.includes("fresh-csrf")));
+  assert.equal(refreshCalls, 1);
+  assert.equal(edgeCalls, 1);
+  const stillOff = await realFetch(root + path);
+  assert.equal(stillOff.headers.get("x-tokentracker-account-view"), "0");
+  assert.equal(refreshCalls, 1);
+  assert.equal(edgeCalls, 1);
+});
+
+for (const oldStatus of [401, 503]) {
+  test(`a late real HTTP ${oldStatus} for account A cannot invalidate account B's pending read`, async (t) => {
+    const { root, realFetch, readCookies } = await startAccountHttpFixture(t, "a");
+    const jwt = (sub) => `e30.${Buffer.from(JSON.stringify({ sub, exp: Date.now() / 1000 + 3600 })).toString("base64url")}.sig`;
+    const tokenA = jwt("late-rejection-a");
+    const tokenB = jwt("pending-success-b");
+    let startedA;
+    const seenA = new Promise((resolve) => { startedA = resolve; });
+    let releaseA;
+    const gateA = new Promise((resolve) => { releaseA = resolve; });
+    let startedB;
+    const seenB = new Promise((resolve) => { startedB = resolve; });
+    let releaseB;
+    const gateB = new Promise((resolve) => { releaseB = resolve; });
+    await startAccountUpstreamFixture(t, async (req, res, url, body) => {
+      if (url.pathname === "/api/auth/logout") { res.end("{}"); return; }
+      if (url.pathname === "/api/auth/sign-in") {
+        res.end(JSON.stringify({ refreshToken: "b", csrfToken: "csrf-b" }));
+        return;
+      }
+      if (url.pathname === "/api/auth/refresh") {
+        const isA = body.refresh_token === "a";
+        res.end(JSON.stringify({ accessToken: isA ? tokenA : tokenB, refreshToken: isA ? "rotated-a" : "rotated-b" }));
+        return;
+      }
+      if (req.headers.authorization === `Bearer ${tokenA}`) {
+        startedA();
+        await gateA;
+        res.statusCode = oldStatus;
+        res.end("{}");
+        return;
+      }
+      assert.equal(req.headers.authorization, `Bearer ${tokenB}`);
+      startedB();
+      await gateB;
+      res.end(JSON.stringify({ totals: { total_tokens: 987 } }));
+    });
+    const path = "/functions/tokentracker-usage-summary?account=1&from=2026-10-01&to=2026-10-01";
+    const old = realFetch(root + path);
+    await seenA;
+    assert.equal((await realFetch(root + "/api/auth/logout", { method: "POST" })).status, 200);
+    assert.equal((await realFetch(root + "/api/auth/sign-in", { method: "POST" })).status, 200);
+    const newer = realFetch(root + path);
+    await seenB;
+    releaseA();
+    const oldResponse = await old;
+    releaseB();
+    const success = await newer;
+    assert.equal(oldResponse.status, 409);
+    assert.notEqual(oldResponse.headers.get("x-tokentracker-account-view"), "1");
+    assert.deepEqual(await oldResponse.json(), { error: "Account session changed", code: "auth_session_changed" });
+    assert.equal(success.status, 200);
+    assert.equal(success.headers.get("x-tokentracker-account-view"), "1");
+    assert.equal((await success.json()).totals.total_tokens, 987);
+    assert.ok(readCookies().insforge_refresh_token.startsWith("insforge_refresh_token=rotated-b;"));
+  });
+}
+
+test("a real HTTP 503 completing after cloud sync is disabled remains a permanent cloud-off fallback", async (t) => {
+  const { root, realFetch, readCookies } = await startAccountHttpFixture(t);
+  const token = `e30.${Buffer.from(JSON.stringify({ sub: "cloud-off-late-error", exp: Date.now() / 1000 + 3600 })).toString("base64url")}.sig`;
+  let edgeCalls = 0;
+  let refreshCalls = 0;
+  let started;
+  const edgeStarted = new Promise((resolve) => { started = resolve; });
+  let release;
+  const edge = new Promise((resolve) => { release = resolve; });
+  await startAccountUpstreamFixture(t, async (req, res, url) => {
+    if (url.pathname === "/api/auth/refresh") {
+      refreshCalls += 1;
+      res.end(JSON.stringify({ accessToken: token, refreshToken: "rotated", csrfToken: "fresh-csrf" }));
+      return;
+    }
+    edgeCalls += 1;
+    started();
+    await edge;
+    res.statusCode = 503;
+    res.end("{}");
+  });
+  const path = "/functions/tokentracker-usage-summary?account=1&from=2026-10-01&to=2026-10-01";
+  const pending = realFetch(root + path);
+  await edgeStarted;
+  const localAuth = await (await realFetch(root + "/api/local-auth")).json();
+  const off = await realFetch(root + "/functions/tokentracker-cloud-sync-pref", {
+    method: "POST", headers: { "Content-Type": "application/json", "X-TokenTracker-Local-Auth": localAuth.token },
+    body: JSON.stringify({ enabled: false }),
+  });
+  assert.equal(off.status, 200);
+  release();
+  for (const response of [await pending, ...await Promise.all([0, 1, 2].map(() => realFetch(root + path)))]) {
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("x-tokentracker-account-view"), "0");
+    assert.equal(response.headers.get("x-tokentracker-account-fallback"), "cloud-sync-off");
+  }
+  assert.equal(refreshCalls, 1);
+  assert.equal(edgeCalls, 1, "subsequent reads must not retry a cloud source disabled by the user");
+  assert.ok(readCookies().insforge_refresh_token.startsWith("insforge_refresh_token=rotated;"));
+  assert.ok(Object.values(readCookies()).some((cookie) => cookie.includes("fresh-csrf")));
+});
+
+for (const status of [401, 403]) {
+  test(`a current-session real HTTP ${status} keeps the transient authentication fallback`, async (t) => {
+    const { root, realFetch } = await startAccountHttpFixture(t);
+    const token = `e30.${Buffer.from(JSON.stringify({ sub: "current-auth-error", exp: Date.now() / 1000 + 3600 })).toString("base64url")}.sig`;
+    await startAccountUpstreamFixture(t, async (req, res, url) => {
+      if (url.pathname === "/api/auth/refresh") {
+        res.end(JSON.stringify({ accessToken: token }));
+        return;
+      }
+      res.statusCode = status;
+      res.end("{}");
+    });
+    const response = await realFetch(root + "/functions/tokentracker-usage-summary?account=1&from=2026-10-01&to=2026-10-01");
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("x-tokentracker-account-view"), "0");
+    assert.equal(response.headers.get("x-tokentracker-account-fallback"), "transient-auth");
+  });
+}
+
+test("a late real HTTP account GET cannot replace a newer same-account RT and CSRF rotation", async (t) => {
+  const { root, realFetch, readCookies } = await startAccountHttpFixture(t);
+  let refreshCalls = 0;
+  let edgeCalls = 0;
+  let started;
+  const firstEdgeStarted = new Promise((resolve) => { started = resolve; });
+  let release;
+  const firstEdge = new Promise((resolve) => { release = resolve; });
+  const jwt = (seconds) => `e30.${Buffer.from(JSON.stringify({ sub: "same-account-rotation", exp: Date.now() / 1000 + seconds })).toString("base64url")}.sig`;
+  await startAccountUpstreamFixture(t, async (req, res, url, body) => {
+    if (url.pathname === "/api/auth/refresh") {
+      refreshCalls += 1;
+      assert.equal(body.refresh_token, refreshCalls === 1 ? "seed" : "rotated-1");
+      res.end(JSON.stringify({
+        accessToken: jwt(refreshCalls === 1 ? 30 : 3600),
+        refreshToken: `rotated-${refreshCalls}`, csrfToken: `fresh-csrf-${refreshCalls}`,
+      }));
+      return;
+    }
+    const value = ++edgeCalls;
+    if (value === 1) { started(); await firstEdge; }
+    res.end(JSON.stringify({ totals: { total_tokens: value } }));
+  });
+  const path = "/functions/tokentracker-usage-summary?account=1&from=";
+  const first = realFetch(root + path + "2026-10-01&to=2026-10-01");
+  await firstEdgeStarted;
+  assert.ok(readCookies().insforge_refresh_token.startsWith("insforge_refresh_token=rotated-1;"));
+  // The first JWT is valid but inside the normal 60s refresh skew. A second
+  // query therefore rotates again while the first cloud GET is still pending.
+  const second = await realFetch(root + path + "2026-10-02&to=2026-10-02");
+  assert.equal(second.headers.get("x-tokentracker-account-view"), "1");
+  assert.equal((await second.json()).totals.total_tokens, 2);
+  const afterSecond = readCookies();
+  assert.ok(afterSecond.insforge_refresh_token.startsWith("insforge_refresh_token=rotated-2;"));
+  assert.ok(Object.values(afterSecond).some((cookie) => cookie.includes("fresh-csrf-2")));
+  release();
+  const late = await first;
+  assert.equal(late.headers.get("x-tokentracker-account-view"), "1");
+  assert.equal((await late.json()).totals.total_tokens, 1);
+  assert.deepEqual(readCookies(), afterSecond, "the first GET must not restore rotated-1/fresh-csrf-1");
+  assert.equal(refreshCalls, 2);
+  assert.equal(edgeCalls, 2);
 });

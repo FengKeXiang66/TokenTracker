@@ -59,8 +59,10 @@ const COMPACT_ACCOUNT_RPCS = new Map([
 ]);
 
 const WIRE_ACCOUNT_RPCS = new Map([
-  ["tokentracker-account-heatmap.ts", ["account_heatmap_wire", "account_heatmap_compact"]],
-  ["tokentracker-account-daily.ts", ["account_daily_wire", "account_daily_compact"]],
+  ["tokentracker-account-heatmap.ts", ["account_heatmap_wire", "account_heatmap_compact", "compact-account-model-wire"]],
+  ["tokentracker-account-daily.ts", ["account_daily_wire", "account_daily_compact", "compact-account-model-wire"]],
+  ["tokentracker-account-summary.ts", ["account_summary_wire", "account_summary_compact", "compact-account-summary-model-wire"]],
+  ["tokentracker-account-model-breakdown.ts", ["account_model_breakdown_wire", "account_model_breakdown_compact", "compact-account-summary-model-wire"]],
 ]);
 
 test("cloud account reads use the shared cached RPC instead of a device lookup plus aggregation", () => {
@@ -121,17 +123,22 @@ test("compact account RPCs delegate to the shared cached RPC and stay project_ad
 });
 
 test("account wire RPCs wrap the existing compact aggregation and stay project_admin-only", () => {
-  const migration = readMigrationBySuffix("compact-account-model-wire");
-  assert.equal((migration.match(/SECURITY INVOKER/gu) || []).length, WIRE_ACCOUNT_RPCS.size);
-  for (const [wire, compact] of WIRE_ACCOUNT_RPCS.values()) {
+  const seen = new Map();
+  for (const [wire, compact, suffix] of WIRE_ACCOUNT_RPCS.values()) {
+    const migration = readMigrationBySuffix(suffix);
+    seen.set(suffix, migration);
     assert.match(migration, new RegExp(`CREATE OR REPLACE FUNCTION public\\.${wire}\\(`, "u"));
     assert.equal((migration.match(new RegExp(`public\\.${compact}\\(`, "gu")) || []).length, 1,
       `${wire} must delegate exactly once to ${compact}`);
     assert.match(migration, new RegExp(`REVOKE EXECUTE ON FUNCTION public\\.${wire}\\([^)]*\\) FROM PUBLIC, anon, authenticated;`, "u"));
     assert.match(migration, new RegExp(`GRANT EXECUTE ON FUNCTION public\\.${wire}\\([^)]*\\) TO project_admin;`, "u"));
   }
-  assert.doesNotMatch(migration, /account_usage_grouped_cached\(|FROM public\.tokentracker_hourly/u,
-    "wire RPCs must preserve the existing compact aggregation instead of adding a new scan");
+  for (const [suffix, migration] of seen) {
+    const definedHere = [...WIRE_ACCOUNT_RPCS.values()].filter((entry) => entry[2] === suffix).length;
+    assert.equal((migration.match(/SECURITY INVOKER/gu) || []).length, definedHere);
+    assert.doesNotMatch(migration, /account_usage_grouped_cached\(|FROM public\.tokentracker_hourly/u,
+      "wire RPCs must preserve the existing compact aggregation instead of adding a new scan");
+  }
 });
 
 test("shared account cache is bounded, locked per key, and access controlled", () => {

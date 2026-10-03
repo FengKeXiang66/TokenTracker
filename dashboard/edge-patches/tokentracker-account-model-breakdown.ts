@@ -576,6 +576,27 @@ interface GroupedRow {
 type CompactDim = [string | null, string | null, string | null, number | string,
   number | string, number | string, number | string, number | string, number | string];
 
+interface ModelBreakdownWire {
+  source_names: (string | null)[];
+  model_names: (string | null)[];
+  pricing_tiers: (string | null)[];
+  dims: [number, number, number, ...(number | string)[]][];
+}
+
+function decodeModelBreakdownWire(data: unknown): CompactDim[] {
+  // Small results keep their legacy array when dictionaries would cost more.
+  if (Array.isArray(data)) return data as CompactDim[];
+  if (data == null) return [];
+  const wire = data as ModelBreakdownWire;
+  if (!Array.isArray(wire.dims)) return [];
+  const token = (row: ModelBreakdownWire["dims"][number], index: number): number | string =>
+    index < row.length ? row[index] : 0;
+  return wire.dims.map((row): CompactDim => [
+    wire.source_names[row[0]], wire.model_names[row[1]], wire.pricing_tiers[row[2]],
+    token(row, 3), token(row, 4), token(row, 5), token(row, 6), token(row, 7), token(row, 8),
+  ]);
+}
+
 const COMPACT_TTL_MS = 30_000;
 const COMPACT_STALE_IF_ERROR_MS = 5 * 60_000;
 const compactCache = new Map<string, { fetchedAt: number; dims: CompactDim[] }>();
@@ -614,7 +635,7 @@ async function fetchCompactDims(
 
   const pending = (async () => {
     try {
-      const { data, error } = await client.database.rpc("account_model_breakdown_compact", {
+      const { data, error } = await client.database.rpc("account_model_breakdown_wire", {
         p_user_id: userId,
         p_device_id: requestedDeviceId,
         p_from: fromIso,
@@ -625,7 +646,7 @@ async function fetchCompactDims(
         p_range_to: rangeTo,
       });
       if (error) throw new Error(error.message);
-      const dims = (Array.isArray(data) ? data : []) as CompactDim[];
+      const dims = decodeModelBreakdownWire(data);
       compactCache.set(cacheKey, { fetchedAt: Date.now(), dims });
       if (compactCache.size > 64) {
         const oldest = compactCache.keys().next().value;

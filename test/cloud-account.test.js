@@ -715,6 +715,38 @@ test("real HTTP account reads obey summary/chart TTLs and explicit refresh", asy
   assert.equal((await read("daily")).data.totals.total_tokens, 3);
 });
 
+test("real HTTP account cache keys isolate escaped query values and normalize duplicate wire params", async (t) => {
+  __resetCloudAccountCacheForTests();
+  const http = require("node:http");
+  const queries = [];
+  const server = http.createServer((req, res) => {
+    const url = new URL(req.url, "http://localhost");
+    res.setHeader("Content-Type", "application/json");
+    if (url.pathname === "/api/auth/refresh") {
+      res.end(JSON.stringify({ accessToken: makeJwtFor("query-user", Date.now() / 1000 + 3600) }));
+      return;
+    }
+    queries.push(url.searchParams);
+    res.end(JSON.stringify({ device: url.searchParams.get("device_id"), a: url.searchParams.get("a") }));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }));
+  const read = (params) => fetchAccountUsage({
+    usageSlug: "tokentracker-usage-summary", refreshToken: "query-refresh",
+    baseUrl: `http://127.0.0.1:${server.address().port}`, searchParams: params,
+  });
+  const encoded = await read(new URLSearchParams("a=ignored&device_id=D"));
+  const literal = await read(new URLSearchParams({ a: "ignored&device_id=D" }));
+  assert.deepEqual(encoded.data, { device: "D", a: "ignored" });
+  assert.deepEqual(literal.data, { device: null, a: "ignored&device_id=D" });
+  assert.equal(queries.length, 2, "literal separators must not collide with a separate device filter");
+  const duplicates = await read(new URLSearchParams("a=ignored&device_id=D&device_id=E&device_id="));
+  assert.deepEqual(duplicates.data, { device: "E", a: "ignored" });
+  assert.deepEqual(queries[2].getAll("device_id"), ["E"], "the wire keeps the last non-empty duplicate");
+  assert.deepEqual((await read(new URLSearchParams("device_id=E&a=ignored"))).data, duplicates.data);
+  assert.equal(queries.length, 3, "equivalent normalized params reuse the existing response");
+});
+
 test("payload single flight shares HTTP work but isolates returned objects", async () => {
   __resetCloudAccountCacheForTests();
   let release;
@@ -785,8 +817,10 @@ test("a session invalidated during mint cannot repopulate its payload cache", as
   let release;
   const mint = new Promise((resolve) => { release = resolve; });
   let requests = 0;
+  let persisted = 0;
   const pending = fetchAccountUsage({
     usageSlug: "tokentracker-usage-summary", refreshToken: "r", baseUrl: "https://cloud.example",
+    onSessionRefreshed: () => { persisted += 1; },
     fetchImpl: async (url) => {
       if (url.includes("/api/auth/refresh")) return mint;
       requests += 1;
@@ -794,9 +828,41 @@ test("a session invalidated during mint cannot repopulate its payload cache", as
     },
   });
   invalidateCloudAccountPayloadCache({ sessionChanged: true });
-  release(jsonResponse({ accessToken: makeJwtFor("old-user", Date.now() / 1000 + 3600) }));
+  release(jsonResponse({ accessToken: makeJwtFor("old-user", Date.now() / 1000 + 3600), refreshToken: "rotated-old", csrfToken: "csrf-old" }));
   await assert.rejects(pending, { code: "auth_session_changed" });
   assert.equal(requests, 0);
+  assert.equal(persisted, 0, "a stale mint must not persist credentials into the new session");
+});
+
+test("account reads await rotated-session persistence before starting the cloud GET", async () => {
+  __resetCloudAccountCacheForTests();
+  let release;
+  const persistence = new Promise((resolve) => { release = resolve; });
+  let started;
+  const persistenceStarted = new Promise((resolve) => { started = resolve; });
+  let session;
+  let edgeCalls = 0;
+  const pending = fetchAccountUsage({
+    usageSlug: "tokentracker-usage-summary", refreshToken: "before", baseUrl: "https://cloud.example",
+    fetchImpl: async (url) => {
+      if (url.includes("/api/auth/refresh")) {
+        return jsonResponse({ accessToken: makeJwtFor("persist-user", Date.now() / 1000 + 3600), refreshToken: "after", csrfToken: "csrf-after" });
+      }
+      edgeCalls += 1;
+      assert.deepEqual(session, { refreshToken: "after", csrfToken: "csrf-after" });
+      return jsonResponse({ value: 123 });
+    },
+    onSessionRefreshed: async (rotation) => {
+      started();
+      await persistence;
+      session = rotation;
+    },
+  });
+  await persistenceStarted;
+  assert.equal(edgeCalls, 0);
+  release();
+  assert.deepEqual((await pending).data, { value: 123 });
+  assert.equal(edgeCalls, 1);
 });
 
 test("a late response from a signed-out account returns neither data nor rotated credentials", async () => {

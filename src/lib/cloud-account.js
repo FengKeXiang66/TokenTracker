@@ -123,16 +123,22 @@ let sessionGeneration = 0;
 // Mirrors the params `fetchAccountFunction` actually puts on the wire, so two
 // requests share an entry only when they would have produced the same URL.
 function payloadCacheKey({ root, sub, slug, searchParams }) {
-  const pairs = [];
+  const params = accountFunctionParams(slug, searchParams);
+  params.sort();
+  return `${root}\0${sub}\0${slug}\0${params}`;
+}
+
+function accountFunctionParams(slug, searchParams) {
+  const params = new URLSearchParams();
   if (searchParams && typeof searchParams.entries === "function") {
     for (const [key, value] of searchParams.entries()) {
       if (key === "account" || key === "scope" || key === "refresh") continue;
       if (value == null || value === "") continue;
-      pairs.push(`${key}=${String(value)}`);
+      params.set(key, String(value));
     }
   }
-  pairs.sort();
-  return `${root}\0${sub}\0${slug}\0${pairs.join("&")}`;
+  if (slug === HEATMAP_ACCOUNT_SLUG) params.set("format", "compact");
+  return params;
 }
 
 function payloadCacheGet(key, now) {
@@ -358,13 +364,7 @@ async function fetchAccountFunction({
 } = {}) {
   const root = String(baseUrl || DEFAULT_BASE_URL).replace(/\/$/, "");
   const url = new URL(functionUrlFor(root, slug));
-  if (searchParams && typeof searchParams.entries === "function") {
-    for (const [key, value] of searchParams.entries()) {
-      if (key === "account" || key === "scope" || key === "refresh") continue;
-      if (value != null && value !== "") url.searchParams.set(key, String(value));
-    }
-  }
-  if (slug === HEATMAP_ACCOUNT_SLUG) url.searchParams.set("format", "compact");
+  url.search = accountFunctionParams(slug, searchParams).toString();
   const headers = { Accept: "application/json", Authorization: `Bearer ${accessToken}` };
   if (anonKey) headers.apikey = anonKey;
 
@@ -412,6 +412,7 @@ async function fetchAccountUsage({
   fetchImpl = fetch,
   now = Date.now,
   timeoutMs,
+  onSessionRefreshed,
 } = {}) {
   const slug = accountSlugFor(usageSlug);
   if (!slug) return null;
@@ -441,6 +442,15 @@ async function fetchAccountUsage({
   if (!minted) return null;
   if (sessionAtStart !== sessionGeneration) {
     throw new AccountAuthError("auth_session_changed", "account session changed during token refresh");
+  }
+
+  // The refresh already consumed the old credential. Persist its replacement
+  // before an edge read can wait, fail, or overlap a different account query.
+  if (typeof onSessionRefreshed === "function" && (minted.refreshToken || minted.csrfToken)) {
+    await onSessionRefreshed({ refreshToken: minted.refreshToken, csrfToken: minted.csrfToken });
+    if (sessionAtStart !== sessionGeneration) {
+      throw new AccountAuthError("auth_session_changed", "account session changed during token persistence");
+    }
   }
 
   // Keyed after the mint so rotation cannot invalidate the entry, and so a
@@ -485,8 +495,9 @@ async function fetchAccountUsage({
         }
         return JSON.stringify(data);
       } catch (error) {
-        if (error.status === 401 || error.status === 403) {
+        if ((error.status === 401 || error.status === 403) && sessionAtStart === sessionGeneration) {
           invalidateCloudAccountPayloadCache({ sessionChanged: true });
+          error.invalidatedSessionGeneration = sessionGeneration;
         }
         throw error;
       }
