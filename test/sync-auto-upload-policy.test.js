@@ -12,6 +12,7 @@ async function setup(t) {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "tt-auto-upload-policy-"));
   const tracker = path.join(home, ".tokentracker", "tracker");
   await fs.mkdir(tracker, { recursive: true });
+  await fs.writeFile(path.join(tracker, "cloud-sync-pref.json"), JSON.stringify({ enabled: true }));
   const requests = [];
   let status = 200;
   const server = http.createServer((req, res) => {

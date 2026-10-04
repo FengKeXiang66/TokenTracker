@@ -2261,7 +2261,7 @@ async function runFirstSyncAndRead({ trackerBinPath, trackerDir, packageName }) 
     return readFirstSyncTotals(trackerDir);
   }
   const fallbackPkg = packageName || "tokentracker-cli";
-  const argv = ["sync", "--drain"];
+  const argv = ["sync", "--auto", "--drain"];
   const hasLocalRuntime = typeof trackerBinPath === "string" && fssync.existsSync(trackerBinPath);
   const cmd = hasLocalRuntime
     ? [process.execPath, trackerBinPath, ...argv]

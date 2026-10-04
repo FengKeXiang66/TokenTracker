@@ -27,6 +27,7 @@ function okJson(data: unknown): Response {
 function installFetchMock(options: { leaderboardOk?: boolean } = {}) {
   const leaderboardOk = options.leaderboardOk ?? true;
   const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
+    if (url === "/functions/tokentracker-cloud-sync-pref") return okJson({ ok: true });
     if (url === "/functions/tokentracker-machine-id") {
       return okJson({ machineId: "machine-abcdef12", deviceName: "office-win" });
     }
@@ -81,6 +82,7 @@ describe("cloud usage sync", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
     installLocalStorageMock();
+    localStorage.setItem("tokentracker_cloud_sync_enabled", "1");
     clearCloudDeviceSession();
   });
 
@@ -170,6 +172,7 @@ describe("cloud device session ownership", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
     installLocalStorageMock();
+    localStorage.setItem("tokentracker_cloud_sync_enabled", "1");
     clearCloudDeviceSession();
   });
 
@@ -250,10 +253,10 @@ describe("cloud device session ownership", () => {
     it(`retains an existing credential on ${code}`, async () => {
       const { setStoredDeviceSession, getStoredDeviceSession } = await import("./cloud-sync-prefs");
       setStoredDeviceSession({ token: "previous-valid-token", deviceId: "device-a", issuedAt: new Date().toISOString(), ownerId: "user-a" });
-      const fetchMock = vi.fn(async () => ({ ok: false, status: code === "CLOUD_UPLOAD_FORBIDDEN" ? 403 : 503, json: async () => ({ error: "temporary or policy failure", code }) }) as Response);
+      const fetchMock = vi.fn(async (_url: string) => ({ ok: false, status: code === "CLOUD_UPLOAD_FORBIDDEN" ? 403 : 503, json: async () => ({ error: "temporary or policy failure", code }) }) as Response);
       vi.stubGlobal("fetch", fetchMock);
       await expect(runCloudUsageSyncNow(async () => ownerJwt("user-a"))).rejects.toMatchObject({ code });
-      expect(fetchMock.mock.calls).toHaveLength(1);
+      expect(fetchMock.mock.calls.filter(([url]) => url === "/functions/tokentracker-local-sync")).toHaveLength(1);
       expect(getStoredDeviceSession()?.token).toBe("previous-valid-token");
     });
   }

@@ -1357,23 +1357,25 @@ function createLocalApiHandler({ queuePath, serverVersion = null }) {
   // sync is on. Cloud sync is a dashboard (WebView) preference persisted in
   // localStorage; the dashboard mirrors it here via POST
   // /functions/tokentracker-cloud-sync-pref so the auth-unaware popover can key
-  // off the same flag. Defaults ON, exactly like the dashboard toggle — every
-  // consumer additionally requires a relayed refresh token, so the default only
-  // takes effect for signed-in users; an explicit {enabled:false} still wins.
+  // off the same flag. Defaults OFF, exactly like the dashboard toggle;
+  // existing saved choices are preserved.
   const cloudSyncPrefPath = path.join(trackerDataDir, "cloud-sync-pref.json");
   let cloudSyncPrefCache;
   let cloudSyncPrefGeneration = 0;
   function getCloudSyncPref() {
     if (cloudSyncPrefCache === undefined) {
-      try {
-        cloudSyncPrefCache = JSON.parse(fs.readFileSync(cloudSyncPrefPath, "utf8"))?.enabled !== false;
-      } catch {
-        cloudSyncPrefCache = true;
-      }
+      cloudSyncPrefCache = require("./cloud-sync-prefs").readCloudSyncEnabled(trackerDataDir);
     }
     return cloudSyncPrefCache;
   }
-  function setCloudSyncPref(enabled) {
+  function setCloudSyncPref(enabled, changedAtMs = Date.now()) {
+    // Multiple dashboard windows can deliver mirrors out of order. Keep the
+    // newest saved choice; old files without an ordering marker remain valid.
+    try {
+      const saved = JSON.parse(fs.readFileSync(cloudSyncPrefPath, "utf8"));
+      if (Number(saved?.changedAtMs || 0) > changedAtMs ||
+          (changedAtMs > 0 && saved?.changedAtMs === changedAtMs && saved?.enabled === false && enabled)) return;
+    } catch { /* first choice or an unreadable preference */ }
     if (getCloudSyncPref() !== Boolean(enabled)) {
       cloudSyncPrefGeneration += 1;
       clearLocalSyncDeviceTokenCache();
@@ -1384,7 +1386,7 @@ function createLocalApiHandler({ queuePath, serverVersion = null }) {
       if (!fs.existsSync(trackerDataDir)) fs.mkdirSync(trackerDataDir, { recursive: true });
       fs.writeFileSync(
         cloudSyncPrefPath,
-        JSON.stringify({ enabled: cloudSyncPrefCache, updatedAt: new Date().toISOString() }),
+        JSON.stringify({ enabled: cloudSyncPrefCache, changedAtMs, updatedAt: new Date().toISOString() }),
         { encoding: "utf8", mode: 0o600 },
       );
     } catch (e) {
@@ -2875,7 +2877,11 @@ function createLocalApiHandler({ queuePath, serverVersion = null }) {
           json(res, { ok: false, error: "enabled must be a boolean" }, 400);
           return true;
         }
-        setCloudSyncPref(body.enabled);
+        if (body.changedAtMs != null && (!Number.isSafeInteger(body.changedAtMs) || body.changedAtMs < 0)) {
+          json(res, { ok: false, error: "changedAtMs must be a nonnegative safe integer" }, 400);
+          return true;
+        }
+        setCloudSyncPref(body.enabled, body.changedAtMs ?? Date.now());
         json(res, { ok: true, enabled: getCloudSyncPref() });
         return true;
       }

@@ -1,4 +1,5 @@
 const KEY_ENABLED = "tokentracker_cloud_sync_enabled";
+const KEY_CHANGED_AT = "tokentracker_cloud_sync_changed_at_ms";
 const KEY_DEVICE = "tokentracker_cloud_device_session_v1";
 const KEY_DEVICE_ID = "tokentracker_cloud_device_id_v1";
 const KEY_LAST_SYNC = "tokentracker_cloud_last_sync_ts";
@@ -7,6 +8,7 @@ export const CLOUD_USAGE_SYNCED_EVENT = "tt.cloudUsageSynced";
 export const CLOUD_LEADERBOARD_REFRESHED_EVENT = "tt.cloudLeaderboardRefreshed";
 let memoryDeviceSession: CloudDeviceSession | null = null;
 let cloudDeviceSessionGeneration = 0;
+let cloudSyncPrefMirror: Promise<void> = Promise.resolve();
 
 export type CloudDeviceSession = {
   token: string;
@@ -34,22 +36,21 @@ export function isLocalDashboardHost(): boolean {
 }
 
 /**
- * 默认开启：已登录用户无需手动开启即同步到云端；显式关闭("0")仍被尊重。
- * Every consumer additionally gates on a signed-in session (refresh token /
- * insforge.signedIn), so this default has no effect while signed out.
+ * Cloud sync requires an explicit opt-in. Preserve saved choices and fail
+ * closed when the preference is missing or storage is unavailable.
  */
 export function getCloudSyncEnabled(): boolean {
   try {
     const v = localStorage.getItem(KEY_ENABLED);
-    if (v === null || v === "") return true;
     return v === "1" || v === "true";
   } catch {
-    return true;
+    return false;
   }
 }
 
 export function setCloudSyncEnabled(enabled: boolean): void {
   try {
+    localStorage.setItem(KEY_CHANGED_AT, String(Math.max(Date.now(), Number(localStorage.getItem(KEY_CHANGED_AT) || 0) + 1)));
     localStorage.setItem(KEY_ENABLED, enabled ? "1" : "0");
   } catch {
     /* ignore */
@@ -78,19 +79,32 @@ export function setCloudSyncEnabled(enabled: boolean): void {
   }
 }
 
-async function mirrorCloudSyncPrefToLocalServer(enabled: boolean): Promise<void> {
-  if (!isLocalDashboardHost()) return;
+function mirrorCloudSyncPrefToLocalServer(enabled: boolean): Promise<void> {
+  if (!isLocalDashboardHost()) return Promise.resolve();
+  let changedAtMs = 0;
+  try { changedAtMs = Number(localStorage.getItem(KEY_CHANGED_AT) || 0); } catch { /* unavailable */ }
+  // Keep rapid toggles in order: a delayed opt-in must not overwrite opt-out.
+  cloudSyncPrefMirror = cloudSyncPrefMirror.then(() => postCloudSyncPref(enabled, changedAtMs));
+  return cloudSyncPrefMirror;
+}
+
+async function postCloudSyncPref(enabled: boolean, changedAtMs: number): Promise<void> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
   try {
     const { getLocalApiAuthHeaders } = await import("./local-api-auth");
-    const authHeaders = await getLocalApiAuthHeaders();
+    const authHeaders = await getLocalApiAuthHeaders((input, init) => fetch(input, { ...init, signal: controller.signal }));
     await fetch("/functions/tokentracker-cloud-sync-pref", {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json", ...authHeaders },
       cache: "no-store",
-      body: JSON.stringify({ enabled }),
+      signal: controller.signal,
+      body: JSON.stringify({ enabled, changedAtMs }),
     });
   } catch {
     /* best-effort: popover falls back to local data if the mirror is stale */
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -100,8 +114,8 @@ async function mirrorCloudSyncPrefToLocalServer(enabled: boolean): Promise<void>
  * toggle even when the user never re-toggles it this session. No-op off
  * localhost. Best-effort.
  */
-export function syncCloudSyncPrefToLocalServer(): void {
-  void mirrorCloudSyncPrefToLocalServer(getCloudSyncEnabled());
+export function syncCloudSyncPrefToLocalServer(): Promise<void> {
+  return mirrorCloudSyncPrefToLocalServer(getCloudSyncEnabled());
 }
 
 export function getStoredDeviceSession(): CloudDeviceSession | null {

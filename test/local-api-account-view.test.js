@@ -90,6 +90,7 @@ async function startAccountHttpFixture(t, refreshToken = "seed") {
   writeQueue(queuePath, [SAMPLE_ROW]);
   const trackerDir = path.join(tmpHome, ".tokentracker", "tracker");
   fs.mkdirSync(trackerDir, { recursive: true });
+  fs.writeFileSync(path.join(trackerDir, "cloud-sync-pref.json"), JSON.stringify({ enabled: true }));
   const cookiePath = path.join(trackerDir, "relay-cookies.json");
   fs.writeFileSync(cookiePath, JSON.stringify({
     insforge_refresh_token: `insforge_refresh_token=${refreshToken}; Path=/; HttpOnly; SameSite=Lax`,
@@ -147,12 +148,12 @@ const SAMPLE_ROW = {
   conversation_count: 1,
 };
 
-test("cloud-sync-pref defaults to enabled; account stays unavailable while signed out", async () => {
+test("cloud-sync-pref defaults to disabled; account stays unavailable while signed out", async () => {
   const queuePath = path.join(tmpHome, "queue.jsonl");
   writeQueue(queuePath, [SAMPLE_ROW]);
   const handler = freshHandler(queuePath);
   const res = await call(handler, { endpoint: "/functions/tokentracker-cloud-sync-pref" });
-  assert.deepEqual(res.json(), { enabled: true, account_available: false });
+  assert.deepEqual(res.json(), { enabled: false, account_available: false });
 });
 
 test("user-status exposes account aggregation state", async () => {
@@ -163,11 +164,27 @@ test("user-status exposes account aggregation state", async () => {
   const body = res.json();
   assert.deepEqual(body.account, {
     available: false,
-    // Pref defaults ON, but the account view still requires a signed-in
-    // session (relayed refresh token) — absent here, so no cross-device view.
-    cloud_sync_enabled: true,
+    cloud_sync_enabled: false,
     account_view: false,
   });
+});
+
+test("invalid cloud preferences fail closed and saved choices survive restart", async () => {
+  const queuePath = path.join(tmpHome, "queue.jsonl");
+  writeQueue(queuePath, [SAMPLE_ROW]);
+  const trackerDir = path.join(tmpHome, ".tokentracker", "tracker");
+  fs.mkdirSync(trackerDir, { recursive: true });
+  const prefPath = path.join(trackerDir, "cloud-sync-pref.json");
+  for (const [raw, expected] of [
+    ["", false], ["{", false], ["null", false], ["{}", false],
+    ['{"enabled":"true"}', false], ['{"enabled":false}', false], ['{"enabled":true}', true],
+  ]) {
+    fs.writeFileSync(prefPath, raw);
+    const handler = freshHandler(queuePath);
+    const res = await call(handler, { endpoint: "/functions/tokentracker-cloud-sync-pref" });
+    assert.equal(res.json().enabled, expected, raw);
+    assert.equal(fs.readFileSync(prefPath, "utf8"), raw, "reading must not rewrite saved preferences");
+  }
 });
 
 test("POST cloud-sync-pref requires local auth, then persists and is reflected", async () => {
@@ -215,6 +232,23 @@ test("POST cloud-sync-pref requires local auth, then persists and is reflected",
   });
   assert.equal(bad.statusCode, 400);
   assert.equal(JSON.parse(fs.readFileSync(prefFile, "utf8")).enabled, true, "pref must be unchanged");
+});
+
+test("a stale mirror from another dashboard cannot re-enable a newer opt-out", async () => {
+  const queuePath = path.join(tmpHome, "queue.jsonl");
+  writeQueue(queuePath, [SAMPLE_ROW]);
+  const handler = freshHandler(queuePath);
+  const token = (await call(handler, { endpoint: "/api/local-auth" })).json().token;
+  for (const [enabled, changedAtMs, expected] of [[true, 10, true], [false, 20, false], [true, 10, false], [true, 20, false], [true, 21, true]]) {
+    const res = await call(handler, {
+      method: "POST", endpoint: "/functions/tokentracker-cloud-sync-pref",
+      headers: { "content-type": "application/json", "x-tokentracker-local-auth": token },
+      body: JSON.stringify({ enabled, changedAtMs }),
+    });
+    assert.equal(res.json().enabled, expected);
+  }
+  const restarted = await call(freshHandler(queuePath), { endpoint: "/functions/tokentracker-cloud-sync-pref" });
+  assert.equal(restarted.json().enabled, true);
 });
 
 test("usage-summary?account=1 falls back to local data when not signed in", async () => {
@@ -324,6 +358,7 @@ test("HTTP account fan-out shares a healthy read while manual refresh supersedes
   fs.writeFileSync(path.join(trackerDir, "relay-cookies.json"), JSON.stringify({
     insforge_refresh_token: "insforge_refresh_token=fanout; Path=/; HttpOnly; SameSite=Lax",
   }));
+  fs.writeFileSync(path.join(trackerDir, "cloud-sync-pref.json"), JSON.stringify({ enabled: true }));
   const handler = freshHandler(queuePath);
   let received = 0;
   const waits = new Map();
@@ -842,6 +877,7 @@ test("loopback account reads invalidate on successful-upload state, reset, and e
   writeQueue(queuePath, [SAMPLE_ROW]);
   const trackerDir = path.join(tmpHome, ".tokentracker", "tracker");
   fs.mkdirSync(trackerDir, { recursive: true });
+  fs.writeFileSync(path.join(trackerDir, "cloud-sync-pref.json"), JSON.stringify({ enabled: true }));
   fs.writeFileSync(path.join(trackerDir, "relay-cookies.json"), JSON.stringify({
     insforge_refresh_token: "insforge_refresh_token=upload-test; Path=/; HttpOnly; SameSite=Lax",
   }));
@@ -916,6 +952,7 @@ test("logout and account switch during an HTTP account read cannot restore the o
   writeQueue(queuePath, [SAMPLE_ROW]);
   const trackerDir = path.join(tmpHome, ".tokentracker", "tracker");
   fs.mkdirSync(trackerDir, { recursive: true });
+  fs.writeFileSync(path.join(trackerDir, "cloud-sync-pref.json"), JSON.stringify({ enabled: true }));
   const cookiePath = path.join(trackerDir, "relay-cookies.json");
   fs.writeFileSync(cookiePath, JSON.stringify({ insforge_refresh_token: "insforge_refresh_token=a; Path=/; HttpOnly; SameSite=Lax" }));
   const handler = freshHandler(queuePath);
@@ -983,6 +1020,7 @@ test("a late HTTP auth refresh cannot overwrite a new login's relay cookies", as
   writeQueue(queuePath, [SAMPLE_ROW]);
   const trackerDir = path.join(tmpHome, ".tokentracker", "tracker");
   fs.mkdirSync(trackerDir, { recursive: true });
+  fs.writeFileSync(path.join(trackerDir, "cloud-sync-pref.json"), JSON.stringify({ enabled: true }));
   const cookiePath = path.join(trackerDir, "relay-cookies.json");
   fs.writeFileSync(cookiePath, JSON.stringify({ insforge_refresh_token: "insforge_refresh_token=a; Path=/; HttpOnly; SameSite=Lax" }));
   const handler = freshHandler(queuePath);

@@ -180,6 +180,7 @@ const {
   openCursorStore,
 } = require("../lib/cursor-store");
 const { resolveTrackerPaths } = require("../lib/tracker-paths");
+const { readCloudSyncEnabled } = require("../lib/cloud-sync-prefs");
 const {
   appendUniqueDirs,
   extraScanRootPaths,
@@ -529,6 +530,11 @@ async function cmdSync(argv, context = {}) {
   const syncDiagnostics = diagnostics && typeof diagnostics === "object" ? diagnostics : null;
   const home = os.homedir();
   const { trackerDir } = await resolveTrackerPaths({ home });
+  // Manual CLI sync is a one-time upload request, without changing the toggle.
+  // Hooks, native publication and detached retries must honor the saved opt-in.
+  const requiresCloudSyncPref = opts.auto || opts.background || opts.fromRetry || opts.fromNotify || opts.fromOpenclaw ||
+    Boolean(process.env.TOKENTRACKER_LOCAL_SYNC_ATTEMPT_ID);
+  const canUpload = () => !requiresCloudSyncPref || readCloudSyncEnabled(trackerDir);
 
   await ensureDir(trackerDir);
   if (opts.fromOpenclaw) {
@@ -563,7 +569,7 @@ async function cmdSync(argv, context = {}) {
     // Native publication owns backlog and failure-backoff retries on its next
     // five-minute tick. Remove any legacy detached retry marker immediately so
     // an already-sleeping retry process observes the missing marker and exits.
-    if (opts.publishAccount) {
+    if (opts.publishAccount || !canUpload()) {
       await clearAutoRetry(trackerDir);
     }
 
@@ -3355,7 +3361,7 @@ async function cmdSync(argv, context = {}) {
     let uploadAttempted = false;
     let autoUploadDecision = null;
 
-    if ((opts.auto || opts.publishAccount) && runtime.deviceToken && runtime.baseUrl &&
+    if (canUpload() && (opts.auto || opts.publishAccount) && runtime.deviceToken && runtime.baseUrl &&
         (!isBackgroundLightweightSync || opts.publishAccount)) {
       const uploadStateBefore = (await readJson(queueStatePath)) || { offset: 0 };
       const queueSizeBefore = await safeStatSize(queuePath);
@@ -3391,7 +3397,7 @@ async function cmdSync(argv, context = {}) {
       }
     }
 
-    if (runtime.deviceToken && runtime.baseUrl &&
+    if (canUpload() && runtime.deviceToken && runtime.baseUrl &&
         (!isBackgroundLightweightSync || opts.publishAccount) &&
         (!autoUploadDecision || autoUploadDecision.allowed)) {
       uploadAttempted = true;
@@ -3415,6 +3421,7 @@ async function cmdSync(argv, context = {}) {
             queueStatePath,
             maxBatches: opts.drain ? 100 : (autoUploadDecision?.maxBatches || 5),
             batchSize: autoUploadDecision?.batchSize || 200,
+            canUpload,
           });
         try {
           uploadResult = await drainWithToken(successfulDeviceToken);
@@ -3496,7 +3503,7 @@ async function cmdSync(argv, context = {}) {
     // and can keep auto retry alive even after cloud sync has drained.
     const pendingBytes = Math.max(0, queueSize - Number(afterState.offset || 0));
 
-    if (pendingBytes <= 0) {
+    if (pendingBytes <= 0 || !canUpload()) {
       await clearAutoRetry(trackerDir);
     } else if (opts.auto && uploadAttempted && !opts.publishAccount) {
       const retryAtMs = Number(uploadThrottleState?.nextAllowedAtMs || 0);
@@ -4150,7 +4157,7 @@ const AUTO_RETRY_MAX_DELAY_MS = 2 * 60 * 60 * 1000;
 const INGEST_SLUG = "tokentracker-ingest";
 const MAX_INGEST_BUCKETS = 500;
 
-async function drainQueueToCloud({ baseUrl, anonKey, deviceToken, queuePath, queueStatePath, maxBatches = 5, batchSize = 200 }) {
+async function drainQueueToCloud({ baseUrl, anonKey, deviceToken, queuePath, queueStatePath, maxBatches = 5, batchSize = 200, canUpload = () => true }) {
   const state = (await readJson(queueStatePath)) || { offset: 0 };
   let offset = Number(state.offset || 0);
   let inserted = 0;
@@ -4175,6 +4182,8 @@ async function drainQueueToCloud({ baseUrl, anonKey, deviceToken, queuePath, que
       Authorization: `Bearer ${deviceToken}`,
     };
     if (anonKey) headers.apikey = anonKey;
+    // Re-read after parsing/each batch so switching off stops an active drain.
+    if (!canUpload()) break;
     const res = await fetchFunctionResponse(functionUrlFor(root, INGEST_SLUG), {
       method: "POST",
       headers,

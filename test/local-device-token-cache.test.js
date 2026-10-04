@@ -65,6 +65,7 @@ async function fixture(t) {
   process.env.TOKENTRACKER_INSFORGE_BASE_URL = `http://127.0.0.1:${backend.address().port}`;
   await fs.writeFile(path.join(tracker, "config.json"), JSON.stringify({ baseUrl: `http://127.0.0.1:${backend.address().port}` }));
   await fs.writeFile(path.join(tracker, "relay-cookies.json"), JSON.stringify({ insforge_refresh_token: "insforge_refresh_token=user-a-seed; Path=/; HttpOnly; SameSite=Lax" }));
+  await fs.writeFile(path.join(tracker, "cloud-sync-pref.json"), JSON.stringify({ enabled: true }));
   const queue = path.join(tracker, "queue.jsonl");
   const row = { source: "fixture", model: "fixture-model", hour_start: "2026-10-01T00:00:00Z", input_tokens: 40, output_tokens: 0, total_tokens: 40, billable_total_tokens: 40, conversation_count: 1 };
   await fs.writeFile(queue, `${JSON.stringify(row)}\n`);

@@ -5,6 +5,7 @@ import {
   emitCloudUsageSynced,
   getCloudUsageReady,
   getCloudSyncEnabled,
+  syncCloudSyncPrefToLocalServer,
   getCloudDeviceSessionGeneration,
   getLastCloudSyncTs,
   getStoredDeviceSession,
@@ -224,6 +225,9 @@ async function syncCloudUsageWithRecovery(
 ): Promise<string | null> {
   let accessToken = await getAccessToken();
   if (!getCloudSyncEnabled() || !accessToken) return null;
+  // Persist opt-in before the preference-aware CLI starts; toggles are ordered.
+  await syncCloudSyncPrefToLocalServer();
+  if (!getCloudSyncEnabled()) return null;
   const ownerId = accessTokenOwner(accessToken);
 
   let session = await resolveCloudDeviceSession(getAccessToken, ownerId);

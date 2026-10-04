@@ -50,6 +50,9 @@ async function withTempHome(fn) {
     delete process.env.TOKENTRACKER_INSFORGE_ANON_KEY;
     delete process.env.DSH_HOME;
     delete process.env.TOKENTRACKER_DSH_HOME;
+    const trackerDir = path.join(home, ".tokentracker", "tracker");
+    await fs.mkdir(trackerDir, { recursive: true });
+    await fs.writeFile(path.join(trackerDir, "cloud-sync-pref.json"), JSON.stringify({ enabled: true }));
     return await fn(home);
   } finally {
     global.fetch = savedFetch;

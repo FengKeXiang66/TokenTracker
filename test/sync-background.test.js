@@ -200,6 +200,80 @@ async function countReaddir(fn, predicate = () => true) {
   }
 }
 
+test("automatic sync fails closed with credentials while collecting local usage twice", async () => {
+  for (const raw of [null, "", "{", "{}", '{"enabled":"true"}', '{"enabled":false}']) {
+    await withTempSyncEnv(async (home) => {
+      const trackerDir = path.join(home, ".tokentracker", "tracker");
+      await fs.mkdir(trackerDir, { recursive: true });
+      const prefPath = path.join(trackerDir, "cloud-sync-pref.json");
+      if (raw !== null) await fs.writeFile(prefPath, raw);
+      await fs.writeFile(path.join(trackerDir, "auto.retry.json"), JSON.stringify({ retryAtMs: Date.now() + 60_000 }));
+      await writeCodexRollout(process.env.CODEX_HOME, "2026-06-30", "019f16bd-1010-7000-8000-aaaaaaaaaaaa", 24);
+      process.env.TOKENTRACKER_DEVICE_TOKEN = "test-device-token";
+      process.env.TOKENTRACKER_INSFORGE_BASE_URL = "https://cloud.example";
+      const originalFetch = global.fetch;
+      let fetchCalls = 0;
+      global.fetch = async () => { fetchCalls += 1; throw new Error("unexpected upload"); };
+      try {
+        await cmdSync(["--auto", "--source", "codex"]);
+        const firstQueue = await readQueue(home);
+        assert.match(firstQueue, /"total_tokens":24/);
+        await cmdSync(["--auto", "--from-retry", "--source", "codex"]);
+        assert.equal(await readQueue(home), firstQueue);
+        await cmdSync(["--auto", "--background", "--publish-account"]);
+        assert.equal(fetchCalls, 0, `preference ${raw}`);
+        assert.equal(JSON.parse(await fs.readFile(path.join(trackerDir, "queue.state.json"), "utf8")).offset, 0);
+        assert.equal(await fs.stat(path.join(trackerDir, "auto.retry.json")).catch(() => null), null);
+        assert.equal(await fs.readFile(prefPath, "utf8").catch(() => null), raw);
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+  }
+});
+
+test("turning off during an automatic drain stops later batches and manual sync remains explicit", async () => {
+  await withTempSyncEnv(async (home) => {
+    const trackerDir = path.join(home, ".tokentracker", "tracker");
+    await fs.mkdir(trackerDir, { recursive: true });
+    const prefPath = path.join(trackerDir, "cloud-sync-pref.json");
+    await fs.writeFile(prefPath, JSON.stringify({ enabled: true }));
+    const rows = Array.from({ length: 201 }, (_, index) => ({
+      source: "fixture", model: `model-${index}`, hour_start: "2026-06-30T00:00:00.000Z",
+      input_tokens: 1, cached_input_tokens: 0, cache_creation_input_tokens: 0,
+      output_tokens: 0, reasoning_output_tokens: 0, total_tokens: 1,
+      billable_total_tokens: 1, conversation_count: 1,
+    }));
+    await fs.writeFile(path.join(trackerDir, "queue.jsonl"), rows.map(JSON.stringify).join("\n") + "\n");
+    process.env.TOKENTRACKER_DEVICE_TOKEN = "test-device-token";
+    process.env.TOKENTRACKER_INSFORGE_BASE_URL = "https://cloud.example";
+    const originalFetch = global.fetch;
+    let calls = 0;
+    global.fetch = async () => {
+      calls += 1;
+      await fs.writeFile(prefPath, JSON.stringify({ enabled: false }));
+      return { ok: true, status: 200, headers: { get: () => null }, text: async () => JSON.stringify({ inserted: 200, skipped: 0 }) };
+    };
+    try {
+      await cmdSync(["--auto", "--source", "codex"]);
+      assert.equal(calls, 1, "saved opt-in uploads, then opt-out stops the next batch");
+      assert.equal(await fs.stat(path.join(trackerDir, "auto.retry.json")).catch(() => null), null);
+      process.env.TOKENTRACKER_LOCAL_SYNC_ATTEMPT_ID = "webview-automatic-sync";
+      try {
+        await cmdSync(["--source", "codex", "--drain"]);
+        assert.equal(calls, 1, "WebView/API uploads also honor opt-out without an auto flag");
+      } finally {
+        delete process.env.TOKENTRACKER_LOCAL_SYNC_ATTEMPT_ID;
+      }
+      await cmdSync(["--source", "codex", "--drain"]);
+      assert.equal(calls, 2, "manual sync can upload the remaining queue without enabling automatic sync");
+      assert.equal(JSON.parse(await fs.readFile(prefPath, "utf8")).enabled, false);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+});
+
 async function readQueue(home) {
   return fs.readFile(path.join(home, ".tokentracker", "tracker", "queue.jsonl"), "utf8");
 }
@@ -651,6 +725,8 @@ test("explicit account publication uploads after bounded background parsing", as
   await withTempSyncEnv(async (home) => {
     const codexHome = process.env.CODEX_HOME;
     await writeCodexRollout(codexHome, "2026-06-30", "019f16bd-1007-7000-8000-aaaaaaaaaaaa", 64);
+    await fs.mkdir(path.join(home, ".tokentracker", "tracker"), { recursive: true });
+    await fs.writeFile(path.join(home, ".tokentracker", "tracker", "cloud-sync-pref.json"), JSON.stringify({ enabled: true }));
     process.env.TOKENTRACKER_DEVICE_TOKEN = "test-device-token";
     process.env.TOKENTRACKER_INSFORGE_BASE_URL = "https://cloud.example";
     const originalFetch = global.fetch;
@@ -705,6 +781,8 @@ test("background account publication respects persisted upload failure backoff",
       JSON.stringify({ version: 1, retryAtMs: Date.now() + 60_000 }),
       "utf8",
     );
+    await fs.mkdir(path.join(home, ".tokentracker", "tracker"), { recursive: true });
+    await fs.writeFile(path.join(home, ".tokentracker", "tracker", "cloud-sync-pref.json"), JSON.stringify({ enabled: true }));
     process.env.TOKENTRACKER_DEVICE_TOKEN = "test-device-token";
     process.env.TOKENTRACKER_INSFORGE_BASE_URL = "https://cloud.example";
     const originalFetch = global.fetch;
@@ -756,6 +834,8 @@ test("bounded native publication leaves backlog for the next native tick without
       conversation_count: 1,
     }));
     await fs.writeFile(queuePath, `${rows.map(JSON.stringify).join("\n")}\n`, "utf8");
+    await fs.mkdir(path.join(home, ".tokentracker", "tracker"), { recursive: true });
+    await fs.writeFile(path.join(home, ".tokentracker", "tracker", "cloud-sync-pref.json"), JSON.stringify({ enabled: true }));
     process.env.TOKENTRACKER_DEVICE_TOKEN = "test-device-token";
     process.env.TOKENTRACKER_INSFORGE_BASE_URL = "https://cloud.example";
     const originalFetch = global.fetch;
