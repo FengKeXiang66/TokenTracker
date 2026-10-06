@@ -29,37 +29,65 @@ struct UsageLimitsView: View {
         limits.hasAnyProviderWithoutError
     }
 
+    /// Provider id → the asset name `brandIcon` expects. Mirrors the
+    /// per-provider `assetName` arguments in `sectionIfContent`, so a provider
+    /// with no usable quota record can still render its own logo.
+    private static let providerIconAssetNames: [String: String] = [
+        "claude": "ClaudeLogo",
+        "codex": "CodexLogo",
+        "cursor": "CursorLogo",
+        "gemini": "GeminiLogo",
+        "kimi": "KimiLogo",
+        "kiro": "KiroLogo",
+        "grok": "GrokLogo",
+        "copilot": "CopilotLogo",
+        "antigravity": "AntigravityLogo",
+        "zcode": "ZcodeLogo",
+        "opencodeGo": "OpenCodeLogo",
+        "commandCode": "CommandCodeLogo",
+        "qoder": "QoderLogo",
+        "qoderCn": "QoderCnLogo",
+        "codingPlan": "VolcanoArkLogo",
+        "agentPlan": "VolcanoArkLogo",
+        "devin": "DevinLogo",
+    ]
+
     var body: some View {
-        if let limits, hasAnyAvailable(limits) {
+        if let limits {
             let visibleGroups = buildVisibleGroups(limits)
 
-            VStack(alignment: .leading, spacing: 8) {
-                SectionHeader(title: "\(Strings.usageLimitsTitle) · \(displayModeTitle)") {
-                    SettingsGearButton(isPresented: $showSettings) {
-                        LimitsSettingsView(store: settings)
-                    }
-                }
-
-                if visibleGroups.isEmpty {
-                    // Missing quota content does not mean the user hid it.
-                    if LimitsSettingsStore.allProviders.allSatisfy({ !settings.isVisible($0) }) {
-                        Text(Strings.allProvidersHidden)
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    }
-                } else {
-                    ForEach(Array(visibleGroups.enumerated()), id: \.offset) { index, group in
-                        if index > 0 {
-                            Divider()
-                                .opacity(0.4)
-                                .padding(.vertical, 2)
+            // A response with no usable quota record still has something to
+            // show when the user linked a subscription to one of its providers:
+            // `visibleGroups` then carries subscription-only sections.
+            if hasAnyAvailable(limits) || !visibleGroups.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    SectionHeader(title: "\(Strings.usageLimitsTitle) · \(displayModeTitle)") {
+                        SettingsGearButton(isPresented: $showSettings) {
+                            LimitsSettingsView(store: settings)
                         }
-                        group
+                    }
+
+                    if visibleGroups.isEmpty {
+                        // Missing quota content does not mean the user hid it.
+                        if LimitsSettingsStore.allProviders.allSatisfy({ !settings.isVisible($0) }) {
+                            Text(Strings.allProvidersHidden)
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                    } else {
+                        ForEach(Array(visibleGroups.enumerated()), id: \.offset) { index, group in
+                            if index > 0 {
+                                Divider()
+                                    .opacity(0.4)
+                                    .padding(.vertical, 2)
+                            }
+                            group
+                        }
                     }
                 }
+                .onPreferenceChange(LimitLabelWidthKey.self) { labelColumnWidth = ceil($0) }
             }
-            .onPreferenceChange(LimitLabelWidthKey.self) { labelColumnWidth = ceil($0) }
-        } else if limits == nil {
+        } else {
             LimitsSkeleton()
         }
     }
@@ -170,7 +198,43 @@ struct UsageLimitsView: View {
         default:
             break
         }
-        return nil
+        // No usable quota record for this provider (not connected, subscription
+        // inactive, or a fetch error). A subscription the user entered by hand
+        // still belongs on the panel: it is manual data, so its bar and date
+        // must not disappear because the tool's own quota fetch failed.
+        return subscriptionOnlySection(id: id)
+    }
+
+    /// Provider heading plus the subscription row, for providers whose quota
+    /// data is unavailable. Deliberately carries no quota rows, no explanation
+    /// popover and no status line — only the renewal progress the user entered.
+    private func subscriptionOnlySection(id: String) -> AnyView? {
+        guard let subscription = subscriptionByProvider[id] else { return nil }
+        return AnyView(VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 5) {
+                if let assetName = Self.providerIconAssetNames[id] {
+                    brandIcon(assetName)
+                        .frame(width: 14, height: 14)
+                }
+                Text(LimitsSettingsStore.displayNames[id] ?? id)
+                    .font(.system(.caption, design: .default))
+                    .modifier(FontWeightModifier(weight: .medium))
+                subscriptionBadge(subscription)
+                Spacer()
+            }
+            VStack(spacing: 4) {
+                subscriptionRow(for: subscription)
+            }
+        })
+    }
+
+    /// Auto-renew / stops-at-expiry glyph shown next to a provider's name.
+    private func subscriptionBadge(_ subscription: SubscriptionRecord) -> some View {
+        Image(systemName: subscription.autoRenew ? "infinity" : "clock")
+            .font(.system(size: 10, weight: .medium))
+            .foregroundStyle(subscription.autoRenew ? Color.accentColor : Color.secondary)
+            .help(subscription.autoRenew ? Strings.subscriptionAutoRenewBadge : Strings.subscriptionStopsBadge)
+            .accessibilityLabel(subscription.autoRenew ? Strings.subscriptionAutoRenewBadge : Strings.subscriptionStopsBadge)
     }
 
     // MARK: - Tool Section
@@ -222,11 +286,7 @@ struct UsageLimitsView: View {
                     .font(.system(.caption, design: .default))
                     .modifier(FontWeightModifier(weight: .medium))
                 if let sub = subscription {
-                    Image(systemName: sub.autoRenew ? "infinity" : "clock")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(sub.autoRenew ? Color.accentColor : Color.secondary)
-                        .help(sub.autoRenew ? Strings.subscriptionAutoRenewBadge : Strings.subscriptionStopsBadge)
-                        .accessibilityLabel(sub.autoRenew ? Strings.subscriptionAutoRenewBadge : Strings.subscriptionStopsBadge)
+                    subscriptionBadge(sub)
                 }
                 if let titleSuffix {
                     Text(titleSuffix)
