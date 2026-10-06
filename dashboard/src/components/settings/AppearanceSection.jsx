@@ -9,7 +9,7 @@ import { CURRENCY_USD, getSupportedCurrencies } from "../../lib/currency";
 import { copy } from "../../lib/copy";
 import { Select } from "../../ui/components";
 import { SectionCard, SegmentedControl, SettingsRow } from "./Controls.jsx";
-import { TOKEN_FORMAT_MODES, TOKEN_UNIT_SYSTEMS } from "../../lib/token-format.js";
+import { TOKEN_FORMAT_MODES, TOKEN_GROUPINGS, TOKEN_UNIT_SYSTEMS } from "../../lib/token-format.js";
 
 function buildThemeOptions() {
   return [
@@ -115,6 +115,8 @@ export function AppearanceSection() {
     setMode: setTokenFormatMode,
     unitSystem: tokenUnitSystem,
     setUnitSystem: setTokenUnitSystem,
+    grouping: tokenGrouping,
+    setGrouping: setTokenGrouping,
   } = useTokenFormat();
 
   return (
@@ -179,6 +181,26 @@ export function AppearanceSection() {
             ]}
             value={tokenUnitSystem}
             onChange={setTokenUnitSystem}
+          />
+        }
+      />
+      <SettingsRow
+        label={copy("settings.appearance.token_grouping.label")}
+        hint={copy("settings.appearance.token_grouping.hint")}
+        control={
+          <SegmentedControl
+            options={[
+              {
+                value: TOKEN_GROUPINGS.THOUSAND,
+                label: copy("settings.appearance.token_grouping.thousand"),
+              },
+              {
+                value: TOKEN_GROUPINGS.WAN,
+                label: copy("settings.appearance.token_grouping.wan"),
+              },
+            ]}
+            value={tokenGrouping}
+            onChange={setTokenGrouping}
           />
         }
       />

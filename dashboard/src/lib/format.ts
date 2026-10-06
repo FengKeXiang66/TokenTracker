@@ -1,10 +1,47 @@
+function groupIntegerDigits(value: string, groupSize: number, separator: string) {
+  const negative = value.startsWith("-");
+  const digits = negative ? value.slice(1) : value;
+  const groups: string[] = [];
+
+  for (let end = digits.length; end > 0; end -= groupSize) {
+    groups.unshift(digits.slice(Math.max(0, end - groupSize), end));
+  }
+
+  return `${negative ? "-" : ""}${groups.join(separator)}`;
+}
+
 export function toDisplayNumber(value: any) {
+  return toDisplayNumberWithOptions(value);
+}
+
+export function toDisplayNumberWithOptions(
+  value: any,
+  { groupSize = 3 }: { groupSize?: number } = {},
+) {
   if (value == null) return "-";
   try {
-    if (typeof value === "bigint") return new Intl.NumberFormat().format(value);
-    if (typeof value === "number") return new Intl.NumberFormat().format(value);
+    if (typeof value === "bigint") return groupIntegerDigits(value.toString(), groupSize, ",");
+    if (typeof value === "number") {
+      const formatter = new Intl.NumberFormat(undefined, {
+        useGrouping: false,
+        maximumFractionDigits: 20,
+      });
+      if (groupSize <= 1) return formatter.format(value);
+      const parts = formatter.formatToParts(value);
+      const integerPart = parts.find((part) => part.type === "integer")?.value || "0";
+      const decimalPart = parts.find((part) => part.type === "fraction")?.value;
+      const decimalSeparator = parts.find((part) => part.type === "decimal")?.value || ".";
+      const signPart = parts.find((part) => part.type === "minusSign")?.value || "";
+      return `${signPart}${groupIntegerDigits(integerPart, groupSize, ",")}${
+        decimalPart ? `${decimalSeparator}${decimalPart}` : ""
+      }`;
+    }
     const s = String(value).trim();
-    if (/^[0-9]+$/.test(s)) return new Intl.NumberFormat().format(BigInt(s));
+    if (/^[0-9]+$/.test(s)) {
+      return groupSize <= 1
+        ? new Intl.NumberFormat(undefined, { useGrouping: false }).format(BigInt(s))
+        : groupIntegerDigits(s, groupSize, ",");
+    }
     return s;
   } catch (_e) {
     return String(value);

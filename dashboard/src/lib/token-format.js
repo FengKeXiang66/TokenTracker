@@ -1,4 +1,8 @@
-import { formatChineseNumber, formatCompactNumber, toDisplayNumber } from "./format";
+import {
+  formatChineseNumber,
+  formatCompactNumber,
+  toDisplayNumberWithOptions,
+} from "./format";
 
 export const TOKEN_FORMAT_MODES = Object.freeze({
   COMPACT: "compact",
@@ -12,6 +16,12 @@ export const TOKEN_UNIT_SYSTEMS = Object.freeze({
 
 export const TOKEN_FORMAT_STORAGE_KEY = "tt.tokenFormat";
 export const TOKEN_UNIT_SYSTEM_STORAGE_KEY = "tt.tokenUnitSystem";
+export const TOKEN_GROUPING_STORAGE_KEY = "tt.tokenGrouping";
+
+export const TOKEN_GROUPINGS = Object.freeze({
+  THOUSAND: "thousand",
+  WAN: "wan",
+});
 
 export function normalizeTokenFormatMode(value) {
   // Pre-0.96.3 releases stored the Wan/Yi display as a third mode value;
@@ -24,6 +34,10 @@ export function normalizeTokenUnitSystem(value) {
   return value === TOKEN_UNIT_SYSTEMS.CHINESE
     ? TOKEN_UNIT_SYSTEMS.CHINESE
     : TOKEN_UNIT_SYSTEMS.ENGLISH;
+}
+
+export function normalizeTokenGrouping(value) {
+  return value === TOKEN_GROUPINGS.WAN ? TOKEN_GROUPINGS.WAN : TOKEN_GROUPINGS.THOUSAND;
 }
 
 export function readTokenFormatMode() {
@@ -61,6 +75,15 @@ export function readTokenUnitSystem() {
   }
 }
 
+export function readTokenGrouping() {
+  if (typeof window === "undefined") return TOKEN_GROUPINGS.THOUSAND;
+  try {
+    return normalizeTokenGrouping(window.localStorage?.getItem(TOKEN_GROUPING_STORAGE_KEY));
+  } catch (_error) {
+    return TOKEN_GROUPINGS.THOUSAND;
+  }
+}
+
 export function persistTokenUnitSystem(value) {
   const unitSystem = normalizeTokenUnitSystem(value);
   if (typeof window === "undefined") return unitSystem;
@@ -70,6 +93,17 @@ export function persistTokenUnitSystem(value) {
     // localStorage can be unavailable in private/locked-down browser contexts.
   }
   return unitSystem;
+}
+
+export function persistTokenGrouping(value) {
+  const grouping = normalizeTokenGrouping(value);
+  if (typeof window === "undefined") return grouping;
+  try {
+    window.localStorage?.setItem(TOKEN_GROUPING_STORAGE_KEY, grouping);
+  } catch (_error) {
+    // localStorage can be unavailable in private/locked-down browser contexts.
+  }
+  return grouping;
 }
 
 export function migrateLegacyChineseTokenFormat() {
@@ -91,6 +125,7 @@ export function formatTokenCount(
   {
     mode = TOKEN_FORMAT_MODES.COMPACT,
     unitSystem,
+    grouping,
     forceFull = false,
     decimals = 1,
     thousandSuffix = "K",
@@ -100,7 +135,9 @@ export function formatTokenCount(
   } = {},
 ) {
   if (forceFull || normalizeTokenFormatMode(mode) === TOKEN_FORMAT_MODES.FULL) {
-    return toDisplayNumber(value);
+    return toDisplayNumberWithOptions(value, {
+      groupSize: grouping === TOKEN_GROUPINGS.WAN ? 4 : 3,
+    });
   }
   if (
     mode === TOKEN_UNIT_SYSTEMS.CHINESE ||
@@ -118,7 +155,11 @@ export function formatTokenCount(
 }
 
 export function formatTokenTooltip(value, options = {}) {
-  const full = toDisplayNumber(value);
+  const full = formatTokenCount(value, {
+    ...options,
+    mode: TOKEN_FORMAT_MODES.FULL,
+    forceFull: true,
+  });
   const display = formatTokenCount(value, options);
   if (display === full || display === "-" || full === "-") return full;
   return `${display} · ${full}`;

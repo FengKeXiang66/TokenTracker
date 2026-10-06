@@ -554,6 +554,10 @@ settings.appearance.token_unit.label,ui,SettingsPage,SettingsPage,token_unit_lab
 settings.appearance.token_unit.hint,ui,SettingsPage,SettingsPage,token_unit_hint,"Compact numbers use K/M/B or Wan/Yi units. Full numbers ignore units.",,active
 settings.appearance.token_unit.english,ui,SettingsPage,SettingsPage,token_unit_english,"K/M/B",,active
 settings.appearance.token_unit.chinese,ui,SettingsPage,SettingsPage,token_unit_chinese,"Wan/Yi",,active
+settings.appearance.token_grouping.label,ui,SettingsPage,SettingsPage,token_grouping_label,"Number grouping",,active
+settings.appearance.token_grouping.hint,ui,SettingsPage,SettingsPage,token_grouping_hint,"Exact numbers use 3-digit or Chinese 4-digit grouping. Compact tooltips follow this setting.",,active
+settings.appearance.token_grouping.thousand,ui,SettingsPage,SettingsPage,token_grouping_thousand,"3-digit",,active
+settings.appearance.token_grouping.wan,ui,SettingsPage,SettingsPage,token_grouping_wan,"4-digit",,active
 settings.appearance.currency.opt.usd,ui,SettingsPage,SettingsPage,currency_opt_usd,"USD ($)",,active
 settings.appearance.currency.opt.eur,ui,SettingsPage,SettingsPage,currency_opt_eur,"EUR (€)",,active
 settings.appearance.currency.opt.gbp,ui,SettingsPage,SettingsPage,currency_opt_gbp,"GBP (£)",,active

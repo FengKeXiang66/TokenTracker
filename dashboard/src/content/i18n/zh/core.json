@@ -816,5 +816,9 @@
   "limits.devin.setupHint.subtitle": "使用本机 Devin CLI 保存的登录读取你的 Devin 订阅额度。",
   "limits.devin.setupHint.step1": "安装 Devin CLI 并运行下方命令登录，TokenTracker 自动复用登录，无需重启。",
   "limits.devin.setupHint.note": "登录后刷新此页即可。TokenTracker 只会将保存的会话令牌发送到 Devin 官方额度接口。",
-  "limits.devin.setupHint.snippet_login": "devin auth login   # 登录 Devin"
+  "limits.devin.setupHint.snippet_login": "devin auth login   # 登录 Devin",
+  "settings.appearance.token_grouping.label": "数字分组",
+  "settings.appearance.token_grouping.hint": "精确数字使用 3 位或中文 4 位分组；紧凑模式的悬停数值也会使用该设置。",
+  "settings.appearance.token_grouping.thousand": "3位",
+  "settings.appearance.token_grouping.wan": "4位"
 }
