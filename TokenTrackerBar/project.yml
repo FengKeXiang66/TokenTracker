@@ -128,6 +128,10 @@ targets:
       - path: TokenTrackerBar/Models/UsageLimits.swift
       - path: TokenTrackerBar/Models/LimitPace.swift
       - path: TokenTrackerBar/Models/WeeklyLimitResetDetector.swift
+      # The Limits panel renders hand-entered subscription bars from
+      # SubscriptionCycle; compile it so that calendar math is unit-tested
+      # natively instead of only by the dashboard's JS twin.
+      - path: TokenTrackerBar/Models/Subscription.swift
       - path: TokenTrackerBar/Models/BackgroundRefreshPolicy.swift
       - path: TokenTrackerBar/Models/SyncRequestPolicy.swift
       - path: TokenTrackerBar/Models/UsagePublicationPolicy.swift
