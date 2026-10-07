@@ -48,14 +48,17 @@ const execFileAsync = promisify(cp.execFile);
 // 2-minute in-memory cache. It also expires early at the earliest upcoming window
 // reset in the cached data (see cacheExpiresAtMs), floored so a provider reporting
 // a reset "right now" can't turn every poll into a full upstream round.
-// Partitioned by the Devin opt-in selection so a request made while Devin is
-// off is never served (or joined onto) a response fetched while it was on.
-const cacheByDevinSelection = {
-  off: { data: null, expiresAtMs: 0 },
-  on: { data: null, expiresAtMs: 0 },
-};
-function devinSelectionKey(options) {
-  return options?.devinEnabled === true ? "on" : "off";
+// Partitioned by the Devin opt-in selection AND the Antigravity quota opt-out, so
+// a request made while Devin is off is never served (or joined onto) a response
+// fetched while it was on, and an aggregate fetched while Antigravity was enabled
+// is never served after the opt-out is set. Key = `${devin}-${antigravity}`.
+const USAGE_LIMITS_SELECTION_KEYS = ["off-on", "off-off", "on-on", "on-off"];
+const cacheBySelection = {};
+for (const key of USAGE_LIMITS_SELECTION_KEYS) cacheBySelection[key] = { data: null, expiresAtMs: 0 };
+function usageLimitsSelectionKey(options) {
+  const devin = options?.devinEnabled === true ? "on" : "off";
+  const antigravity = isAntigravityQuotaDisabled() ? "off" : "on";
+  return `${devin}-${antigravity}`;
 }
 const CACHE_TTL_MS = 2 * 60 * 1000;
 // Must stay below the macOS app's post-reset re-fetch grace (10s in
@@ -105,6 +108,9 @@ const ANTIGRAVITY_NOT_RUNNING_MESSAGE = "Antigravity IDE is not running. Launch 
 const CLAUDE_LIMITS_CACHE_FILE = "claude-usage-limits-cache.json";
 const CLAUDE_LIMITS_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const CLAUDE_LIMITS_CACHE_FRESH_TTL_MS = 10 * 60 * 1000;
+// Longer than the fresh TTL, so a prompt made after a snapshot was written always
+// falls inside it (see claudeCacheAwaitsNewWindow).
+const CLAUDE_UNSTARTED_WINDOW_RETRY_MS = 15 * 60 * 1000;
 // Codex has no rate-limit cooldown like Claude, but its two sequential chatgpt.com requests
 // (/wham/usage + /wham/rate-limit-reset-credits) make it the provider most exposed to slow
 // networks. Persist the last successful read so a timeout serves stale bars instead of a red
@@ -294,14 +300,19 @@ async function fetchClaudeUsageLimits(accessToken, { fetchImpl = fetch, maxAttem
       throw new Error(`Claude API returned ${res.status}`);
     }
     const body = await res.json();
-    return {
-      five_hour: body.five_hour ?? null,
-      seven_day: body.seven_day ?? null,
-      seven_day_opus: body.seven_day_opus ?? null,
-      weekly_scoped: extractClaudeScopedWeekly(body),
-      extra_usage: body.extra_usage ?? null,
-    };
+    return mapClaudeUsageBody(body);
   }
+}
+
+/** Map an /api/oauth/usage body (live, or Claude Code's cached copy) onto the limits shape. */
+function mapClaudeUsageBody(body) {
+  return {
+    five_hour: body?.five_hour ?? null,
+    seven_day: body?.seven_day ?? null,
+    seven_day_opus: body?.seven_day_opus ?? null,
+    weekly_scoped: extractClaudeScopedWeekly(body),
+    extra_usage: body?.extra_usage ?? null,
+  };
 }
 
 // Classify a wham window by `limit_window_seconds` rather than its slot name.
@@ -2259,7 +2270,12 @@ function normalizeAntigravityCachedLimits(raw, { nowMs = Date.now() } = {}) {
   return hasAntigravityWindow(cached) ? cached : null;
 }
 
+function isAntigravityQuotaDisabled() {
+  return process.env.TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA === "1";
+}
+
 function readAntigravityLimitsCache({ home, nowMs = Date.now() } = {}) {
+  if (isAntigravityQuotaDisabled()) return null;
   const cachePath = resolveAntigravityLimitsCachePath({ home });
   try {
     const parsed = JSON.parse(fs.readFileSync(cachePath, "utf8"));
@@ -2365,7 +2381,9 @@ function readClaudeLimitsCache({
   maxAgeMs = CLAUDE_LIMITS_CACHE_MAX_AGE_MS,
   stale = true,
 } = {}) {
-  return normalizeClaudeCachedLimits(readClaudeLimitsCacheRaw({ home }), { nowMs, maxAgeMs, stale });
+  return pickNewestClaudeSnapshot(readClaudeLimitsCacheCandidates({ home }).map((raw) => (
+    normalizeClaudeCachedLimits(raw, { nowMs, maxAgeMs, stale })
+  )));
 }
 
 // A cached snapshot stops being "fresh" the moment any of its windows crosses the
@@ -2388,14 +2406,81 @@ function claudeCacheCrossedReset(raw, { nowMs } = {}) {
   });
 }
 
+// An unstarted 5h/7d window (0%, `resets_at: null`) is started by the next prompt,
+// and Anthropic can lag several minutes behind it, so refetch on every poll within
+// the retry period after the last prompt, even when the live read is still empty.
+// The age is measured from the last prompt, not from the cache, because each empty
+// read rewrites the cache. history.jsonl gains a line per Claude Code prompt; only
+// its mtime is read. Model-scoped windows stay unstarted while that model is unused.
+function claudeCacheAwaitsNewWindow(raw, { home, nowMs } = {}) {
+  const unstarted = [raw?.five_hour, raw?.seven_day].some((window) => (
+    window && typeof window === "object" && parseTimeMs(window.resets_at) === null
+  ));
+  if (!unstarted) return false;
+  try {
+    const historyPath = path.join(home || os.homedir(), ".claude", "history.jsonl");
+    const ageMs = nowMs - fs.statSync(historyPath).mtimeMs;
+    // A future mtime (clock correction, copied file) would otherwise extend the retry.
+    return ageMs >= 0 && ageMs < CLAUDE_UNSTARTED_WINDOW_RETRY_MS;
+  } catch (_error) {
+    return false;
+  }
+}
+
+// Claude Code keeps its last /api/oauth/usage response in its global config
+// (`cachedUsageUtilization` in ~/.claude.json). That endpoint is throttled hard and its
+// budget is shared with Claude Code itself, so reading this copy costs no request. Only
+// usage figures are read — no credentials. The path deliberately ignores CLAUDE_CONFIG_DIR:
+// readClaudeCodeOauthToken reads the default profile's credentials (default Keychain item,
+// ~/.claude/.credentials.json), and the cache must come from that same profile so it can
+// never describe a different account than the token this process would query with.
+function resolveClaudeCodeGlobalConfigPath({ home } = {}) {
+  return path.join(home || os.homedir(), ".claude.json");
+}
+
+/**
+ * Claude Code's cached usage as a raw cache entry (same shape as our own disk cache),
+ * or null when absent, unparsable, or recorded for a different account than the one
+ * Claude Code is currently signed in to.
+ */
+function readClaudeCodeUsageCacheRaw({ home } = {}) {
+  try {
+    const config = JSON.parse(fs.readFileSync(resolveClaudeCodeGlobalConfigPath({ home }), "utf8"));
+    const cached = config?.cachedUsageUtilization;
+    const fetchedAtMs = Number(cached?.fetchedAtMs);
+    if (!cached?.utilization || typeof cached.utilization !== "object" || !Number.isFinite(fetchedAtMs)) return null;
+    const cachedAccount = typeof cached.accountUuid === "string" ? cached.accountUuid : null;
+    const currentAccount = typeof config?.oauthAccount?.accountUuid === "string" ? config.oauthAccount.accountUuid : null;
+    if (!cachedAccount || !currentAccount || cachedAccount !== currentAccount) return null;
+    return { ...mapClaudeUsageBody(cached.utilization), cached_at: new Date(fetchedAtMs).toISOString() };
+  } catch (_error) {
+    return null;
+  }
+}
+
+/** Raw snapshots from both sources: our own disk cache and Claude Code's cached read. */
+function readClaudeLimitsCacheCandidates({ home } = {}) {
+  return [readClaudeLimitsCacheRaw({ home }), readClaudeCodeUsageCacheRaw({ home })].filter(Boolean);
+}
+
+/** Newest of the already-validated snapshots, by cached_at. */
+function pickNewestClaudeSnapshot(snapshots) {
+  let newest = null;
+  for (const snapshot of snapshots) {
+    if (!snapshot) continue;
+    if (!newest || parseTimeMs(snapshot.cached_at) > parseTimeMs(newest.cached_at)) newest = snapshot;
+  }
+  return newest;
+}
+
+// Each source is validated on its own before picking the newest, so a newer snapshot
+// whose windows are all unusable can never displace an older usable one.
 function readFreshClaudeLimitsCache({ home, nowMs = Date.now() } = {}) {
-  const raw = readClaudeLimitsCacheRaw({ home });
-  if (!raw || claudeCacheCrossedReset(raw, { nowMs })) return null;
-  return normalizeClaudeCachedLimits(raw, {
-    nowMs,
-    maxAgeMs: CLAUDE_LIMITS_CACHE_FRESH_TTL_MS,
-    stale: false,
-  });
+  return pickNewestClaudeSnapshot(readClaudeLimitsCacheCandidates({ home }).map((raw) => (
+    claudeCacheCrossedReset(raw, { nowMs }) || claudeCacheAwaitsNewWindow(raw, { home, nowMs })
+      ? null
+      : normalizeClaudeCachedLimits(raw, { nowMs, maxAgeMs: CLAUDE_LIMITS_CACHE_FRESH_TTL_MS, stale: false })
+  )));
 }
 
 function writeClaudeLimitsCache(limits, { home, nowMs = Date.now() } = {}) {
@@ -3230,6 +3315,7 @@ function loadAntigravityCredentials({
   securityRunner,
   nowMs = Date.now(),
 } = {}) {
+  if (isAntigravityQuotaDisabled()) return null;
   const candidates = collectAntigravityFileCredentials({ home });
   if (platform === "darwin" || typeof securityRunner === "function") {
     const parsed = parseAntigravityCredentialPayload(readAntigravityKeychainRaw({ securityRunner }));
@@ -3377,6 +3463,7 @@ async function fetchAntigravityRemoteLimits({
   signal,
   creds,
 } = {}) {
+  if (isAntigravityQuotaDisabled()) return null;
   const resolvedCreds = creds !== undefined
     ? creds
     : loadAntigravityCredentials({ home, platform, securityRunner, nowMs });
@@ -3471,6 +3558,7 @@ async function fetchAntigravityLimits({
   securityRunner,
   signal,
 } = {}) {
+  if (isAntigravityQuotaDisabled()) return { configured: false, error: null };
   const creds = loadAntigravityCredentials({ home, platform, securityRunner, nowMs });
   const startedAtMs = performance.now();
   // min(this step's ceiling, budget left after reserving the fallback guard).
@@ -3695,7 +3783,8 @@ function withPlanLabel(obj, raw, brand) {
 // hammered). Survives an external resetUsageLimitsCache() (refresh=1 path in
 // local-api.js): a refresh arriving while a fetch is already running reuses that
 // in-flight fetch and returns its result.
-const inFlightByDevinSelection = { off: null, on: null };
+const inFlightBySelection = {};
+for (const key of USAGE_LIMITS_SELECTION_KEYS) inFlightBySelection[key] = null;
 
 // Codex stamps reset_at as unix seconds; every other provider (and Claude's
 // resets_at) uses ISO strings. Numbers that look like epoch milliseconds are
@@ -3733,19 +3822,19 @@ function cacheExpiresAtMs(data, fetchedAtMs) {
 }
 
 async function getUsageLimits(options = {}) {
-  const selection = devinSelectionKey(options);
-  const cache = cacheByDevinSelection[selection];
+  const selection = usageLimitsSelectionKey(options);
+  const cache = cacheBySelection[selection];
   const nowMs = Date.now();
   if (cache.data && nowMs < cache.expiresAtMs) {
     return cache.data;
   }
-  if (inFlightByDevinSelection[selection]) {
-    return inFlightByDevinSelection[selection];
+  if (inFlightBySelection[selection]) {
+    return inFlightBySelection[selection];
   }
-  const promise = fetchUsageLimitsUncached(options).finally(() => {
-    if (inFlightByDevinSelection[selection] === promise) inFlightByDevinSelection[selection] = null;
+  const promise = fetchUsageLimitsUncached({ ...options, selectionKey: selection }).finally(() => {
+    if (inFlightBySelection[selection] === promise) inFlightBySelection[selection] = null;
   });
-  inFlightByDevinSelection[selection] = promise;
+  inFlightBySelection[selection] = promise;
   return promise;
 }
 
@@ -3761,6 +3850,10 @@ async function fetchUsageLimitsUncached({
   providerTimeoutMs = DEFAULT_PROVIDER_TIMEOUT_MS,
   forceRefresh = false,
   devinEnabled = false,
+  // Selection key fixed by getUsageLimits before the fetch began. Re-deriving it
+  // here would let an opt-out flipped mid-fetch store a pre-opt-out result in the
+  // post-opt-out slot.
+  selectionKey,
 } = {}) {
   const nowMs = Date.now();
 
@@ -3814,7 +3907,8 @@ async function fetchUsageLimitsUncached({
     : null;
   // Also avoid cross-process hammering after a recent successful read: embedded-server
   // restarts and background polls read the disk cache instead of spending another Claude
-  // OAuth usage request. An explicit user refresh (refresh=1 → forceRefresh) punches
+  // OAuth usage request. Claude Code's own cached read counts too, so a session that just
+  // refreshed its usage spares this process a call against the same throttled budget. An explicit user refresh (refresh=1 → forceRefresh) punches
   // through this cache — but never through the 429 cooldown above, which is exactly the
   // hammering the cooldown exists to prevent.
   const freshClaudeCache = claudeToken && !forceRefresh
@@ -4229,7 +4323,7 @@ async function fetchUsageLimitsUncached({
     };
   }
 
-  cacheByDevinSelection[devinSelectionKey({ devinEnabled })] = {
+  cacheBySelection[selectionKey || usageLimitsSelectionKey({ devinEnabled })] = {
     data,
     expiresAtMs: cacheExpiresAtMs(data, nowMs),
   };
@@ -4237,8 +4331,9 @@ async function fetchUsageLimitsUncached({
 }
 
 function resetUsageLimitsCache() {
-  cacheByDevinSelection.off = { data: null, expiresAtMs: 0 };
-  cacheByDevinSelection.on = { data: null, expiresAtMs: 0 };
+  for (const key of USAGE_LIMITS_SELECTION_KEYS) {
+    cacheBySelection[key] = { data: null, expiresAtMs: 0 };
+  }
 }
 
 module.exports = {
