@@ -3,7 +3,6 @@
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const crypto = require("node:crypto");
 const { parse } = require("smol-toml");
 const { expandHome } = require("./scan-roots");
 
@@ -14,12 +13,13 @@ function endpoint(value, fallback) {
   return typeof value === "string" ? value.trim().replace(/\/+$/, "") : fallback;
 }
 
-// Match MoonshotAI/kimi-code packages/oauth/src/managed-kimi-code.ts.
+// The two supported official endpoint pairs have stable upstream credential
+// slots. The global suffix is SHA-256(JSON.stringify({ oauthHost, baseUrl }))
+// truncated to 16 hex characters, matching managed-kimi-code.ts. Keeping the
+// filenames constant also prevents remote configuration from shaping paths.
 function credentialKey(oauthHost, baseUrl) {
-  if (oauthHost === MAINLAND.oauthHost && baseUrl === MAINLAND.baseUrl) return "kimi-code";
-  const digest = crypto.createHash("sha256").update(JSON.stringify({ oauthHost, baseUrl }))
-    .digest("hex").slice(0, 16);
-  return `kimi-code-env-${digest}`;
+  return oauthHost === GLOBAL.oauthHost && baseUrl === GLOBAL.baseUrl
+    ? "kimi-code-env-0e4f99c69cc27850" : "kimi-code";
 }
 
 function resolveKimiProfile({ home, env = process.env } = {}) {
