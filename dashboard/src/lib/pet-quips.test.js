@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { getCopyLocale, setCopyLocale } from "./copy";
 import { ZH_CN_LOCALE } from "./locale";
 import {
+  formatCompactTokens,
   buildPetLimitSummary,
   buildPetLimitSummaries,
   buildQuipPool,
@@ -159,5 +160,20 @@ describe("desktop pet bubble labels", () => {
       expect(petLabels(locale).newUsage, locale).toBeTruthy();
     }
     expect(petLabels("en").newUsage).toBe("New usage");
+  });
+});
+
+describe("formatCompactTokens unit system", () => {
+  it("keeps K/M/B by default and switches to 万/亿 for the chinese unit system", () => {
+    expect(formatCompactTokens(12_345)).toBe("12.3K");
+    expect(formatCompactTokens(12_345, { unitSystem: "english" })).toBe("12.3K");
+    expect(formatCompactTokens(12_345, { unitSystem: "chinese" })).toBe("1.2万");
+    expect(formatCompactTokens(123_456_789, { unitSystem: "chinese" })).toBe("1.2亿");
+  });
+
+  it("threads the unit system into rolling-total quips", () => {
+    const pool = buildQuipPool("en", { last7dTokens: 123_456_789, unitSystem: "chinese" });
+    expect(pool.some((line) => line.includes("1.2亿"))).toBe(true);
+    expect(pool.some((line) => line.includes("123.5M"))).toBe(false);
   });
 });

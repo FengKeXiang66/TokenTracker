@@ -22,6 +22,7 @@ import {
   normalizeCurrency,
 } from "./currency";
 import { LOCALE_STORAGE_KEY } from "./locale";
+import { normalizeTokenUnitSystem, TOKEN_UNIT_SYSTEM_STORAGE_KEY } from "./token-format";
 
 const POLL_INTERVAL_MS = 60_000;
 // Streak / active days are day-grained but ride in the largest response
@@ -128,6 +129,7 @@ const RELAYED_KEYS = {
   [EXCHANGE_RATES_STORAGE_KEY]: "exchangeRates",
   [LOCALE_STORAGE_KEY]: "locale",
   [THEME_STORAGE_KEY]: "theme",
+  [TOKEN_UNIT_SYSTEM_STORAGE_KEY]: "tokenUnitSystem",
 };
 
 /** The dashboard's preferences as relayed by the host, or this page's own storage. */
@@ -177,6 +179,7 @@ export function startLinuxPetHost({
     win.__ttPetCurrency = readCurrency(storage);
     win.__ttPetLocale = readStorage(storage, LOCALE_STORAGE_KEY) || "system";
     win.__ttPetDark = readDark(storage, win);
+    win.__ttPetTokenUnitSystem = normalizeTokenUnitSystem(readStorage(storage, TOKEN_UNIT_SYSTEM_STORAGE_KEY));
     emit("pet:currency");
     emit("pet:locale");
     emit("pet:dark");

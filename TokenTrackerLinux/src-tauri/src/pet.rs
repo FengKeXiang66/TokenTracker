@@ -76,6 +76,7 @@ pub struct PetContext {
     pub exchange_rates: Option<String>,
     pub locale: Option<String>,
     pub theme: Option<String>,
+    pub token_unit_system: Option<String>,
 }
 
 /// Longest value accepted per context field (the exchange-rate blob is the big one).
@@ -95,6 +96,7 @@ impl PetContext {
             exchange_rates: field("exchangeRates"),
             locale: field("locale"),
             theme: field("theme"),
+            token_unit_system: field("tokenUnitSystem"),
         }
     }
 }
@@ -411,6 +413,7 @@ const CONTEXT_RELAY_SCRIPT: &str = r#"
       exchangeRates: get('tokentracker-exchange-rates'),
       locale: get('tokentracker-locale'),
       theme: get('tokentracker-theme'),
+      tokenUnitSystem: get('tt.tokenUnitSystem') || get('tt.tokenFormat'),
     } } }).catch(() => {});
   } catch (e) {}
 })();
