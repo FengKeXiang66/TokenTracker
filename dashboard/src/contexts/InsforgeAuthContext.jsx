@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { getOrCreateInsforgeClient, isCloudInsforgeConfigured } from "../lib/insforge-config";
-import { clearCloudDeviceSession, setCloudSyncEnabled } from "../lib/cloud-sync-prefs";
+import { clearCloudDeviceSession, setCloudUsageReady } from "../lib/cloud-sync-prefs";
 import { isLikelyExpiredAccessToken } from "../lib/auth-token";
 import { getPublicVisibility, invalidateAccountResponseCache } from "../lib/api";
 import { clearLocalApiAuthToken, getLocalApiAuthHeaders } from "../lib/local-api-auth";
@@ -259,13 +259,12 @@ export function InsforgeAuthProvider({ children }) {
     invalidateAccountResponseCache();
     await client.auth.signOut();
     clearCloudDeviceSession();
-    // Cloud sync requires an authenticated session, so disable it on sign-out.
-    // This also keeps signed-out dashboard loads instant: AccountViewContext's
-    // `resolving` gate only engages when cloud is the likely scope
-    // (expectCloud = authEnabled && (!localHost || cloudSyncOn)); leaving a
-    // stale cloudSyncOn=true would briefly gate a logged-out user behind the
-    // auth-loading window instead of painting local data immediately.
-    setCloudSyncEnabled(false);
+    // Sign-out clears session readiness, while the explicit sync preference
+    // survives for the next login. Local views stay immediate without a session.
+    setCloudUsageReady(false);
+    // Refresh same-tab account scope after clearing readiness. This does not
+    // change or mirror the saved preference.
+    window.dispatchEvent(new Event("tt.cloudSyncChanged"));
     clearLocalApiAuthToken();
     setUser(null);
   }, [client]);
