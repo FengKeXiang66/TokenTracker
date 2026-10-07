@@ -11,38 +11,40 @@ function groupIntegerDigits(value: string, groupSize: number, separator: string)
 }
 
 export function toDisplayNumber(value: any) {
-  return toDisplayNumberWithOptions(value);
+  if (value == null) return "-";
+  try {
+    if (typeof value === "bigint" || typeof value === "number") {
+      return new Intl.NumberFormat().format(value);
+    }
+    const s = String(value).trim();
+    return /^[0-9]+$/.test(s) ? new Intl.NumberFormat().format(BigInt(s)) : s;
+  } catch (_e) {
+    return String(value);
+  }
 }
 
 export function toDisplayNumberWithOptions(
   value: any,
   { groupSize = 3 }: { groupSize?: number } = {},
 ) {
+  if (!Number.isInteger(groupSize) || groupSize === 3) return toDisplayNumber(value);
   if (value == null) return "-";
   try {
-    if (typeof value === "bigint") return groupIntegerDigits(value.toString(), groupSize, ",");
-    if (typeof value === "number") {
-      const formatter = new Intl.NumberFormat(undefined, {
-        useGrouping: false,
-        maximumFractionDigits: 20,
-      });
-      if (groupSize <= 1) return formatter.format(value);
-      const parts = formatter.formatToParts(value);
-      const integerPart = parts.find((part) => part.type === "integer")?.value || "0";
-      const decimalPart = parts.find((part) => part.type === "fraction")?.value;
-      const decimalSeparator = parts.find((part) => part.type === "decimal")?.value || ".";
-      const signPart = parts.find((part) => part.type === "minusSign")?.value || "";
-      return `${signPart}${groupIntegerDigits(integerPart, groupSize, ",")}${
-        decimalPart ? `${decimalSeparator}${decimalPart}` : ""
-      }`;
+    let numeric = value;
+    if (typeof value !== "bigint" && typeof value !== "number") {
+      const s = String(value).trim();
+      if (!/^[0-9]+$/.test(s)) return s;
+      numeric = BigInt(s);
     }
-    const s = String(value).trim();
-    if (/^[0-9]+$/.test(s)) {
-      return groupSize <= 1
-        ? new Intl.NumberFormat(undefined, { useGrouping: false }).format(BigInt(s))
-        : groupIntegerDigits(s, groupSize, ",");
+    const formatter = new Intl.NumberFormat(undefined, { useGrouping: false });
+    if (groupSize <= 1 || (typeof numeric === "number" && !Number.isFinite(numeric))) {
+      return formatter.format(numeric);
     }
-    return s;
+    const separator = new Intl.NumberFormat().formatToParts(10000)
+      .find((part) => part.type === "group")?.value || ",";
+    return formatter.formatToParts(numeric).map((part) =>
+      part.type === "integer" ? groupIntegerDigits(part.value, groupSize, separator) : part.value,
+    ).join("");
   } catch (_e) {
     return String(value);
   }

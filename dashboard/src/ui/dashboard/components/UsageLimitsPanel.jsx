@@ -107,12 +107,13 @@ function buildQuotaDetail(window) {
 }
 
 /** Pace + projection for one window spec, in the active display mode. */
-function paceForSpec(spec, mode) {
+function paceForSpec(spec, mode, now) {
   return computePace({
     usedPercent: readWindowPct(spec.window, spec.pctField),
     windowSeconds: resolveWindowSeconds(spec, spec.window),
     resetMs: resetToMs(readWindowReset(spec.window, spec.resetField)),
     mode,
+    now,
   });
 }
 
@@ -607,7 +608,7 @@ function renderConfiguredProvider(id, data, title, mode, expanded, onToggle, bad
   const rows = spec
     .windows(data)
     .filter((s) => s.window)
-    .map((s) => ({ spec: s, pace: paceForSpec(s, mode) }));
+    .map((s) => ({ spec: s, pace: paceForSpec(s, mode, now) }));
   const extra = renderProviderExtra(spec.extra, data);
   return (
     <ToolGroup

@@ -120,8 +120,8 @@ test("Codex reset bank native rows supersede the old macOS footnote path", () =>
   assert.ok(usageLimitsView.includes("Text(Strings.codexResetBankSectionTitle)"));
   assert.ok(usageLimitsView.includes("ForEach(rows) { row in"));
   assert.ok(usageLimitsView.includes("resetRow(row)"));
-  assert.ok(usageLimitsView.includes("private static var resetExpiryColumnWidth"));
-  assert.ok(usageLimitsView.includes(".frame(width: Self.resetExpiryColumnWidth, alignment: .trailing)"));
+  assert.ok(usageLimitsView.includes("private var resetExpiryColumnWidth"));
+  assert.ok(usageLimitsView.includes(".frame(width: resetExpiryColumnWidth, alignment: .trailing)"));
   assert.ok(usageLimitsView.includes(".monospacedDigit()"));
   assert.ok(usageLimitsView.includes("Strings.codexResetBankLabel(index + 1)"));
   assert.ok(usageLimitsView.includes("Strings.codexResetBankExpiryDateTime(expiresAt)"));
