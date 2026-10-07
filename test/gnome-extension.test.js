@@ -31,10 +31,37 @@ test("GNOME extension metadata matches its directory and lists shell versions", 
   }
 });
 
+test("GNOME extension ships in the deb, rpm and Arch packages", () => {
+  const root = path.resolve(__dirname, "..");
+  const uuid = path.basename(extensionDir);
+  const files = fs.readdirSync(extensionDir).filter((f) => f !== "README.md").sort();
+  const conf = JSON.parse(fs.readFileSync(path.join(root, "TokenTrackerLinux/src-tauri/tauri.conf.json"), "utf8"));
+  for (const format of ["deb", "rpm"]) {
+    const mapped = conf.bundle.linux[format].files;
+    const expected = Object.fromEntries(
+      files.map((f) => [`/usr/share/gnome-shell/extensions/${uuid}/${f}`, `../gnome-extension/${uuid}/${f}`]),
+    );
+    assert.deepEqual(mapped, expected, format);
+  }
+  const pkgbuild = fs.readFileSync(path.join(root, "TokenTrackerLinux/packaging/arch/tokentracker-linux/PKGBUILD"), "utf8");
+  const workflow = fs.readFileSync(path.join(root, ".github/workflows/release-dmg.yml"), "utf8");
+  const loopOver = (text, head) => text.split("\n").find((line) => line.includes(head)) ?? "";
+  for (const f of files) {
+    assert.ok(loopOver(pkgbuild, "for _file in").includes(f), `PKGBUILD installs ${f}`);
+    assert.ok(loopOver(workflow, "for file in metadata.json").includes(f), `release checks ${f}`);
+  }
+  assert.match(workflow, /verify_gnome_extension "deb"/);
+  assert.match(workflow, /verify_gnome_extension "rpm"/);
+  const validator = fs.readFileSync(path.join(root, "TokenTrackerLinux/scripts/validate-package.sh"), "utf8");
+  for (const f of files) {
+    assert.ok(validator.includes(`usr/share/gnome-shell/extensions/${uuid}/${f}`), f);
+  }
+});
+
 // extension.js imports gi:// modules, so load just the response check (and
 // the error classes it throws) out of the source and run it for real.
 function loadResponseCheck() {
-  const source = fs.readFileSync(path.join(extensionDir, "extension.js"), "utf8");
+  const source = fs.readFileSync(path.join(extensionDir, "extension.js"), "utf8").replace(/\r\n/g, "\n");
   const classes = source.match(/^class \w+Error extends Error \{\}$/gm) ?? [];
   const start = source.indexOf("function parseResponse(");
   const end = source.indexOf("\n}\n", start) + 2;

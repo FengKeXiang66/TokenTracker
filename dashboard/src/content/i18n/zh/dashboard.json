@@ -1,4 +1,5 @@
 {
+  "trend.monitor.pin_hint": "点击柱子固定并滚动查看详情",
   "usage.overview.all_tools": "全部",
   "usage.overview.all_models": "全部模型",
   "usage.overview.all_models_note": "同名模型会跨工具合并，并按总用量排序。",
@@ -52,6 +53,11 @@
   "dashboard.widgets.title": "桌面小组件",
   "dashboard.widgets.hint": "右键点按桌面 → 编辑小组件 → 搜索“TokenTracker”",
   "dashboard.widgets.dismiss_aria": "关闭小组件介绍",
+  "dashboard.linux_topbar.title": "在顶栏查看用量",
+  "dashboard.linux_topbar.hint": "在 GNOME 上，TokenTracker 扩展会在顶栏的 Clawd 旁显示今日 Token 和花费，下拉菜单可查看额度和趋势。",
+  "dashboard.linux_topbar.setup": "设置",
+  "dashboard.linux_topbar.dismiss_aria": "关闭顶栏提示",
+  "dashboard.linux_topbar.preview_readout": "8.2M · $12.40",
   "dashboard.cost_breakdown.title": "成本明细",
   "dashboard.cost_breakdown.total_label": "预计总成本",
   "dashboard.cost_breakdown.close": "关闭",

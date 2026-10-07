@@ -68,9 +68,11 @@ const DETAILS_PAGED_PERIODS = new Set(["day", "total", "custom"]);
 // Default Overview card order — each column is dragged/persisted independently.
 const LEFT_CARD_ORDER_DEFAULTS = [
   "islandOnboarding",
+  "linuxPetCard",
   "macAppBanner",
   "statsPanel",
   "widgetOnboarding",
+  "linuxTopBarCard",
   "installCopy",
   "activityHeatmap",
   "deviceUsage",

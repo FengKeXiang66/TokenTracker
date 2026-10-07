@@ -192,6 +192,11 @@ dashboard.projects.detail.source_conv,ui,DataDetails,ProjectDetailModal,source_c
 dashboard.widgets.title,dashboard,DashboardPage,WidgetOnboardingCard,title,"Desktop Widgets",,active
 dashboard.widgets.hint,dashboard,DashboardPage,WidgetOnboardingCard,hint,"Right-click your desktop → Edit Widgets → search ""TokenTracker""",,active
 dashboard.widgets.dismiss_aria,dashboard,DashboardPage,WidgetOnboardingCard,dismiss_aria,"Dismiss widget intro",,active
+dashboard.linux_topbar.title,dashboard,DashboardPage,LinuxTopBarCard,title,"Track usage in your top bar",,active
+dashboard.linux_topbar.hint,dashboard,DashboardPage,LinuxTopBarCard,hint,"On GNOME, the TokenTracker extension puts today's tokens and spend next to Clawd in the top bar, with a dropdown for limits and trends.",,active
+dashboard.linux_topbar.setup,dashboard,DashboardPage,LinuxTopBarCard,setup,"Set up",,active
+dashboard.linux_topbar.dismiss_aria,dashboard,DashboardPage,LinuxTopBarCard,dismiss_aria,"Dismiss top bar tip",,active
+dashboard.linux_topbar.preview_readout,dashboard,DashboardPage,LinuxTopBarCard,preview_readout,"8.2M · $12.40",Illustrative figures,active
 widgets.page.title,dashboard,WidgetsPage,WidgetsPage,title,"Menu Bar & Widgets",,active
 widgets.cta.open_gallery,dashboard,WidgetsPage,WidgetsPage,cta_open_gallery,"Open Widget Gallery",,active
 widgets.cta.download,dashboard,WidgetsPage,WidgetsPage,cta_download,"Download Mac App",,active
@@ -516,6 +521,11 @@ dashboard.island.enable,ui,DashboardPage,IslandOnboardingCard,island_enable,"Tur
 dashboard.island.settings_link,ui,DashboardPage,IslandOnboardingCard,island_settings,"View in Settings",,active
 dashboard.island.enabled_toast,ui,DashboardPage,IslandOnboardingCard,island_toast,"Dynamic Island is on — look up at the notch",,active
 dashboard.island.dismiss_aria,ui,DashboardPage,IslandOnboardingCard,island_dismiss,"Dismiss Dynamic Island tip",,active
+dashboard.linux_pet.title,ui,DashboardPage,LinuxPetCard,linux_pet_title,"Meet your desktop pet",,active
+dashboard.linux_pet.hint,ui,DashboardPage,LinuxPetCard,linux_pet_hint,"A small companion on your desktop — hover it for today's tokens, spend and limits, and drag it anywhere.",,active
+dashboard.linux_pet.show,ui,DashboardPage,LinuxPetCard,linux_pet_show,"Show pet",,active
+dashboard.linux_pet.settings_link,ui,DashboardPage,LinuxPetCard,linux_pet_settings,"Pet settings",,active
+dashboard.linux_pet.dismiss_aria,ui,DashboardPage,LinuxPetCard,linux_pet_dismiss,"Dismiss desktop pet tip",,active
 settings.labs.qpd.label,ui,SettingsPage,LabsSection,qpd_label,"Analyze PR cost-efficiency",,active
 settings.labs.qpd.hint,ui,SettingsPage,LabsSection,qpd_hint,"Analyze average delivery costs and effective Tokens per model from merged PRs and AI-attributed commits.",,active
 settings.labs.qpd.aria,ui,SettingsPage,LabsSection,qpd_aria,"Toggle PR cost-efficiency analysis",,active
@@ -1683,3 +1693,5 @@ quota.reset_in,ui,QuotaWidget,QuotaWidget,reset_in,"Resets in {{time}}",,active
 quota.close,ui,QuotaWidget,QuotaWidget,close,"Close widget",,active
 quota.close_hint,ui,QuotaWidget,QuotaWidget,close_hint,"Close widget; reopen from the tray menu",,active
 provider.display.workbuddy_ai,shared,*,*,name,"WorkBuddy AI",,active
+
+trend.monitor.pin_hint,dashboard,DashboardPage,TrendMonitor,hint,"Click a bar to pin and scroll details",,active

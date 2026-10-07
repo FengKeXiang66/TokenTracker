@@ -33,7 +33,8 @@ build() {
   cd "${_repo_root}"
   npm ci
   npm --prefix dashboard ci
-  npm run dashboard:build
+  # pet.html is the floating pet's page; vite only emits it with this flag.
+  TOKENTRACKER_BUILD_PET=1 npm run dashboard:build
   npm --prefix TokenTrackerLinux ci
   npm --prefix TokenTrackerLinux run bundle:node
   npm --prefix TokenTrackerLinux run build
@@ -56,4 +57,10 @@ package() {
     "${pkgdir}/usr/share/icons/hicolor/512x512/apps/tokentracker-linux.png"
 
   install -Dm644 "LICENSE" "${pkgdir}/usr/share/licenses/tokentracker-linux/LICENSE"
+
+  local _ext=tokentracker@tokentracker.cc
+  for _file in metadata.json extension.js stylesheet.css; do
+    install -Dm644 "TokenTrackerLinux/gnome-extension/${_ext}/${_file}" \
+      "${pkgdir}/usr/share/gnome-shell/extensions/${_ext}/${_file}"
+  done
 }

@@ -36,6 +36,7 @@ const { fetchQoderLimits, fetchQoderCnLimits } = require("./qoder-limits");
 const { fetchArkCodingPlanLimits } = require("./ark-coding-plan-limits");
 const { fetchArkAgentPlanLimits } = require("./ark-agent-plan-limits");
 const { fetchProviderServiceStatus } = require("./provider-status");
+const { resolveKimiProfile } = require("./kimi-profile");
 const { readSqliteJsonRows, readSqliteJsonRowsAsync } = require("./sqlite-reader");
 const {
   runCommand,
@@ -785,28 +786,9 @@ async function fetchCursorLimits({ home, fetchImpl = fetch } = {}) {
   }
 }
 
-function resolveKimiHome({ home, env } = {}) {
-  const explicit = typeof env?.KIMI_HOME === "string" ? env.KIMI_HOME.trim() : "";
-  if (explicit) return path.resolve(explicit);
-  const base = home || os.homedir();
-  // Prefer the official Kimi Code (@moonshot-ai/kimi-code, ~/.kimi-code) when it
-  // holds a login — its credential file shape (kimi-code.json) and the
-  // auth/usages endpoints are identical to the legacy kimi-cli (~/.kimi), so the
-  // existing fetch path works unchanged. Fall back to legacy when kimi-code has
-  // no credentials, keeping old kimi-cli users untouched.
-  const explicitCode = typeof env?.KIMI_CODE_HOME === "string" ? env.KIMI_CODE_HOME.trim() : "";
-  const codeHome = explicitCode ? path.resolve(explicitCode) : path.join(base, ".kimi-code");
-  const codeCredsPath = path.join(codeHome, "credentials", "kimi-code.json");
-  try {
-    const raw = fs.readFileSync(codeCredsPath, "utf8").trim();
-    if (raw && JSON.parse(raw)?.access_token) return codeHome;
-  } catch { /* missing / empty / corrupt — fall through to legacy */ }
-  return path.join(base, ".kimi");
-}
-
-function loadKimiCredentials({ home, env } = {}) {
-  const kimiHome = resolveKimiHome({ home, env });
-  const credsPath = path.join(kimiHome, "credentials", "kimi-code.json");
+function loadKimiCredentials({ home, env, profile = resolveKimiProfile({ home, env }) } = {}) {
+  if (profile.error) return null;
+  const { credsPath } = profile;
   if (!fs.existsSync(credsPath)) return null;
   try {
     return JSON.parse(fs.readFileSync(credsPath, "utf8"));
@@ -815,15 +797,10 @@ function loadKimiCredentials({ home, env } = {}) {
   }
 }
 
-function saveKimiCredentials(creds, { home, env } = {}) {
-  const kimiHome = resolveKimiHome({ home, env });
-  const credsPath = path.join(kimiHome, "credentials", "kimi-code.json");
+function saveKimiCredentials(creds, { home, env, profile = resolveKimiProfile({ home, env }) } = {}) {
+  const { credsPath } = profile;
   fs.mkdirSync(path.dirname(credsPath), { recursive: true });
-  fs.writeFileSync(credsPath, JSON.stringify(creds, null, 2));
-}
-
-function hasKimiConfig({ home, env } = {}) {
-  return fs.existsSync(path.join(resolveKimiHome({ home, env }), "config.toml"));
+  fs.writeFileSync(credsPath, JSON.stringify(creds, null, 2), { mode: 0o600 });
 }
 
 function kimiNumber(value) {
@@ -875,7 +852,7 @@ function kimiCredentialsExpired(creds, nowMs = Date.now()) {
   return expiresAt * 1000 <= nowMs + 30_000;
 }
 
-async function refreshKimiAccessToken({ refreshToken, home, env, fetchImpl = fetch } = {}) {
+async function refreshKimiAccessToken({ refreshToken, profile, fetchImpl = fetch } = {}) {
   if (typeof refreshToken !== "string" || !refreshToken.trim()) {
     throw new Error("Not logged in to Kimi. Run 'kimi' in Terminal to authenticate.");
   }
@@ -886,8 +863,9 @@ async function refreshKimiAccessToken({ refreshToken, home, env, fetchImpl = fet
     refresh_token: refreshToken,
   });
 
-  const res = await fetchImpl("https://auth.kimi.com/api/oauth/token", {
+  const res = await fetchImpl(`${profile.oauthHost}/api/oauth/token`, {
     method: "POST",
+    redirect: "error",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
       "X-Msh-Platform": "kimi_cli",
@@ -915,13 +893,14 @@ async function refreshKimiAccessToken({ refreshToken, home, env, fetchImpl = fet
     token_type: String(json.token_type || "Bearer"),
     expires_in: Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : 900,
   };
-  saveKimiCredentials(next, { home, env });
+  saveKimiCredentials(next, { profile });
   return next.access_token;
 }
 
-async function fetchKimiUsage(accessToken, { fetchImpl = fetch } = {}) {
-  const res = await fetchImpl("https://api.kimi.com/coding/v1/usages", {
+async function fetchKimiUsage(accessToken, { profile, fetchImpl = fetch } = {}) {
+  const res = await fetchImpl(`${profile.baseUrl}/usages`, {
     method: "GET",
+    redirect: "error",
     headers: {
       Authorization: `Bearer ${accessToken}`,
       Accept: "application/json",
@@ -937,10 +916,12 @@ async function fetchKimiUsage(accessToken, { fetchImpl = fetch } = {}) {
 }
 
 async function fetchKimiLimits({ home, env, fetchImpl = fetch } = {}) {
-  if (!hasKimiConfig({ home, env })) {
+  const profile = resolveKimiProfile({ home, env });
+  if (!profile.configured) {
     return { configured: false };
   }
-  const creds = loadKimiCredentials({ home, env });
+  if (profile.error) return { configured: true, error: profile.error };
+  const creds = loadKimiCredentials({ profile });
   let accessToken = typeof creds?.access_token === "string" ? creds.access_token.trim() : "";
   if (!accessToken) {
     return { configured: false };
@@ -949,23 +930,21 @@ async function fetchKimiLimits({ home, env, fetchImpl = fetch } = {}) {
     if (kimiCredentialsExpired(creds) && creds?.refresh_token) {
       accessToken = await refreshKimiAccessToken({
         refreshToken: creds.refresh_token,
-        home,
-        env,
+        profile,
         fetchImpl,
       });
     }
     let body;
     try {
-      body = await fetchKimiUsage(accessToken, { fetchImpl });
+      body = await fetchKimiUsage(accessToken, { profile, fetchImpl });
     } catch (error) {
       if (error?.message === "token_expired" && creds?.refresh_token) {
         accessToken = await refreshKimiAccessToken({
           refreshToken: creds.refresh_token,
-          home,
-          env,
+          profile,
           fetchImpl,
         });
-        body = await fetchKimiUsage(accessToken, { fetchImpl });
+        body = await fetchKimiUsage(accessToken, { profile, fetchImpl });
       } else {
         throw error;
       }
@@ -4344,6 +4323,7 @@ module.exports = {
   runCommand,
   extractGeminiOauthClientCredentials,
   loadKimiCredentials,
+  fetchKimiLimits,
   normalizeCursorUsageSummary,
   normalizeCursorSandUsageStatus,
   normalizeGeminiQuotaResponse,

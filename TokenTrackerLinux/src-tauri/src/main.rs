@@ -1,4 +1,4 @@
-use tokentracker_linux::{external, oauth, paths, server, tray, ui_zoom};
+use tokentracker_linux::{desktop, external, oauth, paths, pet, server, tray, ui_zoom};
 
 use std::sync::Mutex;
 
@@ -260,6 +260,9 @@ fn start_dashboard(app: AppHandle, window: WebviewWindow, zoom: f64) {
         // A `tokentracker://` callback may have arrived before the server was
         // ready, in which case it was parked as a pending code.
         oauth::deliver_pending_callback(&navigate_app);
+        // The pet page is served by the same server, so a pet left on at the
+        // last quit can only come back now.
+        pet::sync_pet(&navigate_app);
     });
 }
 
@@ -370,11 +373,24 @@ fn main() {
     configure_webkit_runtime();
 
     let initial_args: Vec<String> = std::env::args().collect();
+    let context = tauri::generate_context!();
+
+    // `--pet <url>` runs the floating pet in its own process (see pet.rs). Still
+    // single-threaded here, so setting GDK_BACKEND before GTK starts is sound.
+    if let Some(base_url) = pet::pet_process_url(&initial_args) {
+        pet::prefer_x11_backend();
+        pet::run_pet_process(base_url, context);
+        return;
+    }
 
     tauri::Builder::default()
         .manage(PendingAuthCode::default())
         .manage(DashboardBaseUrl::default())
-        .invoke_handler(tauri::generate_handler![oauth::open_oauth, set_ui_zoom])
+        .invoke_handler(tauri::generate_handler![
+            oauth::open_oauth,
+            pet::pet_bridge,
+            set_ui_zoom
+        ])
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             for arg in argv {
                 if oauth::handle_callback(app, &arg) {
@@ -387,6 +403,9 @@ fn main() {
             if let Err(error) = oauth::ensure_appimage_protocol_registration() {
                 eprintln!("[TokenTracker] AppImage OAuth callback registration failed: {error}");
             }
+            app.manage(pet::PetState::load(pet::settings_path(app.handle())));
+            app.manage(pet::PetProcess::default());
+            pet::start_context_relay(app.handle().clone());
             tray::install(app)?;
 
             for arg in &initial_args {
@@ -408,6 +427,7 @@ fn main() {
                 tauri::WebviewUrl::App("index.html".into()),
             )
             .initialization_script(NATIVE_OAUTH_BRIDGE)
+            .initialization_script(desktop::init_script())
             .initialization_script(ui_zoom_bridge(zoom))
             // `target="_blank"` links (provider status pages, leaderboard
             // profiles) belong in the system browser. WebKitGTK opens nothing
@@ -447,10 +467,14 @@ fn main() {
                 let _ = window.hide();
             }
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("failed to build TokenTracker Linux client")
-        .run(|_app, event| {
-            if matches!(event, tauri::RunEvent::ExitRequested { .. }) {
+        .run(|app, event| {
+            if matches!(
+                event,
+                tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit
+            ) {
+                pet::stop_pet(app);
                 stop_server();
             }
         });

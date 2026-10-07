@@ -128,7 +128,8 @@ async function readV2Store(home) {
   const base = path.join(trackerDir(home), "cursor-store-v2");
   const manifest = JSON.parse(await fsp.readFile(path.join(base, "manifest.json"), "utf8"));
   const gen = path.join(base, "generations", manifest.current);
-  const core = JSON.parse(await fsp.readFile(path.join(gen, "core.json"), "utf8"));
+  const metadata = JSON.parse(await fsp.readFile(path.join(gen, "generation.json"), "utf8"));
+  const core = JSON.parse(await fsp.readFile(path.join(gen, metadata.coreFile), "utf8"));
   const shards = {};
   try {
     for (const name of await fsp.readdir(path.join(gen, "codex-files"))) {

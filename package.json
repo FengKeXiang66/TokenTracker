@@ -25,7 +25,7 @@
     "copy:pull": "node scripts/copy-sync.cjs pull",
     "copy:push": "node scripts/copy-sync.cjs push",
     "dashboard:build": "npm --prefix dashboard run build",
-    "linux:bundle": "npm run dashboard:build && npm --prefix TokenTrackerLinux run bundle:node",
+    "linux:bundle": "TOKENTRACKER_BUILD_PET=1 npm run dashboard:build && npm --prefix TokenTrackerLinux run bundle:node",
     "linux:build": "npm run linux:bundle && npm --prefix TokenTrackerLinux run build",
     "linux:package:local": "npm --prefix TokenTrackerLinux run package:local",
     "dashboard:dev": "npm --prefix dashboard run dev",
@@ -52,6 +52,7 @@
   "dependencies": {
     "@journeyapps/wa-sqlite": "2.0.6",
     "@mongodb-js/zstd": "^2.0.1",
+    "smol-toml": "^1.9.0",
     "undici": "8.11.2",
     "yauzl": "^3.4.0"
   },
