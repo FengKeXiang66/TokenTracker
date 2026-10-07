@@ -48,14 +48,17 @@ const execFileAsync = promisify(cp.execFile);
 // 2-minute in-memory cache. It also expires early at the earliest upcoming window
 // reset in the cached data (see cacheExpiresAtMs), floored so a provider reporting
 // a reset "right now" can't turn every poll into a full upstream round.
-// Partitioned by the Devin opt-in selection so a request made while Devin is
-// off is never served (or joined onto) a response fetched while it was on.
-const cacheByDevinSelection = {
-  off: { data: null, expiresAtMs: 0 },
-  on: { data: null, expiresAtMs: 0 },
-};
-function devinSelectionKey(options) {
-  return options?.devinEnabled === true ? "on" : "off";
+// Partitioned by the Devin opt-in selection AND the Antigravity quota opt-out, so
+// a request made while Devin is off is never served (or joined onto) a response
+// fetched while it was on, and an aggregate fetched while Antigravity was enabled
+// is never served after the opt-out is set. Key = `${devin}-${antigravity}`.
+const USAGE_LIMITS_SELECTION_KEYS = ["off-on", "off-off", "on-on", "on-off"];
+const cacheBySelection = {};
+for (const key of USAGE_LIMITS_SELECTION_KEYS) cacheBySelection[key] = { data: null, expiresAtMs: 0 };
+function usageLimitsSelectionKey(options) {
+  const devin = options?.devinEnabled === true ? "on" : "off";
+  const antigravity = isAntigravityQuotaDisabled() ? "off" : "on";
+  return `${devin}-${antigravity}`;
 }
 const CACHE_TTL_MS = 2 * 60 * 1000;
 // Must stay below the macOS app's post-reset re-fetch grace (10s in
@@ -2262,7 +2265,12 @@ function normalizeAntigravityCachedLimits(raw, { nowMs = Date.now() } = {}) {
   return hasAntigravityWindow(cached) ? cached : null;
 }
 
+function isAntigravityQuotaDisabled() {
+  return process.env.TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA === "1";
+}
+
 function readAntigravityLimitsCache({ home, nowMs = Date.now() } = {}) {
+  if (isAntigravityQuotaDisabled()) return null;
   const cachePath = resolveAntigravityLimitsCachePath({ home });
   try {
     const parsed = JSON.parse(fs.readFileSync(cachePath, "utf8"));
@@ -3256,6 +3264,7 @@ function loadAntigravityCredentials({
   securityRunner,
   nowMs = Date.now(),
 } = {}) {
+  if (isAntigravityQuotaDisabled()) return null;
   const candidates = collectAntigravityFileCredentials({ home });
   if (platform === "darwin" || typeof securityRunner === "function") {
     const parsed = parseAntigravityCredentialPayload(readAntigravityKeychainRaw({ securityRunner }));
@@ -3403,6 +3412,7 @@ async function fetchAntigravityRemoteLimits({
   signal,
   creds,
 } = {}) {
+  if (isAntigravityQuotaDisabled()) return null;
   const resolvedCreds = creds !== undefined
     ? creds
     : loadAntigravityCredentials({ home, platform, securityRunner, nowMs });
@@ -3497,6 +3507,7 @@ async function fetchAntigravityLimits({
   securityRunner,
   signal,
 } = {}) {
+  if (isAntigravityQuotaDisabled()) return { configured: false, error: null };
   const creds = loadAntigravityCredentials({ home, platform, securityRunner, nowMs });
   const startedAtMs = performance.now();
   // min(this step's ceiling, budget left after reserving the fallback guard).
@@ -3721,7 +3732,8 @@ function withPlanLabel(obj, raw, brand) {
 // hammered). Survives an external resetUsageLimitsCache() (refresh=1 path in
 // local-api.js): a refresh arriving while a fetch is already running reuses that
 // in-flight fetch and returns its result.
-const inFlightByDevinSelection = { off: null, on: null };
+const inFlightBySelection = {};
+for (const key of USAGE_LIMITS_SELECTION_KEYS) inFlightBySelection[key] = null;
 
 // Codex stamps reset_at as unix seconds; every other provider (and Claude's
 // resets_at) uses ISO strings. Numbers that look like epoch milliseconds are
@@ -3759,19 +3771,19 @@ function cacheExpiresAtMs(data, fetchedAtMs) {
 }
 
 async function getUsageLimits(options = {}) {
-  const selection = devinSelectionKey(options);
-  const cache = cacheByDevinSelection[selection];
+  const selection = usageLimitsSelectionKey(options);
+  const cache = cacheBySelection[selection];
   const nowMs = Date.now();
   if (cache.data && nowMs < cache.expiresAtMs) {
     return cache.data;
   }
-  if (inFlightByDevinSelection[selection]) {
-    return inFlightByDevinSelection[selection];
+  if (inFlightBySelection[selection]) {
+    return inFlightBySelection[selection];
   }
-  const promise = fetchUsageLimitsUncached(options).finally(() => {
-    if (inFlightByDevinSelection[selection] === promise) inFlightByDevinSelection[selection] = null;
+  const promise = fetchUsageLimitsUncached({ ...options, selectionKey: selection }).finally(() => {
+    if (inFlightBySelection[selection] === promise) inFlightBySelection[selection] = null;
   });
-  inFlightByDevinSelection[selection] = promise;
+  inFlightBySelection[selection] = promise;
   return promise;
 }
 
@@ -3787,6 +3799,10 @@ async function fetchUsageLimitsUncached({
   providerTimeoutMs = DEFAULT_PROVIDER_TIMEOUT_MS,
   forceRefresh = false,
   devinEnabled = false,
+  // Selection key fixed by getUsageLimits before the fetch began. Re-deriving it
+  // here would let an opt-out flipped mid-fetch store a pre-opt-out result in the
+  // post-opt-out slot.
+  selectionKey,
 } = {}) {
   const nowMs = Date.now();
 
@@ -4255,7 +4271,7 @@ async function fetchUsageLimitsUncached({
     };
   }
 
-  cacheByDevinSelection[devinSelectionKey({ devinEnabled })] = {
+  cacheBySelection[selectionKey || usageLimitsSelectionKey({ devinEnabled })] = {
     data,
     expiresAtMs: cacheExpiresAtMs(data, nowMs),
   };
@@ -4263,8 +4279,9 @@ async function fetchUsageLimitsUncached({
 }
 
 function resetUsageLimitsCache() {
-  cacheByDevinSelection.off = { data: null, expiresAtMs: 0 };
-  cacheByDevinSelection.on = { data: null, expiresAtMs: 0 };
+  for (const key of USAGE_LIMITS_SELECTION_KEYS) {
+    cacheBySelection[key] = { data: null, expiresAtMs: 0 };
+  }
 }
 
 module.exports = {

@@ -1,5 +1,5 @@
 const assert = require("node:assert/strict");
-const { describe, it } = require("node:test");
+const { describe, it, afterEach } = require("node:test");
 const fs = require("node:fs");
 const net = require("node:net");
 const os = require("node:os");
@@ -4472,6 +4472,127 @@ describe("fetchAntigravityLimits remote OAuth", () => {
       const quotaCalls = calls.filter((url) => url.includes("retrieveUserQuotaSummary"));
       assert.equal(quotaCalls[0], "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary");
       assert.ok(!quotaCalls.includes("https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary"));
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA opt-out", () => {
+  afterEach(() => {
+    delete process.env.TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA;
+    resetUsageLimitsCache();
+  });
+
+  it("does not serve a pre-existing aggregate from before the opt-out was set", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-optout-aggregate-"));
+    try {
+      writeAntigravityOauthToken(tmp);
+      const calls = [];
+      const opts = {
+        home: tmp,
+        platform: "linux",
+        providerTimeoutMs: 1000,
+        securityRunner() { return { status: 1, stdout: "" }; },
+        commandRunner() { return { status: 1, stdout: "" }; },
+        fetchImpl: antigravityRemoteFetchImpl({ calls }),
+      };
+
+      // Warm the aggregate cache while Antigravity is still enabled.
+      const before = await getUsageLimits(opts);
+      assert.equal(before.antigravity.configured, true);
+      assert.ok(calls.length > 0, "warm-up must actually hit the quota endpoint");
+
+      // Enabling the opt-out must not be answered from that cached aggregate.
+      process.env.TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA = "1";
+      const after = await getUsageLimits(opts);
+      assert.equal(after.antigravity.configured, false);
+      assert.equal(after.antigravity.cached, undefined);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("does not cache a pre-opt-out result into the post-opt-out slot when the flag flips mid-fetch", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-optout-inflight-"));
+    try {
+      writeAntigravityOauthToken(tmp);
+      const calls = [];
+      const opts = {
+        home: tmp,
+        platform: "linux",
+        providerTimeoutMs: 1000,
+        securityRunner() { return { status: 1, stdout: "" }; },
+        commandRunner() { return { status: 1, stdout: "" }; },
+        // Flip the opt-out only once the real Antigravity quota answer is in hand:
+        // the provider has already read credentials and produced live data, but the
+        // aggregate cache write has not happened yet. That is the exact window in
+        // which a re-derived selection key would file live data under the
+        // post-opt-out slot.
+        async fetchImpl(url, ...rest) {
+          const response = await antigravityRemoteFetchImpl({ calls })(url, ...rest);
+          if (String(url).includes("retrieveUserQuotaSummary")) {
+            process.env.TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA = "1";
+          }
+          return response;
+        },
+      };
+
+      await getUsageLimits(opts);
+      assert.ok(calls.length > 0, "the quota endpoint must be reached before the flip");
+
+      // No resetUsageLimitsCache() on purpose: the slot written by the in-flight
+      // fetch is exactly what must not answer a post-opt-out read.
+      const after = await getUsageLimits(opts);
+      assert.equal(after.antigravity.configured, false);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("skips credential reads and makes no remote fetch when set", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-optout-"));
+    try {
+      writeAntigravityOauthToken(tmp);
+      process.env.TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA = "1";
+      const calls = [];
+      const result = await fetchAntigravityLimits({
+        platform: "linux",
+        home: tmp,
+        commandRunner() { throw new Error("must not scan processes"); },
+        fetchImpl: antigravityRemoteFetchImpl({ calls }),
+        nowMs: Date.parse("2026-08-31T00:00:00.000Z"),
+      });
+      assert.deepEqual(result, { configured: false, error: null });
+      assert.deepEqual(calls, []);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("suppresses cached Antigravity limits when set", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-optout-cache-"));
+    try {
+      const trackerDir = path.join(tmp, ".tokentracker", "tracker");
+      fs.mkdirSync(trackerDir, { recursive: true });
+      fs.writeFileSync(path.join(trackerDir, "usage-limits-cache.json"), JSON.stringify({
+        antigravity: {
+          primary_window: { used_percent: 42, reset_at: "2099-05-22T00:00:00.000Z" },
+          cached_at: new Date(Date.now() - 60_000).toISOString(),
+        },
+      }));
+      process.env.TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA = "1";
+      const result = await getUsageLimits({
+        home: tmp,
+        platform: "linux",
+        providerTimeoutMs: 1000,
+        securityRunner() { return { status: 1, stdout: "" }; },
+        commandRunner() { return { status: 1, stdout: "" }; },
+        fetchImpl() { return new Promise(() => {}); },
+      });
+      assert.equal(result.antigravity.configured, false);
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
