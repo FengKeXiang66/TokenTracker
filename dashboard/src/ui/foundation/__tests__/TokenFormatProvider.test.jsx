@@ -1,7 +1,12 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useTokenFormat } from "../../../hooks/useTokenFormat.js";
-import { TOKEN_FORMAT_MODES, TOKEN_FORMAT_STORAGE_KEY, TOKEN_UNIT_SYSTEM_STORAGE_KEY } from "../../../lib/token-format.js";
+import {
+  TOKEN_FORMAT_MODES,
+  TOKEN_FORMAT_STORAGE_KEY,
+  TOKEN_GROUPING_STORAGE_KEY,
+  TOKEN_UNIT_SYSTEM_STORAGE_KEY,
+} from "../../../lib/token-format.js";
 import { LocaleProvider } from "../LocaleProvider.jsx";
 import { TokenFormatModeOverride, TokenFormatProvider } from "../TokenFormatProvider.jsx";
 
@@ -16,7 +21,14 @@ function createStorage() {
 }
 
 function Probe() {
-  const { formatTokens, formatTokensTooltip, setMode, unitSystem, setUnitSystem } = useTokenFormat();
+  const {
+    formatTokens,
+    formatTokensTooltip,
+    setMode,
+    setGrouping,
+    unitSystem,
+    setUnitSystem,
+  } = useTokenFormat();
   return (
     <>
       <output>{formatTokens(12_345_678)}</output>
@@ -26,6 +38,9 @@ function Probe() {
       </button>
       <button type="button" onClick={() => setUnitSystem("chinese")}>
         unit-{unitSystem}
+      </button>
+      <button type="button" onClick={() => setGrouping("wan")}>
+        grouping
       </button>
     </>
   );
@@ -90,6 +105,24 @@ it("switches compact units to Wan/Yi and persists the choice", async () => {
   expect(window.localStorage.getItem(TOKEN_UNIT_SYSTEM_STORAGE_KEY)).toBe("chinese");
 });
 
+it("switches exact-number grouping and persists the choice", async () => {
+  const user = userEvent.setup();
+  render(
+    <LocaleProvider>
+      <TokenFormatProvider>
+        <Probe />
+      </TokenFormatProvider>
+    </LocaleProvider>,
+  );
+
+  expect(screen.getByText("12.3M · 12,345,678")).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "grouping" }));
+
+  expect(screen.getByText("12.3M · 1234,5678")).toBeInTheDocument();
+  expect(window.localStorage.getItem(TOKEN_GROUPING_STORAGE_KEY)).toBe("wan");
+});
+
 it("migrates a persisted legacy chinese mode on mount", () => {
   window.localStorage.setItem(TOKEN_FORMAT_STORAGE_KEY, "chinese");
 
@@ -135,4 +168,21 @@ it("accepts a legacy Chinese preference from another window", () => {
   render(<LocaleProvider><TokenFormatProvider><Probe /></TokenFormatProvider></LocaleProvider>);
   act(() => window.dispatchEvent(new StorageEvent("storage", { key: TOKEN_FORMAT_STORAGE_KEY, newValue: "chinese" })));
   expect(screen.getByText("1234.6万")).toBeInTheDocument();
+});
+
+it("mirrors the unit system to the macOS menu bar on mount and on change", async () => {
+  const postMessage = vi.fn();
+  window.webkit = { messageHandlers: { nativeBridge: { postMessage } } };
+  try {
+    const user = userEvent.setup();
+    render(<LocaleProvider><TokenFormatProvider><Probe /></TokenFormatProvider></LocaleProvider>);
+    const unitPushes = () =>
+      postMessage.mock.calls.map(([m]) => m).filter((m) => m.key === "tokenUnitSystem");
+    expect(unitPushes()).toEqual([{ type: "setSetting", key: "tokenUnitSystem", value: "english" }]);
+
+    await user.click(screen.getByRole("button", { name: "unit-english" }));
+    expect(unitPushes().at(-1)).toEqual({ type: "setSetting", key: "tokenUnitSystem", value: "chinese" });
+  } finally {
+    delete window.webkit;
+  }
 });

@@ -12,6 +12,8 @@ const {
   writeJson,
   chmod600IfPossible,
 } = require("../lib/fs");
+const { resolveMimoNativeDbPath } = require("../lib/install-resolver");
+const { expandHome } = require("../lib/scan-roots");
 const { prompt, promptHidden } = require("../lib/prompt");
 const {
   upsertCodexNotify,
@@ -69,6 +71,8 @@ const {
   resolvePiAgentDir,
   piAgentDirCollidesWithOmp,
   resolvePrimeAgentDir,
+  resolveMinimaxCodeSessionsDir,
+  resolveCommandCodeHome,
   resolveLmstudioLogFiles,
   resolveUnslothDbPath,
   resolveAnythingllmDbPath,
@@ -129,6 +133,7 @@ const SUPPORTED_PROVIDERS = [
   "WorkBuddy AI",
   "Grok Build",
   "oh-my-pi",
+  "OmO",
   "pi",
   "Dots",
   "Prime Agent",
@@ -147,9 +152,13 @@ const SUPPORTED_PROVIDERS = [
   "Claude Science",
   "DeepSeek Harness",
   "TRAE Work CN",
+  "TRAE",
   "LM Studio",
   "Unsloth Studio",
   "Devin CLI",
+  "Cline",
+  "MiniMax Code",
+  "Command Code",
 ];
 
 async function cmdInit(argv) {
@@ -607,7 +616,7 @@ function buildIntegrationTargets({ home, trackerDir, notifyPath }) {
   // WorkBuddy AI is the international build of the very same CLI. It keeps its
   // data in a sibling home (~/.workbuddy-ai), so it needs its own hook install
   // and its own --source token to be attributed separately from the CN build.
-  const workbuddyAiDir = process.env.WORKBUDDY_AI_HOME || path.join(home, ".workbuddy-ai");
+  const workbuddyAiDir = expandHome(process.env.WORKBUDDY_AI_HOME, home) || path.join(home, ".workbuddy-ai");
   const workbuddyAiSettingsPath = path.join(workbuddyAiDir, "settings.json");
   const workbuddyAiHookCommand = buildHookCommand(notifyPath, "workbuddy-ai");
   const geminiConfigDir = resolveGeminiConfigDir({ home, env: process.env });
@@ -821,6 +830,23 @@ async function applyIntegrationSetup({
     }
   }
 
+  // MiniMax Code: passive reader of ~/.minimax/v2/sessions — no hook installation needed.
+  {
+    const minimaxCodeSessionsDir = resolveMinimaxCodeSessionsDir(process.env);
+    if (minimaxCodeSessionsDir && fssync.existsSync(minimaxCodeSessionsDir)) {
+      summary.push({ label: "MiniMax Code", status: "detected", detail: "Passive usage reader (no hook needed)" });
+    }
+  }
+
+  // Command Code (`cmd`): passive reader of ~/.commandcode/projects — no hook
+  // installation needed, and none exists to install.
+  {
+    const commandCodeProjectsDir = path.join(resolveCommandCodeHome(process.env), "projects");
+    if (fssync.existsSync(commandCodeProjectsDir)) {
+      summary.push({ label: "Command Code", status: "detected", detail: "Passive session reader (no hook needed)" });
+    }
+  }
+
   // Craft Agents: passive reader — no hook installation needed.
   // TokenTracker reads ~/.craft-agent/workspaces/<id>/sessions/**/session.jsonl
   // (and any user-relocated workspace listed in ~/.craft-agent/config.json).
@@ -839,17 +865,18 @@ async function applyIntegrationSetup({
     }
   }
 
-  // Trae SOLO (ByteDance AI IDE): plan snapshot only. Trae keeps its session
-  // transcripts SQLCipher-encrypted and its plaintext summaries hold no token
-  // counts, so there is no usage to read — the detail line must not promise
-  // otherwise ("Passive reader" reads, everywhere else, as "tokens counted").
+  // International TRAE usage is read locally; no hook or vendor login is needed.
   {
+    const { resolveTraeDbPaths } = require("../lib/trae-db");
+    const traeDbPaths = resolveTraeDbPaths(process.env);
     const traeStoragePath = resolveTraeStoragePath(process.env);
-    if (traeStoragePath) {
+    if (traeDbPaths.length || traeStoragePath) {
       summary.push({
-        label: "Trae SOLO",
+        label: "TRAE",
         status: "detected",
-        detail: "Plan info only — Trae exposes no readable token usage",
+        detail: traeDbPaths.length
+          ? "Local usage reader (shared application key; optional TOKENTRACKER_TRAE_SQLCIPHER_KEY override)"
+          : "Plan info only — no local usage database found",
       });
     }
   }
@@ -887,9 +914,7 @@ async function applyIntegrationSetup({
   // OpenCode-fork SQLite schema at ~/.local/share/mimocode/mimocode.db
   // (override via MIMO_HOME).
   {
-    const xdgDataHome = process.env.XDG_DATA_HOME || path.join(home, ".local", "share");
-    const mimoHome = process.env.MIMO_HOME || path.join(xdgDataHome, "mimocode");
-    const mimoDbPath = path.join(mimoHome, "mimocode.db");
+    const mimoDbPath = resolveMimoNativeDbPath({ home });
     if (fssync.existsSync(mimoDbPath)) {
       summary.push({ label: "Mimo", status: "detected", detail: "Passive reader (no hook needed)" });
     }
@@ -954,6 +979,30 @@ async function applyIntegrationSetup({
         label: "Kilo Code (VS Code extension)",
         status: "detected",
         detail: `Passive reader · ${taskFiles.length} task${taskFiles.length !== 1 ? "s" : ""} in ${ides}`,
+      });
+    }
+  }
+
+  // Cline CLI v3 / desktop app: passive reader — no hook installation needed.
+  // Cline keeps its own data dir (~/.cline/data/sessions, overridable through
+  // CLINE_DIR/CLINE_DATA_DIR/CLINE_SESSION_DATA_DIR); the VS Code extension's
+  // globalStorage layout is a separate, older install we do not read.
+  {
+    const { resolveClineSessionFilesWithStatus } = require("../lib/rollout");
+    const clineScan = resolveClineSessionFilesWithStatus(process.env);
+    const sessionFiles = clineScan.files;
+    if (sessionFiles.length > 0) {
+      summary.push({
+        label: "Cline",
+        status: "detected",
+        detail: `Passive reader · ${sessionFiles.length} transcript${sessionFiles.length !== 1 ? "s" : ""}`,
+      });
+    }
+    for (const failure of clineScan.errors) {
+      summary.push({
+        label: "Cline",
+        status: "error",
+        detail: `Passive reader discovery failed · ${failure.root}: ${failure.error.code ? `${failure.error.code}: ` : ""}${failure.error.message}`,
       });
     }
   }
@@ -2254,7 +2303,7 @@ async function runFirstSyncAndRead({ trackerBinPath, trackerDir, packageName }) 
     return readFirstSyncTotals(trackerDir);
   }
   const fallbackPkg = packageName || "tokentracker-cli";
-  const argv = ["sync", "--drain"];
+  const argv = ["sync", "--auto", "--drain"];
   const hasLocalRuntime = typeof trackerBinPath === "string" && fssync.existsSync(trackerBinPath);
   const cmd = hasLocalRuntime
     ? [process.execPath, trackerBinPath, ...argv]

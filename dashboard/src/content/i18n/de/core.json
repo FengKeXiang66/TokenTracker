@@ -8,6 +8,7 @@
   "login.verify_email_success": "E-Mail-Adresse bestätigt. Du kannst dich jetzt anmelden.",
   "login.verify_email_pending": "Bitte schließe die E-Mail-Bestätigung vor der Anmeldung ab.",
   "login.oauth.continue": "Weiter mit {{provider}}",
+  "login.oauth.desktop_start_failed": "Die Desktop-Anmeldung konnte nicht gestartet werden. Bitte versuche es erneut.",
   "login.divider": "oder",
   "login.tab.sign_in": "Anmelden",
   "login.tab.sign_up": "Registrieren",
@@ -31,6 +32,7 @@
   "shared.unit.thousand_abbrev": "K",
   "shared.unit.million_abbrev": "Mio.",
   "shared.unit.billion_abbrev": "Mrd.",
+  "shared.unit.trillion_abbrev": "Bio.",
   "shared.data_source": "Datenquelle: {{source}}",
   "shared.error.prefix": "Fehler: {{error}}",
   "shared.status.unsynced": "—",
@@ -569,5 +571,9 @@
   "settings.section.labs": "Labs",
   "limits.alert.blocked": "Benachrichtigungen sind aus – in den Systemeinstellungen erlauben",
   "settings.limits.showSubscriptions": "Abos in Limits anzeigen",
-  "settings.limits.showSubscriptionsHint": "Zeige manuell eingetragene Abo-Verlängerungen zusammen mit den Limits an."
+  "settings.limits.showSubscriptionsHint": "Zeige manuell eingetragene Abo-Verlängerungen zusammen mit den Limits an.",
+  "settings.appearance.token_grouping.label": "Zahlengruppierung",
+  "settings.appearance.token_grouping.hint": "Genaue Zahlen verwenden 3- oder chinesische 4-Ziffer-Gruppen. Tooltips folgen dieser Einstellung.",
+  "settings.appearance.token_grouping.thousand": "3er",
+  "settings.appearance.token_grouping.wan": "4er"
 }

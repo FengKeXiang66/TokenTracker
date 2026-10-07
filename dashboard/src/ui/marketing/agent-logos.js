@@ -17,7 +17,7 @@ export const AGENT_LOGOS = [
   { id: 12, name: "Kimi", provider: "kimi" },
   { id: 13, name: "CodeBuddy", provider: "codebuddy" },
   { id: 14, name: "WorkBuddy", provider: "workbuddy" },
-  { id: 39, name: "WorkBuddy AI", provider: "workbuddy-ai" },
+  { id: 44, nameKey: "provider.display.workbuddy_ai", provider: "workbuddy-ai" },
   { id: 15, name: "Grok", provider: "grok" },
   { id: 16, name: "oh-my-pi", provider: "omp" },
   { id: 17, name: "Pi", provider: "pi" },
@@ -49,4 +49,29 @@ export const AGENT_LOGOS = [
   { id: 36, name: "LM Studio", provider: "lmstudio" },
   { id: 37, name: "Unsloth Studio", provider: "unsloth" },
   { id: 38, name: "Devin CLI", provider: "devin" },
+  {
+    id: 39,
+    nameKey: "provider.display.omo",
+    provider: "omo",
+  },
+  {
+    id: 40,
+    nameKey: "provider.display.cline",
+    provider: "cline",
+  },
+  {
+    id: 41,
+    nameKey: "provider.display.minimax_code",
+    provider: "minimax-code",
+  },
+  {
+    id: 42,
+    nameKey: "provider.display.command_code",
+    provider: "command-code",
+  },
+  {
+    id: 43,
+    nameKey: "provider.display.trae",
+    provider: "trae",
+  },
 ];

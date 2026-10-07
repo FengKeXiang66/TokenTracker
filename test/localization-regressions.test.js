@@ -186,7 +186,10 @@ test("Codex Spark usage limit row labels stay on one line", () => {
   const usageLimitsView = read("TokenTrackerBar/TokenTrackerBar/Views/UsageLimitsView.swift");
   const usageLimitsPanel = read("dashboard/src/ui/dashboard/components/UsageLimitsPanel.jsx");
 
-  assert.match(usageLimitsView, /Text\(label\)[\s\S]*?\.lineLimit\(1\)[\s\S]*?\.fixedSize\(horizontal: true, vertical: false\)[\s\S]*?LimitLabelWidthKey[\s\S]*?\.frame\(width: labelColumnWidth > 0 \? labelColumnWidth : nil, alignment: \.leading\)/);
+  // The shared rowLabel helper must keep labels single-line, measure the
+  // natural width into LimitLabelWidthKey, and cap the shared column.
+  assert.match(usageLimitsView, /private func rowLabel\(_ text: String\) -> some View \{[\s\S]*?\.lineLimit\(1\)[\s\S]*?\.fixedSize\(horizontal: labelColumnWidth == 0, vertical: false\)[\s\S]*?\.frame\(width: labelColumnWidth > 0 \? min\(labelColumnWidth, Self\.labelColumnMaxWidth\) : nil, alignment: \.leading\)[\s\S]*?LimitLabelWidthKey/);
+  assert.match(usageLimitsView, /return HStack\(spacing: Self\.rowColumnSpacing\) \{\s*rowLabel\(label\)/);
   assert.match(usageLimitsPanel, /data-limit-label[\s\S]*?\bwhitespace-nowrap\b[\s\S]*?var\(--tt-limits-label-w\)/);
 });
 

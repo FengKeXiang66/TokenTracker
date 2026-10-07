@@ -158,25 +158,9 @@ function normalizeCursorModel(model) {
 // under-count, but it tracks the token cost of WorkBuddy's representative model
 // rather than an unrelated vendor's. (The raw "auto" string is still
 // stored/displayed; only the pricing lookup is remapped.)
-// Bare "auto" must be namespaced per build so both builds can carry their own
-// curated alias for it. Leaving it as the literal "auto" would hand the lookup
-// to the shared curated alias table, where "auto" -> composer-1 (Cursor's
-// default) silently bills WorkBuddy at Composer rates. The namespaced keys have
-// no LiteLLM entry, so lookupPricing skips the LiteLLM reverse-substring step
-// (which would otherwise grope at "auto") and lands on the curated alias edge.
 function normalizeWorkbuddyModel(model) {
   if (typeof model === "string" && model.trim().toLowerCase() === "auto") {
-    return "workbuddy/auto";
-  }
-  return model;
-}
-
-// The international WorkBuddy build has the same "auto" auto-router placeholder,
-// but its router picks non-Tencent models, so it resolves to its own alias
-// (gpt-5.6-terra, the international default tier) instead of the Tencent one.
-function normalizeWorkbuddyAiModel(model) {
-  if (typeof model === "string" && model.trim().toLowerCase() === "auto") {
-    return "workbuddy-ai/auto";
+    return "hy3-preview-agent";
   }
   return model;
 }
@@ -217,7 +201,6 @@ const SOURCE_MODEL_NORMALIZERS = {
   zed: normalizeZedModel,
   unsloth: normalizeUnslothModel,
   workbuddy: normalizeWorkbuddyModel,
-  "workbuddy-ai": normalizeWorkbuddyAiModel,
 };
 
 // Memoise the sorted-by-length LiteLLM key list. Reverse-substring scan walks
@@ -273,6 +256,16 @@ function lookupPricing(model, { curated, litellm, source } = {}) {
   // 0. CURATED source exact. Source-specific prices apply only to their source,
   // preventing collisions with public prices for same-named models from other CLIs.
   const sourceKey = typeof source === "string" ? source.toLowerCase() : "";
+  if (sourceKey === "workbuddy-ai" && lower.trim() === "auto") {
+    return { hit: false, source: "miss", value: null };
+  }
+  if (sourceKey === "cline" && lower.endsWith(":free")) {
+    return {
+      hit: true,
+      source: "curated:cline-free-suffix",
+      value: { input: 0, output: 0, cache_read: 0, cache_write: 0 },
+    };
+  }
   // AStudio does not disclose its routed model. Stop before generic aliases
   // and fuzzy matching can turn an unresolved router into a priced model.
   if (sourceKey === "acode" && (lower === "auto" || lower.endsWith("-auto"))) {
@@ -287,6 +280,11 @@ function lookupPricing(model, { curated, litellm, source } = {}) {
   }
 
   // 1. CURATED exact
+  // Qwen Flash's provider-qualified and dated IDs share the reference SKU.
+  // Keep the boundary strict: Flash-Next and Max have independent prices.
+  if (/(?:^|\/)qwen3[.-]8-flash(?:-\d{4}-\d{2}-\d{2})?$/.test(lower.trim()) && curated.exact?.["qwen3.8-flash"]) {
+    return { hit: true, source: "curated:exact", value: curated.exact["qwen3.8-flash"] };
+  }
   if (curated.exact && curated.exact[lookupModel]) {
     return { hit: true, source: "curated:exact", value: curated.exact[lookupModel] };
   }

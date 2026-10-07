@@ -28,6 +28,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { expandHome } = require("./scan-roots");
 
 /**
  * @typedef {Object} PassiveProvider
@@ -172,13 +173,14 @@ function detectPassiveProviders({ home, hookStatus, env = process.env }) {
   }));
 
   // WorkBuddy AI — international build; data + hooks in ~/.workbuddy-ai
+  const workbuddyAiHome = expandHome(env.WORKBUDDY_AI_HOME, home) || path.join(home, ".workbuddy-ai");
   out.push(buildEntry({
     name: "workbuddy-ai",
     hookExpected: true,
     hookInstalled: Boolean(hookStatus?.["workbuddy-ai"]),
-    logsDir: path.join(home, ".workbuddy-ai"),
+    logsDir: workbuddyAiHome,
     logsPredicate: (_full, name) => name === "projects" || name.endsWith(".jsonl"),
-    settingsPath: path.join(home, ".workbuddy-ai", "settings.json"),
+    settingsPath: path.join(workbuddyAiHome, "settings.json"),
   }));
 
   return out;

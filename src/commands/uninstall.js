@@ -1,6 +1,7 @@
 const os = require("node:os");
 const path = require("node:path");
 const fs = require("node:fs/promises");
+const { expandHome } = require("../lib/scan-roots");
 
 const {
   restoreCodexNotify,
@@ -45,7 +46,7 @@ async function cmdUninstall(argv) {
   const workbuddyDir = process.env.WORKBUDDY_HOME || path.join(home, ".workbuddy");
   const workbuddySettingsPath = path.join(workbuddyDir, "settings.json");
   // WorkBuddy AI — international build, sibling home (~/.workbuddy-ai).
-  const workbuddyAiDir = process.env.WORKBUDDY_AI_HOME || path.join(home, ".workbuddy-ai");
+  const workbuddyAiDir = expandHome(process.env.WORKBUDDY_AI_HOME, home) || path.join(home, ".workbuddy-ai");
   const workbuddyAiSettingsPath = path.join(workbuddyAiDir, "settings.json");
   const geminiConfigDir = resolveGeminiConfigDir({ home, env: process.env });
   const geminiSettingsPath = resolveGeminiSettingsPath({ configDir: geminiConfigDir });

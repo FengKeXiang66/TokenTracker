@@ -194,6 +194,77 @@ describe("UsageOverview", () => {
     expect(container.querySelectorAll("[data-model-rank-row]")).toHaveLength(0);
   });
 
+  it("expands a model row to reveal per-model token-type splits", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <UsageOverview
+        period="month"
+        periods={["month"]}
+        summaryLabel="Total"
+        summaryValue="150"
+        fleetData={[
+          {
+            source: "opencode",
+            label: "OPENCODE",
+            totalPercent: "100.00",
+            usage: 150,
+            usd: 1.5,
+            models: [
+              {
+                id: "gpt-6.1-sol-fast",
+                name: "gpt-6.1-sol-fast",
+                share: 80,
+                usage: 120,
+                cost: 1.2,
+                tokens: { input: 100, output: 20, cached: 0, cacheCreate: 0, reasoning: 0 },
+              },
+              {
+                id: "plain-model",
+                name: "plain-model",
+                share: 20,
+                usage: 30,
+                cost: 0.3,
+              },
+            ],
+          },
+        ]}
+        from="2026-09-01"
+        to="2026-09-30"
+      />,
+    );
+
+    await act(async () => {
+      await user.click(screen.getByRole("button", { name: /All tools:/i }));
+    });
+
+    // Splits are hidden until the row itself is expanded.
+    expect(screen.queryByText("Cached input")).toBeNull();
+
+    const rowButton = screen.getByRole("button", { name: /gpt-6\.1-sol-fast/i });
+    expect(rowButton).toHaveAttribute("aria-expanded", "false");
+
+    // Rows without backend splits stay non-interactive.
+    expect(screen.getByText("plain-model").parentElement.tagName).toBe("DIV");
+    expect(
+      screen.queryByRole("button", { name: /plain-model/i }),
+    ).toBeNull();
+
+    await act(async () => {
+      await user.click(rowButton);
+    });
+    expect(rowButton).toHaveAttribute("aria-expanded", "true");
+    for (const label of ["Input", "Cached input", "Cache write", "Output", "Reasoning"]) {
+      expect(screen.getByText(label)).toBeVisible();
+    }
+
+    await act(async () => {
+      await user.click(rowButton);
+    });
+    expect(rowButton).toHaveAttribute("aria-expanded", "false");
+    expect(container.querySelectorAll("[data-model-rank-row]")).toHaveLength(2);
+    expect(screen.queryByText("Cached input")).toBeNull();
+  });
+
   it("renders AnythingLLM with its official name, icon, and stable accent", () => {
     const { container } = render(
       <UsageOverview
@@ -330,7 +401,11 @@ describe("UsageOverview", () => {
     });
 
     const row = screen.getByText("claude-fable-5").parentElement;
-    expect(row).toHaveClass("grid", "grid-cols-[minmax(0,1fr)_minmax(8rem,max-content)_minmax(5.5rem,max-content)_4rem]");
+    expect(row).toHaveClass(
+      "grid",
+      "grid-cols-[minmax(0,1fr)_auto_auto_auto]",
+      "sm:grid-cols-[minmax(0,1fr)_minmax(8rem,max-content)_minmax(5.5rem,max-content)_minmax(7rem,max-content)]",
+    );
     expect(row.children[1]).toHaveClass("whitespace-nowrap");
     expect(row.children[2]).toHaveClass("whitespace-nowrap");
   });
@@ -481,5 +556,69 @@ describe("UsageOverview", () => {
 
     expect(screen.getByText("Sep 7 — Sep 13")).toBeTruthy();
     expect(screen.queryByText(copy("usage.overview.week_cross_month_hint"))).toBeNull();
+  });
+
+  it("keeps the TRAE partial-cost notice visible beside combined totals in collapsed and expanded views", async () => {
+    const user = userEvent.setup();
+    render(
+      <UsageOverview
+        period="month"
+        periods={[]}
+        summaryLabel="Total"
+        summaryValue="1,300"
+        summaryCostValue="$0.03"
+        fleetData={[
+          {
+            source: "trae",
+            label: "TRAE",
+            totalPercent: "80.00",
+            usage: 1_000,
+            usd: 0.02,
+            models: [{ id: "gpt-5", name: "gpt-5", share: 100, usage: 1_000, cost: 0.02 }],
+          },
+          {
+            source: "codex",
+            label: "CODEX",
+            totalPercent: "20.00",
+            usage: 300,
+            usd: 0.01,
+            models: [{ id: "gpt-5.2", name: "gpt-5.2", share: 100, usage: 300, cost: 0.01 }],
+          },
+        ]}
+      />,
+    );
+    const notice = copy("usage.overview.trae_notice_body");
+    expect(screen.getByText(notice)).toBeVisible();
+    for (const provider of [/TRAE:/i, /CODEX:/i, /All tools:/i]) {
+      await act(async () => {
+        await user.click(screen.getByRole("button", { name: provider }));
+      });
+      expect(screen.getByText(notice)).toBeVisible();
+    }
+  });
+
+  it("does not apply the international TRAE partial-cost notice to TRAE-CN or unrelated sources", () => {
+    const props = {
+      period: "month",
+      periods: [],
+      summaryLabel: "Total",
+      summaryValue: "100",
+    };
+    const fleet = (source) => [{
+      source,
+      label: source.toUpperCase(),
+      totalPercent: "100.00",
+      usage: 100,
+      models: [{ id: "gpt-5", name: "gpt-5", share: 100, usage: 100, cost: 0.01 }],
+    }];
+    const { rerender } = render(<UsageOverview {...props} fleetData={fleet("trae-cn")} />);
+    const showSource = (source) => {
+      rerender(<UsageOverview {...props} fleetData={fleet(source)} />);
+    };
+    expect(screen.queryByText(copy("usage.overview.trae_notice_body"))).toBeNull();
+    showSource("trae");
+    expect(screen.getByText(copy("usage.overview.trae_notice_body"))).toBeVisible();
+    showSource("codex");
+    expect(screen.queryByText(copy("usage.overview.trae_notice_body"))).toBeNull();
   });
 });
