@@ -300,14 +300,19 @@ async function fetchClaudeUsageLimits(accessToken, { fetchImpl = fetch, maxAttem
       throw new Error(`Claude API returned ${res.status}`);
     }
     const body = await res.json();
-    return {
-      five_hour: body.five_hour ?? null,
-      seven_day: body.seven_day ?? null,
-      seven_day_opus: body.seven_day_opus ?? null,
-      weekly_scoped: extractClaudeScopedWeekly(body),
-      extra_usage: body.extra_usage ?? null,
-    };
+    return mapClaudeUsageBody(body);
   }
+}
+
+/** Map an /api/oauth/usage body (live, or Claude Code's cached copy) onto the limits shape. */
+function mapClaudeUsageBody(body) {
+  return {
+    five_hour: body?.five_hour ?? null,
+    seven_day: body?.seven_day ?? null,
+    seven_day_opus: body?.seven_day_opus ?? null,
+    weekly_scoped: extractClaudeScopedWeekly(body),
+    extra_usage: body?.extra_usage ?? null,
+  };
 }
 
 // Classify a wham window by `limit_window_seconds` rather than its slot name.
@@ -2376,7 +2381,9 @@ function readClaudeLimitsCache({
   maxAgeMs = CLAUDE_LIMITS_CACHE_MAX_AGE_MS,
   stale = true,
 } = {}) {
-  return normalizeClaudeCachedLimits(readClaudeLimitsCacheRaw({ home }), { nowMs, maxAgeMs, stale });
+  return pickNewestClaudeSnapshot(readClaudeLimitsCacheCandidates({ home }).map((raw) => (
+    normalizeClaudeCachedLimits(raw, { nowMs, maxAgeMs, stale })
+  )));
 }
 
 // A cached snapshot stops being "fresh" the moment any of its windows crosses the
@@ -2420,16 +2427,60 @@ function claudeCacheAwaitsNewWindow(raw, { home, nowMs } = {}) {
   }
 }
 
-function readFreshClaudeLimitsCache({ home, nowMs = Date.now() } = {}) {
-  const raw = readClaudeLimitsCacheRaw({ home });
-  if (!raw || claudeCacheCrossedReset(raw, { nowMs }) || claudeCacheAwaitsNewWindow(raw, { home, nowMs })) {
+// Claude Code keeps its last /api/oauth/usage response in its global config
+// (`cachedUsageUtilization` in ~/.claude.json). That endpoint is throttled hard and its
+// budget is shared with Claude Code itself, so reading this copy costs no request. Only
+// usage figures are read — no credentials. The path deliberately ignores CLAUDE_CONFIG_DIR:
+// readClaudeCodeOauthToken reads the default profile's credentials (default Keychain item,
+// ~/.claude/.credentials.json), and the cache must come from that same profile so it can
+// never describe a different account than the token this process would query with.
+function resolveClaudeCodeGlobalConfigPath({ home } = {}) {
+  return path.join(home || os.homedir(), ".claude.json");
+}
+
+/**
+ * Claude Code's cached usage as a raw cache entry (same shape as our own disk cache),
+ * or null when absent, unparsable, or recorded for a different account than the one
+ * Claude Code is currently signed in to.
+ */
+function readClaudeCodeUsageCacheRaw({ home } = {}) {
+  try {
+    const config = JSON.parse(fs.readFileSync(resolveClaudeCodeGlobalConfigPath({ home }), "utf8"));
+    const cached = config?.cachedUsageUtilization;
+    const fetchedAtMs = Number(cached?.fetchedAtMs);
+    if (!cached?.utilization || typeof cached.utilization !== "object" || !Number.isFinite(fetchedAtMs)) return null;
+    const cachedAccount = typeof cached.accountUuid === "string" ? cached.accountUuid : null;
+    const currentAccount = typeof config?.oauthAccount?.accountUuid === "string" ? config.oauthAccount.accountUuid : null;
+    if (!cachedAccount || !currentAccount || cachedAccount !== currentAccount) return null;
+    return { ...mapClaudeUsageBody(cached.utilization), cached_at: new Date(fetchedAtMs).toISOString() };
+  } catch (_error) {
     return null;
   }
-  return normalizeClaudeCachedLimits(raw, {
-    nowMs,
-    maxAgeMs: CLAUDE_LIMITS_CACHE_FRESH_TTL_MS,
-    stale: false,
-  });
+}
+
+/** Raw snapshots from both sources: our own disk cache and Claude Code's cached read. */
+function readClaudeLimitsCacheCandidates({ home } = {}) {
+  return [readClaudeLimitsCacheRaw({ home }), readClaudeCodeUsageCacheRaw({ home })].filter(Boolean);
+}
+
+/** Newest of the already-validated snapshots, by cached_at. */
+function pickNewestClaudeSnapshot(snapshots) {
+  let newest = null;
+  for (const snapshot of snapshots) {
+    if (!snapshot) continue;
+    if (!newest || parseTimeMs(snapshot.cached_at) > parseTimeMs(newest.cached_at)) newest = snapshot;
+  }
+  return newest;
+}
+
+// Each source is validated on its own before picking the newest, so a newer snapshot
+// whose windows are all unusable can never displace an older usable one.
+function readFreshClaudeLimitsCache({ home, nowMs = Date.now() } = {}) {
+  return pickNewestClaudeSnapshot(readClaudeLimitsCacheCandidates({ home }).map((raw) => (
+    claudeCacheCrossedReset(raw, { nowMs }) || claudeCacheAwaitsNewWindow(raw, { home, nowMs })
+      ? null
+      : normalizeClaudeCachedLimits(raw, { nowMs, maxAgeMs: CLAUDE_LIMITS_CACHE_FRESH_TTL_MS, stale: false })
+  )));
 }
 
 function writeClaudeLimitsCache(limits, { home, nowMs = Date.now() } = {}) {
@@ -3856,7 +3907,8 @@ async function fetchUsageLimitsUncached({
     : null;
   // Also avoid cross-process hammering after a recent successful read: embedded-server
   // restarts and background polls read the disk cache instead of spending another Claude
-  // OAuth usage request. An explicit user refresh (refresh=1 → forceRefresh) punches
+  // OAuth usage request. Claude Code's own cached read counts too, so a session that just
+  // refreshed its usage spares this process a call against the same throttled budget. An explicit user refresh (refresh=1 → forceRefresh) punches
   // through this cache — but never through the 429 cooldown above, which is exactly the
   // hammering the cooldown exists to prevent.
   const freshClaudeCache = claudeToken && !forceRefresh
