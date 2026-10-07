@@ -40,6 +40,7 @@ required_paths=(
   usr/lib/tokentracker-linux/node
   usr/lib/tokentracker-linux/tokentracker/bin/tracker.js
   usr/lib/tokentracker-linux/tokentracker/dashboard/dist/index.html
+  usr/lib/tokentracker-linux/tokentracker/dashboard/dist/pet.html
   usr/share/applications/tokentracker-linux.desktop
   usr/share/icons/hicolor/512x512/apps/tokentracker-linux.png
   usr/share/licenses/tokentracker-linux/LICENSE

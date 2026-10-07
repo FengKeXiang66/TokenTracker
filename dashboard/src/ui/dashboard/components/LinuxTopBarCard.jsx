@@ -9,9 +9,6 @@ const DISMISS_KEY = "linuxTopBarCardDismissed";
 const SETUP_URL =
   "https://github.com/xiufengsun/TokenTracker/tree/main/TokenTrackerLinux/gnome-extension/tokentracker@tokentracker.cc#readme";
 
-// Sample figures for the illustration — not copy, never translated.
-const PREVIEW_READOUT = "8.2M · $12.40";
-
 function readDismissed() {
   try {
     return localStorage.getItem(DISMISS_KEY) === "1";
@@ -55,7 +52,7 @@ function TopBarPreview() {
           {/* the TokenTracker indicator, highlighted like an open menu */}
           <span className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-white/15 px-1.5 py-0.5 text-[9px] font-semibold tracking-tight text-white/90 tabular-nums">
             <ClawdGlyph className="h-[9px] w-[15px] translate-y-[0.5px] text-white/90" />
-            {PREVIEW_READOUT}
+            {copy("dashboard.linux_topbar.preview_readout")}
           </span>
           <span className="h-[5px] w-[5px] rounded-full bg-white/50" />
           <span className="h-[5px] w-[5px] rounded-full bg-white/50" />

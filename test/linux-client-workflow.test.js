@@ -148,6 +148,27 @@ test('no workflow or doc still references the old release workflow name', () => 
   }
 });
 
+test('deb and rpm register tokentracker:// so the OAuth return reaches the app', () => {
+  // Tauri's default desktop template has no %u and no scheme handler, and the
+  // runtime xdg-mime registration only runs for the AppImage, so v1.1.0's deb
+  // and rpm could never finish a browser sign-in.
+  const tauriDir = path.join(root, 'TokenTrackerLinux/src-tauri');
+  const conf = JSON.parse(fs.readFileSync(path.join(tauriDir, 'tauri.conf.json'), 'utf8'));
+  const debTemplate = conf.bundle?.linux?.deb?.desktopTemplate;
+  assert.ok(debTemplate, 'deb needs a custom desktop template');
+  assert.equal(conf.bundle?.linux?.rpm?.desktopTemplate, debTemplate, 'rpm must use the same template');
+
+  const template = fs.readFileSync(path.join(tauriDir, debTemplate), 'utf8');
+  assert.match(template, /^Exec=\{\{exec\}\} %u$/m);
+  assert.match(template, /^MimeType=x-scheme-handler\/tokentracker;$/m);
+
+  const linuxJob = release.slice(release.indexOf('\n  linux:'), release.indexOf('\n  publish:'));
+  assert.match(linuxJob, /verify_scheme_handler "deb" "\$workdir\/deb"/);
+  assert.match(linuxJob, /verify_scheme_handler "rpm" "\$workdir\/rpm"/);
+  assert.match(linuxJob, /grep -Fxq 'MimeType=x-scheme-handler\/tokentracker;'/);
+  assert.match(linuxJob, /grep -Fxq 'Exec=tokentracker-linux %u'/);
+});
+
 test('Arch package build disables the unused split debug package', () => {
   assert.match(pkgbuild, /^options=\(!debug\)$/m);
 });
@@ -161,6 +182,7 @@ test('Arch package validator checks the shipped runtime contract', () => {
     'usr/lib/tokentracker-linux/node',
     'usr/lib/tokentracker-linux/tokentracker/bin/tracker.js',
     'usr/lib/tokentracker-linux/tokentracker/dashboard/dist/index.html',
+    'usr/lib/tokentracker-linux/tokentracker/dashboard/dist/pet.html',
     'usr/share/applications/tokentracker-linux.desktop',
     'usr/share/icons/hicolor/512x512/apps/tokentracker-linux.png',
     'usr/share/licenses/tokentracker-linux/LICENSE',
@@ -172,4 +194,22 @@ test('Arch package validator checks the shipped runtime contract', () => {
   assert.match(validator, /x-scheme-handler\/tokentracker/);
   assert.match(validator, /22\.22\.2/);
   assert.match(validator, /tokentracker-user-status/);
+});
+
+test('Linux release builds the floating pet page into the dashboard', () => {
+  // The Linux pet window loads /pet.html from the embedded dashboard; vite only
+  // emits that entry when TOKENTRACKER_BUILD_PET=1, as on Windows.
+  const linuxJob = release.slice(release.indexOf('\n  linux:'), release.indexOf('\n  publish:'));
+  const buildStep = linuxJob.slice(linuxJob.indexOf('- name: Build dashboard'));
+  const stepEnd = buildStep.indexOf('run: npm run dashboard:build');
+  assert.ok(stepEnd > 0, 'Linux job must build the dashboard');
+  assert.match(buildStep.slice(0, stepEnd), /TOKENTRACKER_BUILD_PET: "1"/);
+});
+
+test('Arch package builds the floating pet page and every package requires it', () => {
+  // Without pet.html the pet window loads the server's plain "Not Found" in a
+  // transparent always-on-top window.
+  assert.match(pkgbuild, /^\s*TOKENTRACKER_BUILD_PET=1 npm run dashboard:build$/m);
+  const linuxJob = release.slice(release.indexOf('\n  linux:'), release.indexOf('\n  publish:'));
+  assert.match(linuxJob, /"tokentracker\/dashboard\/dist\/pet\.html"/);
 });

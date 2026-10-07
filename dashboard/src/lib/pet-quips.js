@@ -17,6 +17,7 @@
  */
 
 import { copy } from "./copy";
+import { formatChineseNumber } from "./format";
 
 const QUIPS = {
   "en": {
@@ -236,11 +237,11 @@ const SYNCING_QUIPS = {
 
 // Hover-bubble labels (the dynamic usage line is composed in pet.jsx).
 const PET_LABELS = {
-  "en": { today: "Today", noUsage: "No usage yet today", offline: "Offline · can't reach the server", syncing: "Syncing…" },
-  "zh-CN": { today: "今日", noUsage: "今天还没有用量", offline: "离线 · 连不上服务", syncing: "正在同步…" },
-  "zh-TW": { today: "今日", noUsage: "今天還沒有用量", offline: "離線 · 連不上服務", syncing: "正在同步…" },
-  "ja": { today: "今日", noUsage: "今日はまだ使用なし", offline: "オフライン · サーバーに接続できません", syncing: "同期中…" },
-  "ko": { today: "오늘", noUsage: "오늘 사용 없음", offline: "오프라인 · 서버에 연결할 수 없음", syncing: "동기화 중…" },
+  "en": { today: "Today", newUsage: "New usage", noUsage: "No usage yet today", offline: "Offline · can't reach the server", syncing: "Syncing…" },
+  "zh-CN": { today: "今日", newUsage: "新增用量", noUsage: "今天还没有用量", offline: "离线 · 连不上服务", syncing: "正在同步…" },
+  "zh-TW": { today: "今日", newUsage: "新增用量", noUsage: "今天還沒有用量", offline: "離線 · 連不上服務", syncing: "正在同步…" },
+  "ja": { today: "今日", newUsage: "新しい使用量", noUsage: "今日はまだ使用なし", offline: "オフライン · サーバーに接続できません", syncing: "同期中…" },
+  "ko": { today: "오늘", newUsage: "새 사용량", noUsage: "오늘 사용 없음", offline: "오프라인 · 서버에 연결할 수 없음", syncing: "동기화 중…" },
 };
 
 /** Localized hover-bubble labels for the given locale. */
@@ -291,7 +292,8 @@ function cap(s) {
  * Compact token formatter (1 decimal K/M/B) — matches the tray's UsagePoller.FormatTokens
  * and the macOS TokenFormatter.formatCompact so every surface reads the same number.
  */
-export function formatCompactTokens(n) {
+export function formatCompactTokens(n, { unitSystem } = {}) {
+  if (unitSystem === "chinese") return formatChineseNumber(n, { decimals: 1 });
   if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(1) + "B";
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
   if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
@@ -578,6 +580,7 @@ export function buildQuipPool(locale, ctx = {}) {
     last30dTokens = 0, last30dAvgPerDay = 0,
     streakDays = 0, activeDaysAllTime = 0,
     topModels = [],
+    unitSystem,
   } = ctx;
   const loc = normalizePetLocale(locale);
   if (isSyncing) return SYNCING_QUIPS[loc] || SYNCING_QUIPS.en;
@@ -604,7 +607,7 @@ export function buildQuipPool(locale, ctx = {}) {
 
   // === 7-day / 30-day rolling ===
   if (last7dTokens > 0) {
-    out.push(fillVars(stats.sevenDayTotal, { tokens: formatCompactTokens(last7dTokens) }));
+    out.push(fillVars(stats.sevenDayTotal, { tokens: formatCompactTokens(last7dTokens, { unitSystem }) }));
     if (last7dActiveDays > 0) {
       // macOS prepends the 🗓️ at the call site, not in the string.
       out.push("🗓️ " + fillVars(stats.activeDaysThisWeek, { n: last7dActiveDays }));
@@ -612,9 +615,9 @@ export function buildQuipPool(locale, ctx = {}) {
     }
   }
   if (last30dTokens > 0) {
-    out.push(fillVars(stats.thirtyDayTotal, { tokens: formatCompactTokens(last30dTokens) }));
+    out.push(fillVars(stats.thirtyDayTotal, { tokens: formatCompactTokens(last30dTokens, { unitSystem }) }));
     if (last30dAvgPerDay > 0) {
-      out.push(fillVars(stats.averagingPerDay, { tokens: formatCompactTokens(last30dAvgPerDay) }));
+      out.push(fillVars(stats.averagingPerDay, { tokens: formatCompactTokens(last30dAvgPerDay, { unitSystem }) }));
     }
   }
 

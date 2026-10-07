@@ -24,6 +24,7 @@ import { MacAppBanner } from "../components/MacAppBanner.jsx";
 import { WidgetOnboardingCard } from "../components/WidgetOnboardingCard.jsx";
 import { LinuxTopBarCard } from "../components/LinuxTopBarCard.jsx";
 import { IslandOnboardingCard } from "../components/IslandOnboardingCard.jsx";
+import { LinuxPetCard } from "../components/LinuxPetCard.jsx";
 import { QualityPerDollarCard } from "../components/QualityPerDollarCard.jsx";
 import { SessionInsightsCard } from "../components/SessionInsightsCard.jsx";
 import { LoginCard } from "../../../components/LoginCard.jsx";
@@ -43,7 +44,7 @@ const D_RIGHT_BASE = 0.05;
 // islandOnboarding must NOT be prunable: it renders null until the native
 // bridge pushes settings (async), and a pruned card is unmounted for good —
 // it would never get the chance to appear once settings arrive.
-const EMPTY_PRUNABLE_CARD_IDS = new Set(["macAppBanner", "widgetOnboarding"]);
+const EMPTY_PRUNABLE_CARD_IDS = new Set(["macAppBanner", "widgetOnboarding", "linuxTopBarCard"]);
 
 function FullPageGateLayout({ title, subtitle, desc, loginCard, copy }) {
   return (
@@ -227,6 +228,7 @@ export function DashboardView(props) {
     macAppBanner: isLocalMode,
     statsPanel: true,
     islandOnboarding: isLocalMode,
+    linuxPetCard: isLocalMode,
     widgetOnboarding: isLocalMode,
     linuxTopBarCard: isLocalMode,
     installCopy: shouldShowInstall,
@@ -278,6 +280,9 @@ export function DashboardView(props) {
       }
       case "islandOnboarding": {
         return <IslandOnboardingCard enterDelay={delay} />;
+      }
+      case "linuxPetCard": {
+        return <LinuxPetCard enterDelay={delay} />;
       }
       case "widgetOnboarding": {
         return <WidgetOnboardingCard enterDelay={delay} />;

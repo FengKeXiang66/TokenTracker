@@ -20,6 +20,7 @@ import { petVisualScale } from "./lib/pet-appearance.js";
 import { BotAnimated } from "./ui/foundation/BotAnimated.jsx";
 import { PetAtlasAnimated } from "./ui/foundation/PetAtlasAnimated.jsx";
 import { usePetCatalog } from "./hooks/use-pet-catalog.js";
+import { startLinuxPetHost } from "./lib/pet-linux-host.js";
 
 /**
  * Standalone floating-pet entry for the Windows tray app (PetWindow.cs loads
@@ -134,6 +135,10 @@ function readPetLocale() {
   return normalizePetLocale(typeof window !== "undefined" ? window.__ttPetLocale : null);
 }
 
+function readPetUnitSystem() {
+  return typeof window !== "undefined" && window.__ttPetTokenUnitSystem === "chinese" ? "chinese" : "western";
+}
+
 function readPetCharacter() {
   return normalizePetCharacter(typeof window !== "undefined" ? window.__ttPetCharacter : null);
 }
@@ -144,7 +149,14 @@ function readPetBotColor() {
 }
 
 function post(type) {
-  try { window.chrome?.webview?.postMessage(type); } catch { /* not in WebView2 */ }
+  try {
+    if (window.chrome?.webview) {
+      window.chrome.webview.postMessage(type);
+      return;
+    }
+    // Linux Tauri host (TokenTrackerLinux/src-tauri/src/pet.rs).
+    window.__TAURI_INTERNALS__?.invoke("pet_bridge", { message: type })?.catch?.(() => {});
+  } catch { /* no native host */ }
 }
 
 function readPetBubbleBand() {
@@ -521,6 +533,7 @@ function Pet() {
   const [connected, setConnected] = useState(readPetConnected);
   const [currency, setCurrency] = useState(readPetCurrency);
   const [locale, setLocale] = useState(readPetLocale);
+  const [unitSystem, setUnitSystem] = useState(readPetUnitSystem);
   const [character, setCharacter] = useState(readPetCharacter);
   const [botColor, setBotColor] = useState(readPetBotColor);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -629,6 +642,13 @@ function Pet() {
   }, []);
   useEffect(() => {
     const update = () => setLocale(readPetLocale());
+    update();
+    window.addEventListener("pet:locale", update);
+    return () => window.removeEventListener("pet:locale", update);
+  }, []);
+  useEffect(() => {
+    // PushContext dispatches pet:locale on every push, so it also carries unit changes.
+    const update = () => setUnitSystem(readPetUnitSystem());
     update();
     window.addEventListener("pet:locale", update);
     return () => window.removeEventListener("pet:locale", update);
@@ -823,7 +843,8 @@ function Pet() {
     const pool = buildQuipPool(locale, {
       ...s,
       tokens: s.todayTokens,
-      tokensText: formatTokens(s.todayTokens),
+      tokensText: formatTokens(s.todayTokens, { unitSystem }),
+      unitSystem,
       costText: `${currency.symbol}${costValue.toFixed(2)}`,
       costValue,
       limitText: formatPetLimitSummary(locale, limitSummaries[0] || null),
@@ -836,7 +857,7 @@ function Pet() {
       setTapState(null);
       setSpeech(null);
     }, TAP_HOLD_MS);
-  }, [locale, currency.symbol, currency.rate, isSyncing, limitSummaries]);
+  }, [locale, unitSystem, currency.symbol, currency.rate, isSyncing, limitSummaries]);
 
   // Distinguish a tap (→ cycle animation) from a drag (→ native window move):
   // only hand the move to the OS once the pointer travels past a small threshold.
@@ -895,7 +916,7 @@ function Pet() {
     };
   }).filter(Boolean);
   const tokenUsageText = today.tokens > 0
-    ? `${L.today} ${formatTokens(today.tokens)} · ${currency.symbol}${(today.costUsd * currency.rate).toFixed(2)}`
+    ? `${L.today} ${formatTokens(today.tokens, { unitSystem })} · ${currency.symbol}${(today.costUsd * currency.rate).toFixed(2)}`
     : "";
   const usageText = isDisconnected
     ? L.offline
@@ -907,7 +928,9 @@ function Pet() {
   if (!bubbleText) {
     if (modelStatus) {
       const costValue = modelStatus.costDelta * currency.rate;
-      bubbleText = `${modelStatus.modelName} · +${formatTokens(modelStatus.tokensDelta)} (${currency.symbol}${costValue.toFixed(3)})`;
+      // A host that can't attribute the increase to a model sends no name.
+      const label = modelStatus.modelName || L.newUsage;
+      bubbleText = `${label} · +${formatTokens(modelStatus.tokensDelta, { unitSystem })} (${currency.symbol}${costValue.toFixed(3)})`;
     } else if (hovering) {
       bubbleText = usageText;
     }
@@ -918,7 +941,7 @@ function Pet() {
   const hoverUsage = hovering && !speech && !modelStatus && !isDisconnected && !isSyncing
     && (today.tokens > 0 || limitItems.length > 0)
     ? {
-      tokenText: today.tokens > 0 ? formatTokens(today.tokens) : "",
+      tokenText: today.tokens > 0 ? formatTokens(today.tokens, { unitSystem }) : "",
       costText: today.tokens > 0
         ? `${currency.symbol}${(today.costUsd * currency.rate).toFixed(2)} · ${L.today}`
         : "",
@@ -1000,6 +1023,9 @@ function Pet() {
     </div>
   );
 }
+
+// The Linux app has no native poller: the page feeds itself from the local API.
+if (window.__TAURI_INTERNALS__ && !window.chrome?.webview) startLinuxPetHost();
 
 createRoot(document.getElementById("pet-root")).render(
   <React.StrictMode>
