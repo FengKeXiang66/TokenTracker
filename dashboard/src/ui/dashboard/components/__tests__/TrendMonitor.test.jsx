@@ -9,6 +9,7 @@ vi.mock("../TrendMonitorZoomModal", () => ({ TrendMonitorZoomModal: () => null }
 
 import {
   TrendMonitor,
+  chooseTrendTooltipPlacement,
   computeInterpolatedSeries,
   getTrendMonitorScale,
   mergeModelSegments,
@@ -168,6 +169,75 @@ describe("TrendMonitor", () => {
     expect(container.querySelector('[data-trend-tooltip]')).toBeNull();
   });
 
+  it("moves the tooltip above the chart when the scroll pane has no room below", () => {
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(180);
+    try {
+      const { container } = render(
+        <div style={{ overflowY: "auto" }}>
+          <TrendMonitor rows={[{ total_tokens: 10 }, { total_tokens: 500 }]} />
+        </div>,
+      );
+      // Scrolled to the bottom: the chart's columns end 32px above the pane edge.
+      container.firstChild.getBoundingClientRect = () => ({ top: 0, bottom: 400 });
+      const bars = container.querySelectorAll('[role="button"]');
+      bars.forEach((bar, i) => {
+        bar.getBoundingClientRect = () => ({ left: i * 30, top: 200, bottom: 360, width: 30 });
+      });
+      fireEvent.mouseEnter(bars[0]);
+      const tooltip = container.querySelector("[data-trend-tooltip]");
+      // Anchored to the column top (not the bar top) so it can't grow the pane.
+      expect(tooltip.style.top).toBe("200px");
+      expect(tooltip.firstChild.className).toContain("bottom-[10px]");
+      expect(tooltip.firstChild.style.maxHeight).toBe("");
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("caps the tooltip to the visible pane when neither side has room", () => {
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(300);
+    try {
+      const { container } = render(
+        <div style={{ overflowY: "auto" }}>
+          <TrendMonitor rows={[{ total_tokens: 10 }]} />
+        </div>,
+      );
+      container.firstChild.getBoundingClientRect = () => ({ top: 0, bottom: 400 });
+      const bar = container.querySelector('[role="button"]');
+      bar.getBoundingClientRect = () => ({ left: 0, top: 100, bottom: 260, width: 30 });
+      fireEvent.mouseEnter(bar);
+      const box = container.querySelector("[data-trend-tooltip]").firstChild;
+      expect(box.className).toContain("top-[10px]");
+      expect(box.style.maxHeight).toBe("122px");
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("dismisses pinned details when their viewport placement becomes stale", () => {
+    const { container } = render(<TrendMonitor rows={[{ total_tokens: 800 }]} />);
+    const bar = container.querySelector('[role="button"]');
+    fireEvent.click(bar);
+    expect(container.querySelector('[data-trend-tooltip]')).not.toBeNull();
+    fireEvent.resize(window);
+    expect(container.querySelector('[data-trend-tooltip]')).toBeNull();
+    fireEvent.click(bar);
+    fireEvent.scroll(window);
+    expect(container.querySelector('[data-trend-tooltip]')).toBeNull();
+    fireEvent.click(bar);
+    fireEvent.scroll(container);
+    expect(container.querySelector('[data-trend-tooltip]')).toBeNull();
+  });
+
+  it("keeps pinned details open while their own contents scroll", () => {
+    const models = Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`model-${i}`, 100]));
+    const { container } = render(<TrendMonitor rows={[{ total_tokens: 800, models }]} />);
+    fireEvent.click(container.querySelector('[role="button"]'));
+    const tooltip = container.querySelector('[data-trend-tooltip]');
+    fireEvent.scroll(tooltip.querySelector('.overflow-y-auto'));
+    expect(container.querySelector('[data-trend-tooltip]')).toBe(tooltip);
+  });
+
   it("merges model segments whose names differ only by case", () => {
     expect(mergeModelSegments({
       "GPT-5.5": 120,
@@ -178,6 +248,34 @@ describe("TrendMonitor", () => {
       { type: "model", name: "GPT-5.5", value: 200 },
       { type: "model", name: "Claude-Sonnet", value: 50 },
     ]);
+  });
+});
+
+describe("chooseTrendTooltipPlacement", () => {
+  const band = { top: 0, bottom: 600 };
+
+  it("prefers below the chart when it fits", () => {
+    expect(chooseTrendTooltipPlacement({ columnTop: 200, columnBottom: 360, height: 200, band }))
+      .toEqual({ side: "below", maxHeight: null });
+  });
+
+  it("moves above the chart instead of overflowing the visible area", () => {
+    expect(chooseTrendTooltipPlacement({ columnTop: 400, columnBottom: 560, height: 200, band }))
+      .toEqual({ side: "above", maxHeight: null });
+  });
+
+  it("keeps a sweep above so adjacent bars don't alternate sides", () => {
+    expect(chooseTrendTooltipPlacement({ columnTop: 400, columnBottom: 500, height: 80, band, prefer: "above" }))
+      .toEqual({ side: "above", maxHeight: null });
+    expect(chooseTrendTooltipPlacement({ columnTop: 400, columnBottom: 500, height: 80, band, prefer: "below" }))
+      .toEqual({ side: "below", maxHeight: null });
+  });
+
+  it("caps the height on the roomier side when neither side fits", () => {
+    expect(chooseTrendTooltipPlacement({ columnTop: 100, columnBottom: 260, height: 400, band }))
+      .toEqual({ side: "below", maxHeight: 330 });
+    expect(chooseTrendTooltipPlacement({ columnTop: 300, columnBottom: 460, height: 400, band }))
+      .toEqual({ side: "above", maxHeight: 290 });
   });
 });
 
