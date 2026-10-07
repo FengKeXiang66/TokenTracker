@@ -43,9 +43,9 @@ test("Codex reset row accessibility is reset-specific and does not announce quot
   assert.match(source, /private static let rowColumnSpacing: CGFloat = 5/);
   assert.match(source, /private static let percentColumnWidth: CGFloat = 34/);
   assert.match(source, /private static let relativeResetColumnWidth: CGFloat = 24/);
-  assert.match(source, /private static var resetExpiryColumnWidth: CGFloat \{\s*percentColumnWidth \+ rowColumnSpacing \+ relativeResetColumnWidth\s*\}/);
+  assert.match(source, /private var resetExpiryColumnWidth: CGFloat \{\s*Self\.percentColumnWidth \+ Self\.rowColumnSpacing \+ effectiveResetColumnWidth\s*\}/);
   assert.match(resetRowSource, /\.monospacedDigit\(\)/);
-  assert.match(resetRowSource, /\.frame\(width: Self\.resetExpiryColumnWidth, alignment: \.trailing\)/);
+  assert.match(resetRowSource, /\.frame\(width: resetExpiryColumnWidth, alignment: \.trailing\)/);
   assert.doesNotMatch(resetRowSource, /displayPercentLabel/);
   assert.doesNotMatch(resetRowSource, /limitAccessibility/);
   assert.doesNotMatch(resetRowSource, /percent:\s*Int/);

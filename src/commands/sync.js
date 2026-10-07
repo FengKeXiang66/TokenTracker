@@ -4,6 +4,7 @@ const fs = require("node:fs/promises");
 const fssync = require("node:fs");
 const cp = require("node:child_process");
 const readline = require("node:readline");
+const { functionUrlFor, fetchFunctionResponse } = require("../lib/function-url");
 
 const { resolveInstallPaths, resolveZcodeNativeDbPath, resolveMimoNativeDbPath, ensureFlatCursor } = require("../lib/install-resolver");
 const { multiInstallParse, mergeBothFileSources } = require("../lib/multi-install-parser");
@@ -147,12 +148,19 @@ const {
 const { computeClaudeGroundTruthBuckets } = require("../lib/claude-categorizer");
 const { createProgress, renderBar, formatNumber, formatBytes } = require("../lib/progress");
 const {
+  DEFAULTS: AUTO_UPLOAD_DEFAULTS,
   normalizeState: normalizeUploadState,
   decideAutoUpload,
   recordUploadFailure,
   recordUploadSuccess,
   parseRetryAfterMs,
 } = require("../lib/upload-throttle");
+const AUTO_UPLOAD_CONFIG = {
+  intervalMs: 5 * 60_000,
+  batchSize: 200,
+  maxBatchesSmall: 5,
+  maxBatchesLarge: 5,
+};
 const { maybeSendHeartbeat } = require("../lib/telemetry");
 const {
   isCursorInstalled,
@@ -172,6 +180,7 @@ const {
   openCursorStore,
 } = require("../lib/cursor-store");
 const { resolveTrackerPaths } = require("../lib/tracker-paths");
+const { readCloudSyncEnabled } = require("../lib/cloud-sync-prefs");
 const {
   appendUniqueDirs,
   extraScanRootPaths,
@@ -521,6 +530,11 @@ async function cmdSync(argv, context = {}) {
   const syncDiagnostics = diagnostics && typeof diagnostics === "object" ? diagnostics : null;
   const home = os.homedir();
   const { trackerDir } = await resolveTrackerPaths({ home });
+  // Manual CLI sync is a one-time upload request, without changing the toggle.
+  // Hooks, native publication and detached retries must honor the saved opt-in.
+  const requiresCloudSyncPref = opts.auto || opts.background || opts.fromRetry || opts.fromNotify || opts.fromOpenclaw ||
+    Boolean(process.env.TOKENTRACKER_LOCAL_SYNC_ATTEMPT_ID);
+  const canUpload = () => !requiresCloudSyncPref || readCloudSyncEnabled(trackerDir);
 
   await ensureDir(trackerDir);
   if (opts.fromOpenclaw) {
@@ -555,7 +569,7 @@ async function cmdSync(argv, context = {}) {
     // Native publication owns backlog and failure-backoff retries on its next
     // five-minute tick. Remove any legacy detached retry marker immediately so
     // an already-sleeping retry process observes the missing marker and exits.
-    if (opts.publishAccount) {
+    if (opts.publishAccount || !canUpload()) {
       await clearAutoRetry(trackerDir);
     }
 
@@ -3329,39 +3343,61 @@ async function cmdSync(argv, context = {}) {
     if (legacyBaseUrlMigration?.replacementDeviceToken) {
       runtimeConfig.deviceToken = legacyBaseUrlMigration.replacementDeviceToken;
     }
-    const runtime = resolveRuntimeConfig({ config: runtimeConfig, env: process.env });
+    // An authenticated local API supplies this capability for this upload.
+    // Keep a separately configured CLI account from overriding its owner.
+    const runtime = resolveRuntimeConfig({
+      cli: {
+        deviceToken: process.env.TOKENTRACKER_LOCAL_SYNC_DEVICE_TOKEN,
+        ...(process.env.TOKENTRACKER_LOCAL_SYNC_DEVICE_TOKEN ? {
+          baseUrl: process.env.TOKENTRACKER_INSFORGE_BASE_URL,
+          anonKey: process.env.TOKENTRACKER_INSFORGE_ANON_KEY,
+        } : {}),
+      },
+      config: runtimeConfig,
+      env: process.env,
+    });
 
     let uploadResult = { inserted: 0, skipped: 0 };
     let uploadAttempted = false;
     let autoUploadDecision = null;
 
-    if (opts.publishAccount || (legacyBaseUrlMigration && opts.auto)) {
+    if (canUpload() && (opts.auto || opts.publishAccount) && runtime.deviceToken && runtime.baseUrl &&
+        (!isBackgroundLightweightSync || opts.publishAccount)) {
       const uploadStateBefore = (await readJson(queueStatePath)) || { offset: 0 };
       const queueSizeBefore = await safeStatSize(queuePath);
       const pendingBytesBefore = Math.max(
         0,
         queueSizeBefore - Number(uploadStateBefore.offset || 0),
       );
-      // Native publication and every auto-triggered legacy migration share the
-      // failure-backoff gate. Intentionally ignore the 30-minute success
-      // throttle: native refresh owns its own cadence, while a pending migration
-      // should complete as soon as a credential becomes usable.
+      // Native publication owns a five-minute timer. Drains and a pending
+      // backend migration also bypass the success interval, but all automatic
+      // producers must respect a failed upload's retry deadline.
+      const bypassSuccessInterval = opts.publishAccount || opts.drain || legacyBaseUrlMigration;
+      const lastSuccessMs = Number(uploadThrottleState.lastSuccessMs || 0);
+      const successDeadline = lastSuccessMs > 0
+        ? Math.min(Number(uploadThrottleState.nextAllowedAtMs || 0),
+          lastSuccessMs + AUTO_UPLOAD_CONFIG.intervalMs + AUTO_UPLOAD_DEFAULTS.jitterMsMax)
+        : Number(uploadThrottleState.nextAllowedAtMs || 0);
       autoUploadDecision = decideAutoUpload({
         nowMs: Date.now(),
         pendingBytes: pendingBytesBefore,
         state: {
           ...uploadThrottleState,
-          nextAllowedAtMs: Number(uploadThrottleState.backoffUntilMs || 0),
+          nextAllowedAtMs: bypassSuccessInterval
+            ? Number(uploadThrottleState.backoffUntilMs || 0)
+            : successDeadline,
         },
-        config: {
-          batchSize: 200,
-          maxBatchesSmall: 5,
-          maxBatchesLarge: 5,
-        },
+        config: AUTO_UPLOAD_CONFIG,
       });
+      if (opts.drain && autoUploadDecision.reason === "throttled") {
+        throw Object.assign(new Error("Cloud upload is backed off; retry after the current upload cooldown"), {
+          code: "SYNC_UPLOAD_BACKOFF",
+          retryAfterMs: Math.max(0, autoUploadDecision.blockedUntilMs - Date.now()),
+        });
+      }
     }
 
-    if (runtime.deviceToken && runtime.baseUrl &&
+    if (canUpload() && runtime.deviceToken && runtime.baseUrl &&
         (!isBackgroundLightweightSync || opts.publishAccount) &&
         (!autoUploadDecision || autoUploadDecision.allowed)) {
       uploadAttempted = true;
@@ -3385,6 +3421,7 @@ async function cmdSync(argv, context = {}) {
             queueStatePath,
             maxBatches: opts.drain ? 100 : (autoUploadDecision?.maxBatches || 5),
             batchSize: autoUploadDecision?.batchSize || 200,
+            canUpload,
           });
         try {
           uploadResult = await drainWithToken(successfulDeviceToken);
@@ -3434,6 +3471,7 @@ async function cmdSync(argv, context = {}) {
         uploadThrottleState = recordUploadSuccess({
           nowMs: Date.now(),
           state: uploadThrottleState,
+          config: AUTO_UPLOAD_CONFIG,
         });
         await writeJson(uploadThrottlePath, uploadThrottleState);
       } catch (e) {
@@ -3445,6 +3483,7 @@ async function cmdSync(argv, context = {}) {
           nowMs: Date.now(),
           state: uploadThrottleState,
           error: e,
+          attemptId: process.env.TOKENTRACKER_LOCAL_SYNC_ATTEMPT_ID,
         });
         await writeJson(uploadThrottlePath, uploadThrottleState);
         if (!opts.auto) {
@@ -3464,7 +3503,7 @@ async function cmdSync(argv, context = {}) {
     // and can keep auto retry alive even after cloud sync has drained.
     const pendingBytes = Math.max(0, queueSize - Number(afterState.offset || 0));
 
-    if (pendingBytes <= 0) {
+    if (pendingBytes <= 0 || !canUpload()) {
       await clearAutoRetry(trackerDir);
     } else if (opts.auto && uploadAttempted && !opts.publishAccount) {
       const retryAtMs = Number(uploadThrottleState?.nextAllowedAtMs || 0);
@@ -4118,7 +4157,7 @@ const AUTO_RETRY_MAX_DELAY_MS = 2 * 60 * 60 * 1000;
 const INGEST_SLUG = "tokentracker-ingest";
 const MAX_INGEST_BUCKETS = 500;
 
-async function drainQueueToCloud({ baseUrl, anonKey, deviceToken, queuePath, queueStatePath, maxBatches = 5, batchSize = 200 }) {
+async function drainQueueToCloud({ baseUrl, anonKey, deviceToken, queuePath, queueStatePath, maxBatches = 5, batchSize = 200, canUpload = () => true }) {
   const state = (await readJson(queueStatePath)) || { offset: 0 };
   let offset = Number(state.offset || 0);
   let inserted = 0;
@@ -4143,7 +4182,9 @@ async function drainQueueToCloud({ baseUrl, anonKey, deviceToken, queuePath, que
       Authorization: `Bearer ${deviceToken}`,
     };
     if (anonKey) headers.apikey = anonKey;
-    const res = await fetch(`${root}/functions/${INGEST_SLUG}`, {
+    // Re-read after parsing/each batch so switching off stops an active drain.
+    if (!canUpload()) break;
+    const res = await fetchFunctionResponse(functionUrlFor(root, INGEST_SLUG), {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -4160,6 +4201,9 @@ async function drainQueueToCloud({ baseUrl, anonKey, deviceToken, queuePath, que
     if (!res.ok) {
       const err = new Error(`HTTP ${res.status}: ${rawText.substring(0, 500)}`);
       err.status = res.status;
+      err.code = res.status === 401 ? "CLOUD_DEVICE_TOKEN_REJECTED"
+        : res.status === 403 ? "CLOUD_UPLOAD_FORBIDDEN"
+          : "CLOUD_UPLOAD_FAILED";
       const retryAfter = res.headers?.get?.("Retry-After") ?? null;
       const retryAfterMs = parseRetryAfterMs(retryAfter);
       if (retryAfterMs !== null) err.retryAfterMs = retryAfterMs;

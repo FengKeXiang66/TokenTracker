@@ -184,6 +184,9 @@ const MODEL_PRICING: Record<string, { input: number; output: number; cache_read:
   // GPT-6 Sol Standard USD/MTok, verified 2026-09-24:
   // https://developers.openai.com/api/docs/models/gpt-6-sol
   "gpt-6-sol": { input: 2, output: 10, cache_read: 0.2, cache_write: 2.5 },
+  // GPT-6.1 Sol Standard pricing (issue #737), verified 2026-10-02.
+  // https://developers.openai.com/api/docs/models/gpt-6.1-sol
+  "gpt-6.1-sol": { input: 2, output: 10, cache_read: 0.1, cache_write: 2.5 },
   "gpt-5-mini": { input: 0.25, output: 2, cache_read: 0.025 },
   "o3": { input: 2, output: 8, cache_read: 0.5 },
   // ── Google Gemini ──
@@ -416,6 +419,7 @@ function getModelPricing(model: string, source = "") {
   if (lower.includes("sonnet")) return MODEL_PRICING["claude-sonnet-4-6"];
   if (lower.includes("gpt-6-astra")) return MODEL_PRICING["gpt-6-astra"];
   if (lower.includes("gpt-6-sol")) return MODEL_PRICING["gpt-6-sol"];
+  if (lower.includes("gpt-6.1-sol")) return MODEL_PRICING["gpt-6.1-sol"];
   // gpt-5.6 tiers: sol/terra/luna carry reasoning-effort suffixes (solhigh,
   // etc.), so match by substring. Specific tiers precede the generic gpt-5.6
   // fallback (the public gpt-5.6 alias points to the flagship sol tier).
@@ -590,6 +594,51 @@ interface CompactSummary {
   range_totals: Record<string, number | string>;
 }
 
+interface SummaryWire {
+  source_names: (string | null)[];
+  model_names: (string | null)[];
+  pricing_tiers: (string | null)[];
+  cost_dims: [number, number, number, ...(number | string)[]][];
+  day_start: string | null;
+  day_rollup: [number, number | string, number | string][];
+  range_totals: (number | string)[];
+}
+
+const SUMMARY_TOTAL_KEYS = [
+  "total_tokens", "input_tokens", "output_tokens", "cached_input_tokens",
+  "cache_creation_input_tokens", "reasoning_output_tokens", "conversation_count", "active_days",
+];
+
+function decodeSummaryWire(data: unknown): CompactSummary {
+  const payload = (data ?? {}) as Partial<CompactSummary> | SummaryWire;
+  // The SQL wrapper returns the legacy object when dictionary metadata would
+  // increase transfer size. Positional totals distinguish the smaller format.
+  if (!Array.isArray(payload.range_totals)) {
+    const compact = payload as Partial<CompactSummary>;
+    return {
+      cost_dims: Array.isArray(compact.cost_dims) ? compact.cost_dims : [],
+      day_rollup: Array.isArray(compact.day_rollup) ? compact.day_rollup : [],
+      range_totals: compact.range_totals ?? {},
+    };
+  }
+  const wire = payload as SummaryWire;
+  // Missing trailing slots mean numeric zero. Keep explicit values, including
+  // numeric strings, unchanged before the existing price calculation.
+  const token = (row: SummaryWire["cost_dims"][number], index: number): number | string =>
+    index < row.length ? row[index] : 0;
+  const startMs = Date.parse(`${wire.day_start}T00:00:00Z`);
+  return {
+    cost_dims: wire.cost_dims.map((row): CompactSummary["cost_dims"][number] => [
+      wire.source_names[row[0]], wire.model_names[row[1]], wire.pricing_tiers[row[2]],
+      token(row, 3), token(row, 4), token(row, 5), token(row, 6), token(row, 7),
+    ]),
+    day_rollup: wire.day_rollup.map((row) => [
+      new Date(startMs + row[0] * 86_400_000).toISOString().slice(0, 10), row[1], row[2],
+    ]),
+    range_totals: Object.fromEntries(SUMMARY_TOTAL_KEYS.map((key, index) => [key, wire.range_totals[index]])),
+  };
+}
+
 const COMPACT_TTL_MS = 30_000;
 const COMPACT_STALE_IF_ERROR_MS = 5 * 60_000;
 const compactCache = new Map<string, { fetchedAt: number; value: CompactSummary }>();
@@ -627,7 +676,7 @@ async function fetchCompactSummary(
 
   const pending = (async () => {
     try {
-      const { data, error } = await client.database.rpc("account_summary_compact", {
+      const { data, error } = await client.database.rpc("account_summary_wire", {
         p_user_id: userId,
         p_device_id: requestedDeviceId,
         p_from: fromIso,
@@ -638,12 +687,7 @@ async function fetchCompactSummary(
         p_range_to: rangeTo,
       });
       if (error) throw new Error(error.message);
-      const payload = (data ?? {}) as Partial<CompactSummary>;
-      const value: CompactSummary = {
-        cost_dims: Array.isArray(payload.cost_dims) ? payload.cost_dims : [],
-        day_rollup: Array.isArray(payload.day_rollup) ? payload.day_rollup : [],
-        range_totals: (payload.range_totals ?? {}) as Record<string, number | string>,
-      };
+      const value = decodeSummaryWire(data);
       compactCache.set(cacheKey, { fetchedAt: Date.now(), value });
       if (compactCache.size > 64) {
         const oldest = compactCache.keys().next().value;

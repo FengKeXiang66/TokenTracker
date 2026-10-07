@@ -997,7 +997,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private void OnSyncCompleted()
     {
         _isSyncing = false;
-        _poller.RefreshNow();
+        _poller.RefreshNow(forceAccount: false);
         PostToUi(() =>
         {
             _petWindow?.ApplySyncing(false);

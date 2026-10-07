@@ -46,6 +46,7 @@ public sealed class UsagePollerAccountAuthorityTests
         public long SummaryTokens = 1_000;
         public int HeatmapStreak = 7;
         public bool FailLimits;
+        public readonly System.Collections.Concurrent.ConcurrentQueue<string> Requests = new();
 
         public FakeLocalServer()
         {
@@ -106,7 +107,7 @@ public sealed class UsagePollerAccountAuthorityTests
         }
 
         /// <summary>Reads just enough of the request to route it: the path from the request line.</summary>
-        private static async Task<string> ReadRequestPathAsync(NetworkStream stream)
+        private async Task<string> ReadRequestPathAsync(NetworkStream stream)
         {
             var buffer = new byte[4096];
             var read = 0;
@@ -121,6 +122,7 @@ public sealed class UsagePollerAccountAuthorityTests
 
             var requestLine = Encoding.ASCII.GetString(buffer, 0, read).Split("\r\n")[0];
             var target = requestLine.Split(' ') is [_, var t, ..] ? t : "";
+            Requests.Enqueue(target);
             var query = target.IndexOf('?');
             return query >= 0 ? target[..query] : target;
         }
@@ -145,7 +147,7 @@ public sealed class UsagePollerAccountAuthorityTests
     }
 
     /// <summary>Runs one poll; returns the published stats, or null if none was published.</summary>
-    private static async Task<UsagePoller.UsageStats?> PollOnceAsync(UsagePoller poller, TimeSpan wait)
+    private static async Task<UsagePoller.UsageStats?> PollOnceAsync(UsagePoller poller, TimeSpan wait, bool forceAccount = true)
     {
         var published = new TaskCompletionSource<UsagePoller.UsageStats>(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -153,7 +155,7 @@ public sealed class UsagePollerAccountAuthorityTests
         poller.StatsUpdated += OnStats;
         try
         {
-            poller.RefreshNow();
+            poller.RefreshNow(forceAccount);
             var done = await Task.WhenAny(published.Task, Task.Delay(wait));
             return done == published.Task ? published.Task.Result : null;
         }
@@ -164,6 +166,34 @@ public sealed class UsagePollerAccountAuthorityTests
     }
 
     private static readonly TimeSpan Publishes = TimeSpan.FromSeconds(10);
+
+    [Fact]
+    public async Task OrdinaryPollsKeepLocalAndLimitsReadsWhileManualRefreshBypassesAccountCache()
+    {
+        using var server = new FakeLocalServer();
+        using var poller = new UsagePoller(() => server.BaseUrl)
+        {
+            IncludeRichStats = true,
+            IncludeLimits = true,
+        };
+        var first = await PollOnceAsync(poller, Publishes, forceAccount: false);
+        Assert.NotNull(first);
+        var ordinary = server.Requests.ToArray();
+        Assert.Contains(ordinary, request => request.StartsWith(SummaryPath));
+        Assert.Contains(ordinary, request => request.StartsWith(HeatmapPath));
+        Assert.Contains(ordinary, request => request.StartsWith(ModelsPath));
+        Assert.Contains(LimitsPath, ordinary);
+        Assert.All(ordinary, request => Assert.DoesNotContain("refresh=1", request));
+
+        server.SummaryTokens = 2_000;
+        var refreshed = await PollOnceAsync(poller, Publishes);
+        Assert.NotNull(refreshed);
+        Assert.Equal(2_000, refreshed.Value.TodayTokens);
+        var manual = server.Requests.ToArray().Skip(ordinary.Length).ToArray();
+        foreach (var path in new[] { SummaryPath, HeatmapPath, ModelsPath })
+            Assert.Contains(manual, request => request.StartsWith(path) && request.Contains("refresh=1"));
+        Assert.Contains(LimitsPath, manual);
+    }
 
     [Fact]
     public async Task QuotaFailureIsReportedAndTheNextRefreshRecovers()

@@ -47,6 +47,7 @@ internal sealed class UsagePoller : IDisposable
     private CancellationTokenSource? _cts;
     private int _refreshInFlight;
     private int _refreshRequested;
+    private int _forceRefreshRequested;
     /// <summary>
     /// Whether the figures currently on the tray/pet came from the cross-device
     /// account aggregate. Guards against a temporary cloud failure replacing them
@@ -54,18 +55,9 @@ internal sealed class UsagePoller : IDisposable
     /// </summary>
     private volatile bool _showingAccountData;
 
-    // `streak_days` and `active_days` are day-grained — they change at most once
-    // a day — but they arrive inside a 52-week grid that is by far the largest
-    // response the tray pulls (~40 KB). Re-reading it on every 60-second tick
-    // spent the bulk of the backend's egress budget re-learning two integers.
-    // Holding the pair for five minutes is invisible to the pet's quip pool.
-    // Keyed by (timezone, account-authority) so signing out, or a cloud
-    // downgrade, drops the cached pair instead of showing stale cross-device
-    // figures.
-    private static readonly TimeSpan HeatmapTtl = TimeSpan.FromMinutes(5);
-    private string _heatmapCacheKey = string.Empty;
-    private (int Streak, int ActiveDays) _heatmapCacheValue;
-    private DateTime _heatmapCachedUtc = DateTime.MinValue;
+    // The loopback CLI caches account reads by authenticated user: summaries
+    // for two minutes and charts for five. Local data and limits keep this
+    // poller's one-minute cadence without repeated cloud transfers.
 
     /// <summary>
     /// When true, each poll also gathers the heatmap + model-breakdown stats the pet's
@@ -120,8 +112,9 @@ internal sealed class UsagePoller : IDisposable
         }, token);
     }
 
-    public void RefreshNow()
+    public void RefreshNow(bool forceAccount = true)
     {
+        if (forceAccount) Interlocked.Exchange(ref _forceRefreshRequested, 1);
         var token = _cts?.Token ?? CancellationToken.None;
         // Do not pass the token to Task.Run itself. A manual refresh can be
         // requested just as Start() replaces the CTS; scheduling with the old
@@ -149,7 +142,8 @@ internal sealed class UsagePoller : IDisposable
                 // requests together so a slow provider quota reader cannot add
                 // another full network round-trip to the visible refresh.
                 var includeLimits = IncludeLimits;
-                var statsTask = FetchAsync(token);
+                var forceAccount = Interlocked.Exchange(ref _forceRefreshRequested, 0) == 1;
+                var statsTask = FetchAsync(token, forceAccount);
                 var limitsTask = includeLimits ? FetchLimitsAsync(token) : null;
                 var stats = await statsTask;
                 if (stats is { } s && !token.IsCancellationRequested) RaiseStatsUpdated(s);
@@ -229,19 +223,20 @@ internal sealed class UsagePoller : IDisposable
             : AccountSource.LocalAuthoritative;
     }
 
-    private async Task<UsageStats?> FetchAsync(CancellationToken cancellationToken = default)
+    private async Task<UsageStats?> FetchAsync(CancellationToken cancellationToken = default, bool forceAccount = false)
     {
         try
         {
             var today = DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
             var tzQuery = TimeZoneQuery();
+            var refreshQuery = forceAccount ? "&refresh=1" : string.Empty;
 
             // account=1 → the server serves the same cross-device aggregate the
             // dashboard shows when the user is signed in with cloud sync on, and
             // otherwise falls back to local single-machine data. Same response
             // schema either way, so parsing below is unchanged.
             var summaryUrl = $"{_baseUrl()}/functions/tokentracker-usage-summary"
-                             + $"?from={today}&to={today}{tzQuery}&{AccountQuery}";
+                             + $"?from={today}&to={today}{tzQuery}&{AccountQuery}{refreshQuery}";
 
             using var resp = await Http.GetAsync(summaryUrl, cancellationToken);
             if (!resp.IsSuccessStatusCode) return null;
@@ -292,8 +287,8 @@ internal sealed class UsagePoller : IDisposable
                 // the previously published one, so a cold account snapshot
                 // cannot be mixed with transient local rich stats.
                 var retainAccount = summarySource == AccountSource.Account || _showingAccountData;
-                var heatmapTask = FetchHeatmapAsync(tzQuery, retainAccount, cancellationToken);
-                var modelsTask = FetchTopModelsAsync(today, tzQuery, retainAccount, cancellationToken);
+                var heatmapTask = FetchHeatmapAsync(tzQuery, retainAccount, refreshQuery, cancellationToken);
+                var modelsTask = FetchTopModelsAsync(today, tzQuery, retainAccount, refreshQuery, cancellationToken);
                 await Task.WhenAll(heatmapTask, modelsTask);
                 var heatmap = await heatmapTask;
                 var topModels = await modelsTask;
@@ -319,17 +314,11 @@ internal sealed class UsagePoller : IDisposable
     /// <summary>Heatmap: all-time active days + current streak (streak is server-computed; the
     /// local server returns 0, matching how the macOS pet reads it against the same backend).</summary>
     private async Task<(int Streak, int ActiveDays)?> FetchHeatmapAsync(
-        string tzQuery, bool retainAccount, CancellationToken cancellationToken = default)
+        string tzQuery, bool retainAccount, string refreshQuery, CancellationToken cancellationToken = default)
     {
-        var cacheKey = $"{tzQuery}|{retainAccount}";
-        if (_heatmapCacheKey == cacheKey && DateTime.UtcNow - _heatmapCachedUtc < HeatmapTtl)
-        {
-            return _heatmapCacheValue;
-        }
-
         try
         {
-            var url = $"{_baseUrl()}/functions/tokentracker-usage-heatmap?weeks=52{tzQuery}&{AccountQuery}";
+            var url = $"{_baseUrl()}/functions/tokentracker-usage-heatmap?weeks=52{tzQuery}&{AccountQuery}{refreshQuery}";
             using var resp = await Http.GetAsync(url, cancellationToken);
             if (!resp.IsSuccessStatusCode) return (0, 0);
             if (ReadAccountSource(resp) == AccountSource.LocalTransient && retainAccount) return null;
@@ -337,9 +326,6 @@ internal sealed class UsagePoller : IDisposable
             using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
             var root = doc.RootElement;
             var parsed = ((int)GetLong(root, "streak_days"), (int)GetLong(root, "active_days"));
-            _heatmapCacheValue = parsed;
-            _heatmapCacheKey = cacheKey;
-            _heatmapCachedUtc = DateTime.UtcNow;
             return parsed;
         }
         catch { return (0, 0); }
@@ -352,13 +338,13 @@ internal sealed class UsagePoller : IDisposable
     /// (one decimal), sort by tokens desc then name asc, top 5.
     /// </summary>
     private async Task<IReadOnlyList<TopModelStat>?> FetchTopModelsAsync(
-        string today, string tzQuery, bool retainAccount, CancellationToken cancellationToken = default)
+        string today, string tzQuery, bool retainAccount, string refreshQuery, CancellationToken cancellationToken = default)
     {
         try
         {
             var from = DateTime.Now.AddDays(-29).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
             var url = $"{_baseUrl()}/functions/tokentracker-usage-model-breakdown"
-                      + $"?from={from}&to={today}{tzQuery}&{AccountQuery}";
+                      + $"?from={from}&to={today}{tzQuery}&{AccountQuery}{refreshQuery}";
             using var resp = await Http.GetAsync(url, cancellationToken);
             if (!resp.IsSuccessStatusCode) return NoModels;
             if (ReadAccountSource(resp) == AccountSource.LocalTransient && retainAccount) return null;
