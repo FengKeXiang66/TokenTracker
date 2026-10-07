@@ -87,6 +87,15 @@ export function isNativeLinuxApp() {
 }
 
 /**
+ * Set by the Linux app (`desktop.rs`) on GNOME Shell when the top-bar
+ * extension is installed but not turned on.
+ */
+export function canOfferTopBarExtension() {
+  if (typeof window === "undefined") return false;
+  return window.__TOKENTRACKER_OFFER_TOP_BAR__ === true;
+}
+
+/**
  * The handler that opens OAuth in the system browser, or null in a normal
  * browser. macOS and Windows expose `webkit.messageHandlers.nativeOAuth`. The
  * Linux shell's copy of it may never attach to WebKitGTK's host object, so

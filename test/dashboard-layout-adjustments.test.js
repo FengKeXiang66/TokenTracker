@@ -146,14 +146,14 @@ test("DashboardView does not prune async quality-per-dollar while loading", () =
   const src = readFile(viewPath);
   assert.match(
     src,
-    /EMPTY_PRUNABLE_CARD_IDS\s*=\s*new Set\(\[\s*"macAppBanner",\s*"widgetOnboarding"\s*\]\)/,
+    /EMPTY_PRUNABLE_CARD_IDS\s*=\s*new Set\(\[\s*"macAppBanner",\s*"widgetOnboarding",\s*"linuxTopBarCard"\s*\]\)/,
     "expected only permanently dismissible cards to be pruned when empty",
   );
   assert.ok(src.includes("if (!EMPTY_PRUNABLE_CARD_IDS.has(id)) return"));
   assert.doesNotMatch(
     src,
-    /EMPTY_PRUNABLE_CARD_IDS\s*=\s*new Set\([^)]*"qualityPerDollar"/,
-    "quality-per-dollar can be empty while async outcomes data loads",
+    /EMPTY_PRUNABLE_CARD_IDS\s*=\s*new Set\([^)]*"(?:qualityPerDollar|linuxPetCard)"/,
+    "quality-per-dollar and pet settings can be empty while async data loads",
   );
 });
 

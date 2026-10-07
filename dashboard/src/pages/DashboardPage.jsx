@@ -72,6 +72,7 @@ const LEFT_CARD_ORDER_DEFAULTS = [
   "macAppBanner",
   "statsPanel",
   "widgetOnboarding",
+  "linuxTopBarCard",
   "installCopy",
   "activityHeatmap",
   "deviceUsage",

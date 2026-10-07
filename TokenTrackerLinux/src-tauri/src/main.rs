@@ -1,4 +1,4 @@
-use tokentracker_linux::{external, oauth, paths, pet, server, tray, ui_zoom};
+use tokentracker_linux::{desktop, external, oauth, paths, pet, server, tray, ui_zoom};
 
 use std::sync::Mutex;
 
@@ -427,6 +427,7 @@ fn main() {
                 tauri::WebviewUrl::App("index.html".into()),
             )
             .initialization_script(NATIVE_OAUTH_BRIDGE)
+            .initialization_script(desktop::init_script())
             .initialization_script(ui_zoom_bridge(zoom))
             // `target="_blank"` links (provider status pages, leaderboard
             // profiles) belong in the system browser. WebKitGTK opens nothing

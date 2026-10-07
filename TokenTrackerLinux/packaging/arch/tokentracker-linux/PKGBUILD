@@ -57,4 +57,10 @@ package() {
     "${pkgdir}/usr/share/icons/hicolor/512x512/apps/tokentracker-linux.png"
 
   install -Dm644 "LICENSE" "${pkgdir}/usr/share/licenses/tokentracker-linux/LICENSE"
+
+  local _ext=tokentracker@tokentracker.cc
+  for _file in metadata.json extension.js stylesheet.css; do
+    install -Dm644 "TokenTrackerLinux/gnome-extension/${_ext}/${_file}" \
+      "${pkgdir}/usr/share/gnome-shell/extensions/${_ext}/${_file}"
+  done
 }
