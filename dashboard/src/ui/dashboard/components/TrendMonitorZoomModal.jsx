@@ -135,6 +135,7 @@ export function TrendMonitorZoomModal({
   const [dayPickerOpen, setDayPickerOpen] = React.useState(false);
   const [rangePickerOpen, setRangePickerOpen] = React.useState(false);
   const [isClosing, setIsClosing] = React.useState(false);
+  const closeFinishedRef = React.useRef(false);
 
   // Newest day the 30-min view may navigate to.
   const maxDay = todayKey;
@@ -166,11 +167,27 @@ export function TrendMonitorZoomModal({
 
   const stats = React.useMemo(() => computeZoomStats(rows), [rows]);
 
+  const finishClose = React.useCallback(() => {
+    if (closeFinishedRef.current) return;
+    closeFinishedRef.current = true;
+    onClose();
+  }, [onClose]);
+
   const handleClose = React.useCallback(() => setIsClosing(true), []);
 
   const handleAnimationEnd = (e) => {
-    if (e.target === e.currentTarget && isClosing) onClose();
+    if (e.target === e.currentTarget && isClosing) finishClose();
   };
+
+  // `animationend` is not guaranteed: reduced-motion disables the animation,
+  // and some WebView2 compositor paths do not deliver the event. Always finish
+  // after the visual exit budget so the close button cannot leave a permanent
+  // full-screen overlay behind (issue 556).
+  React.useEffect(() => {
+    if (!isClosing) return undefined;
+    const timer = window.setTimeout(finishClose, 250);
+    return () => window.clearTimeout(timer);
+  }, [finishClose, isClosing]);
 
   React.useEffect(() => {
     const onKey = (e) => {

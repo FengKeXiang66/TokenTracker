@@ -186,6 +186,43 @@ describe("SessionsPage", () => {
     expect(screen.queryByText("Debug local proxy")).not.toBeInTheDocument();
   });
 
+  it("renders and searches every observed model in a mixed Codex session", async () => {
+    const mixed = {
+      ...response.sessions[1],
+      session_hash: "mixed-codex-row",
+      title: "Mixed model work",
+      model: "mixed",
+      own_total_tokens: 8_000,
+      cost_usd: 0.1,
+      cost_is_partial: true,
+      model_usage: [
+        { model: "gpt-5.6-sol", total_tokens: 6_000 },
+        { model: "gpt-5.6-terra", total_tokens: 2_000 },
+      ],
+    };
+    getSessions.mockResolvedValue({
+      ...response,
+      session_count: 1,
+      returned_count: 1,
+      sessions: [mixed],
+    });
+
+    render(<SessionsPage />);
+    expect(await screen.findByText("Mixed model work")).toBeInTheDocument();
+    expect(screen.getByText(/gpt-5\.6-sol 6K.*gpt-5\.6-terra 2K/)).toBeInTheDocument();
+    // A Codex session priced from an unrated model must explain itself: the
+    // marker alone used to be the only signal and carried no label at all.
+    const partialCost = screen.getByText(/^≥\$/);
+    expect(partialCost).toBeInTheDocument();
+    expect(partialCost).toHaveAttribute("title", expect.stringContaining("Lower bound"));
+    expect(screen.getByText("Partial cost")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search sessions" }), {
+      target: { value: "terra" },
+    });
+    expect(screen.getByText("Mixed model work")).toBeInTheDocument();
+  });
+
   it("folds direct and nested subagents under their root session", async () => {
     const root = makeThreadSession({
       session_hash: "root-hash",

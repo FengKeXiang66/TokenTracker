@@ -13,6 +13,7 @@ import {
   getUsageDaily,
   getUsageHeatmap,
 } from "../lib/api";
+import { useLatestRequestGuard } from "./use-latest-request-guard";
 
 export function useActivityHeatmap({
   baseUrl,
@@ -46,6 +47,35 @@ export function useActivityHeatmap({
 
   const isLocalMode = typeof window !== "undefined" &&
     (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+
+  // A manual refresh, visibility refresh, and a scope/range change can all
+  // overlap.  Heatmap responses are often considerably slower than the other
+  // usage endpoints; without a request guard, a late response from an older
+  // range (or device) can overwrite the current grid and its loading state.
+  // Keep the guard context aligned with every value used to build a request.
+  const beginRequest = useLatestRequestGuard([
+    baseUrl,
+    range.from,
+    range.to,
+    weeks,
+    weekStartsOn,
+    scopeKey,
+    accessToken,
+    accountAccessToken,
+    accountRevision,
+    accountViewResolving,
+    deviceId,
+    timeZone,
+    tzOffsetMinutes,
+    // Include source/rendering gates in the request identity. This prevents
+    // an old authenticated/local response from painting after a guest,
+    // mock, or cloud-scope transition.
+    guestAllowed,
+    mockEnabled,
+    cacheAllowed,
+    tokenReady,
+    isLocalMode,
+  ]);
 
   const storageKey = useMemo(() => {
     if (!cacheKey) return null;
@@ -102,8 +132,10 @@ export function useActivityHeatmap({
   }, [scopeKey]);
 
   const refresh = useCallback(async () => {
+    const isCurrent = beginRequest();
     const resolvedToken = await resolveAuthAccessToken(accessToken);
     const cloudToken = useCloud ? await resolveAuthAccessToken(accountAccessToken) : null;
+    if (!isCurrent()) return;
     if (!resolvedToken && !mockEnabled && !isLocalMode && !useCloud) return;
     if (useCloud && !cloudToken) {
       setError("Your session expired. Please sign in again to view account data.");
@@ -128,9 +160,11 @@ export function useActivityHeatmap({
           tzOffsetMinutes,
         });
         const weeksData = Array.isArray(res?.weeks) ? res.weeks : [];
+        if (!isCurrent()) return;
         if (!weeksData.length && cacheAllowed) {
           const cached = readCache();
           if (cached?.heatmap) {
+            if (!isCurrent()) return;
             setHeatmap(cached.heatmap);
             setDaily(cached.daily || []);
             setSource("cache");
@@ -161,6 +195,7 @@ export function useActivityHeatmap({
             to: res?.to || range.to,
             weekStartsOn,
           });
+          if (!isCurrent()) return;
           setDaily(rows);
           setHeatmap({
             ...localHeatmap,
@@ -196,6 +231,7 @@ export function useActivityHeatmap({
           return;
         }
 
+        if (!isCurrent()) return;
         setHeatmap(res || null);
         setDaily([]);
         setSource("edge");
@@ -215,6 +251,11 @@ export function useActivityHeatmap({
         if (status === 401 || status === 403) throw e;
       }
 
+      // A newer refresh may have superseded this request while the heatmap
+      // endpoint was in flight.  Do not start the slower daily fallback for a
+      // context that is no longer visible.
+      if (!isCurrent()) return;
+
       const dailyRes = await dailyFetcher({
         baseUrl,
         accessToken: tokenForFetch,
@@ -225,6 +266,7 @@ export function useActivityHeatmap({
         tzOffsetMinutes,
       });
       const rows = Array.isArray(dailyRes?.data) ? dailyRes.data : [];
+      if (!isCurrent()) return;
       setDaily(rows);
       const localHeatmap = buildActivityHeatmap({
         dailyRows: rows,
@@ -232,6 +274,7 @@ export function useActivityHeatmap({
         to: range.to,
         weekStartsOn,
       });
+      if (!isCurrent()) return;
       setHeatmap({
         ...localHeatmap,
         week_starts_on: weekStartsOn,
@@ -258,9 +301,11 @@ export function useActivityHeatmap({
         clearCache();
       }
     } catch (e) {
+      if (!isCurrent()) return;
       if (cacheAllowed) {
         const cached = readCache();
         if (cached?.heatmap) {
+          if (!isCurrent()) return;
           setHeatmap(cached.heatmap);
           setDaily(cached.daily || []);
           setSource("cache");
@@ -280,7 +325,7 @@ export function useActivityHeatmap({
         setSource("edge");
       }
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, [
     accessToken,
@@ -303,6 +348,7 @@ export function useActivityHeatmap({
     accountAccessToken,
     accountRevision,
     deviceId,
+    beginRequest,
   ]);
 
   useEffect(() => {

@@ -13,8 +13,11 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const vm = require("node:vm");
+const { transformSync } = require("esbuild");
 const { test } = require("node:test");
 const assert = require("node:assert");
+const curatedPricing = require("../src/lib/pricing/curated-overrides.json");
 
 const ROOT = path.join(__dirname, "..");
 const EDGE_DIR = "dashboard/edge-patches";
@@ -27,8 +30,30 @@ const MIRRORS = [
   "tokentracker-leaderboard-profile.ts",
 ];
 
+const MODEL_API_CALL_SITES = [
+  // account-daily folds per-model totals in Postgres (account_daily_compact),
+  // same as account-heatmap below: the call site to pin is the one copying
+  // Postgres' model keys through untouched.
+  [
+    "tokentracker-account-daily.ts",
+    /for \(const name of Object\.keys\(models\)\) mdl\[name\] = Number\(models\[name\]\) \|\| 0;/,
+  ],
+  ["tokentracker-account-model-breakdown.ts", /model: mdl, model_id: mdl/],
+  ["tokentracker-leaderboard-profile.ts", /favoriteModel = \{ model_name: model, total_tokens: tokens \};/],
+  ["tokentracker-account-hourly.ts", /const mdl = String\(row\.model \|\| "unknown"\);/],
+  ["tokentracker-account-monthly.ts", /const mdl = String\(row\.model \|\| "unknown"\);/],
+  // account-heatmap folds per-model totals in Postgres (account_heatmap_compact),
+  // so there is no per-row String(row.model) here any more. The call site to pin
+  // is the one that copies Postgres' model keys through untouched — that is what
+  // would break if someone reintroduced display-name mapping on the edge.
+  [
+    "tokentracker-account-heatmap.ts",
+    /for \(const name of Object\.keys\(models\)\) mdl\[name\] = Number\(models\[name\]\) \|\| 0;/,
+  ],
+];
+
 const BLOCK_RE =
-  /const MODEL_PRICING[\s\S]*?\nfunction getModelPricing\(model: string\) \{[\s\S]*?\n\}/;
+  /const MODEL_PRICING[\s\S]*?\nfunction getModelPricing\(model: string(?:, source = "")?\) \{[\s\S]*?\n\}/;
 
 function readEdge(name) {
   return fs.readFileSync(path.join(ROOT, EDGE_DIR, name), "utf8");
@@ -59,6 +84,28 @@ test("MODEL_PRICING + getModelPricing are byte-identical across all 5 edge files
   }
 });
 
+test("Qwen3.8 Flash local and all cloud paths share full cache pricing (#715)", () => {
+  const { getModelPricing: localPricing, computeRowCost } = require("../src/lib/pricing");
+  const expected = { input: 0.15, output: 0.47, cache_read: 0.016, cache_write: 0.2 };
+  const variants = ["qwen3.8-flash", "QWEN3.8-FLASH", "qwen3-8-flash", "dashscope/qwen3.8-flash",
+    "qwen_ai_platform/qwen3.8-flash", "openrouter/qwen/qwen3.8-flash", "qwen3.8-flash-2026-09-01"];
+  for (const name of [CANONICAL, ...MIRRORS]) {
+    const { code } = transformSync(extractBlock(name), { loader: "ts", target: "es2020" });
+    const edgePricing = vm.runInNewContext(`${code}\ngetModelPricing;`);
+    for (const model of variants) {
+      const local = localPricing(model);
+      assert.deepEqual(Object.fromEntries(Object.keys(expected).map(key => [key, local[key]])), expected, model);
+      assert.deepEqual(JSON.parse(JSON.stringify(edgePricing(model))), expected, `${name}: ${model}`);
+      const cost = computeRowCost({ model, input_tokens: 1e6, output_tokens: 1e6,
+        cached_input_tokens: 1e6, cache_creation_input_tokens: 1e6 });
+      assert.ok(Math.abs(cost - 0.836) < 1e-12, `${model}: cache cost must not be omitted`);
+    }
+    for (const model of ["qwen3.8-flash-next", "qwen3.8-max", "qwen3.7-flash"]) {
+      assert.notDeepEqual(JSON.parse(JSON.stringify(edgePricing(model))), expected, `${name}: distinct SKU ${model}`);
+    }
+  }
+});
+
 test("canonical pricing block retains regression-prone entries and matcher order", () => {
   const block = extractBlock(CANONICAL);
 
@@ -70,6 +117,10 @@ test("canonical pricing block retains regression-prone entries and matcher order
     '"mimo-v2-flash"',
     '"cursor-grok-4.5"',
     '"cursor-grok-4.5-fast"',
+    '"glm-5.3"',
+    '"glm-5.3-flash"',
+    '"deepseek-v4.1-flash"',
+    '"deepseek-flash"',
   ]) {
     assert.ok(block.includes(`${key}:`), `canonical table lost ${key}`);
   }
@@ -102,6 +153,98 @@ test("canonical pricing block retains regression-prone entries and matcher order
     'lower.includes("grok-4.5"))',
   );
   order('lower.includes("grok-4.5"))', 'lower.includes("grok-4"))');
+  // GLM-5.3 Flash is a distinct cheap SKU ($0.15/$0.50 vs the flagship's
+  // $1.4/$4.4); its matcher must precede the base glm-5.3 matcher (substring)
+  // and glm-5.3 must precede glm-5, or flash rows bill at 6.7x.
+  order('lower.includes("glm-5.3-flash")', 'lower.includes("glm-5.3")');
+  order('lower.includes("glm-5.3")', 'lower.includes("glm-5")');
+});
+
+test("canonical pricing block retains the complete iFlytek MaaS source table", () => {
+  const block = extractBlock(CANONICAL);
+  const pricingMatch = block.match(
+    /const IFLYTEK_MAAS_MODEL_PRICING:[^=]+ = (\{[\s\S]*?\n\});/,
+  );
+  assert.ok(pricingMatch, "iFlytek MaaS 定价必须使用 Record<string, Pricing> 对象");
+  const edgePricing = vm.runInNewContext(`(${pricingMatch[1]})`);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(edgePricing)),
+    curatedPricing.source_exact.acode,
+    "Edge iFlytek MaaS 定价必须与 source_exact.acode 完全一致",
+  );
+  assert.equal(curatedPricing.source_alias?.acode, undefined, "定价配置不得维护 iFlytek MaaS displayName 映射");
+  assert.ok(!block.includes("Array<readonly [string, string, number"), "iFlytek MaaS 定价不得使用位置型 tuple");
+  assert.ok(!block.includes("MODEL_ALIASES"), "定价区块不得维护 displayName 到 service ID 的映射");
+  assert.ok(!block.includes("IFLYTEK_MAAS_MODEL_NAMES"), "定价区块不得维护 displayName");
+  assert.ok(!block.includes("getModelDisplayName"), "定价区块不得包含展示逻辑");
+  assert.ok(block.includes('if (lower === "xsparkx2agent") return "xsparkx2";'));
+  assert.ok(block.includes("return lower;"));
+  assert.ok(block.includes('source.toLowerCase() === "acode"'));
+  assert.ok(
+    block.includes("if (iFlytekMaasPricing) return iFlytekMaasPricing;"),
+    "iFlytek MaaS source misses must continue through public pricing",
+  );
+  assert.ok(
+    !block.includes("return iFlytekMaasPricing || ZERO_PRICING;"),
+    "iFlytek MaaS source misses must not return zero before public pricing",
+  );
+});
+
+test("all edge pricing implementations leave unresolved AStudio routers unpriced", () => {
+  for (const name of [CANONICAL, ...MIRRORS]) {
+    const { code } = transformSync(extractBlock(name), { loader: "ts", target: "es2020" });
+    const getModelPricing = vm.runInNewContext(`${code}\ngetModelPricing;`);
+    for (const model of [
+      "auto", "something-auto", "astronclaw-auto", "future-auto",
+      "glm-5.3-auto", " AUTO ", " Something-AUTO ",
+    ]) {
+      assert.deepEqual(
+        JSON.parse(JSON.stringify(getModelPricing(model, "ACODE"))),
+        { input: 0, output: 0, cache_read: 0, cache_write: 0 },
+        `${name}: ${model}`,
+      );
+    }
+    for (const [model, expected] of [
+      ["xsparkx2agent", curatedPricing.source_exact.acode.xsparkx2],
+      ["xopglm53", curatedPricing.source_exact.acode.xopglm53],
+    ]) {
+      assert.deepEqual(
+        JSON.parse(JSON.stringify(getModelPricing(model, "acode"))),
+        expected,
+        `${name}: ${model}`,
+      );
+    }
+    assert.deepEqual(getModelPricing("gpt-5.4", "acode"), getModelPricing("gpt-5.4"), name);
+    assert.ok(getModelPricing("gpt-5.4", "acode").input > 0, name);
+    assert.equal(getModelPricing("auto", "cursor").input, 1.25, name);
+  }
+});
+
+test("edge APIs preserve raw model IDs without display-name conversion", () => {
+  for (const name of fs.readdirSync(path.join(ROOT, EDGE_DIR)).filter((file) => file.endsWith(".ts"))) {
+    const source = readEdge(name);
+    assert.ok(!source.includes("IFLYTEK_MAAS_MODEL_NAMES"), `${name}: Edge 不得维护 displayName`);
+    assert.ok(!source.includes("getModelDisplayName"), `${name}: Edge 不得转换 model ID`);
+  }
+
+  for (const [name, pattern] of MODEL_API_CALL_SITES) {
+    assert.match(readEdge(name), pattern, `${name}: raw model ID call site missing`);
+  }
+});
+
+test("all cloud cost paths avoid double-billing Acode reasoning tokens", () => {
+  for (const name of [CANONICAL, ...MIRRORS]) {
+    const source = readEdge(name);
+    assert.match(
+      source,
+      /(?:row\.source|src) === "codex" \|\| (?:row\.source|src) === "acode" \|\| (?:row\.source|src) === "every-code"/,
+      `${name}: Acode reasoning tokens must already be included in output`,
+    );
+    assert.ok(
+      source.includes('if ((row.source || "").toLowerCase() === "acode") return pricing;'),
+      `${name}: AStudio source prices must bypass generic DeepSeek time pricing`,
+    );
+  }
 });
 
 test("all cloud cost paths keep Pi Copilot subscription rows at zero cost", () => {
@@ -125,6 +268,27 @@ test("all cloud cost paths keep Pi Copilot subscription rows at zero cost", () =
   }
 });
 
+test("all cloud cost paths distinguish local usage from metered Unsloth providers", () => {
+  for (const name of [CANONICAL, ...MIRRORS]) {
+    const source = readEdge(name);
+    assert.ok(source.includes('"lmstudio"'), `${name}: LM Studio zero-cost guard missing`);
+    assert.ok(
+      source.includes('__tokentracker_unpriced_unsloth_model__'),
+      `${name}: Unsloth local/unpriced model guard missing`,
+    );
+    assert.match(
+      source,
+      /\^\(local\|unpriced\)\\\//,
+      `${name}: Unsloth guard must cover local and ambiguous provider routes`,
+    );
+    assert.match(
+      source,
+      /String\(row\.model \|\| (?:""|"unknown")\)\.trim\(\)/,
+      `${name}: model must be trimmed before the Unsloth pricing guard`,
+    );
+  }
+});
+
 test("all cloud cost paths only prefer provider-reported costs for authoritative sources", () => {
   for (const name of [CANONICAL, ...MIRRORS]) {
     const source = readEdge(name);
@@ -132,7 +296,7 @@ test("all cloud cost paths only prefer provider-reported costs for authoritative
     assert.ok(source.includes("reportedCost"), `${name}: reported cost branch missing`);
     assert.match(
       source,
-      /const SOURCES_WITH_AUTHORITATIVE_COST = new Set\(\["grok"\]\);/,
+      /const SOURCES_WITH_AUTHORITATIVE_COST = new Set\(\["grok", "cline"\]\);/,
       `${name}: authoritative cost sources must be explicitly allowlisted`,
     );
     assert.match(
@@ -140,6 +304,61 @@ test("all cloud cost paths only prefer provider-reported costs for authoritative
       /SOURCES_WITH_AUTHORITATIVE_COST\.has\((?:row\.source|src)\)[\s\S]*?Number\.isFinite\(reportedCost\)[\s\S]*?reportedCost > 0/,
       `${name}: positive reported cost must be gated by source`,
     );
+  }
+});
+
+for (const name of [CANONICAL, ...MIRRORS]) {
+  test(`Command Code model-table estimates agree locally and in ${name}`, () => {
+    const source = readEdge(name);
+    const allowlist = source.match(/const SOURCES_WITH_AUTHORITATIVE_COST = new Set\([^;]+\);/);
+    assert.ok(allowlist, `${name}: cost source allowlist exists`);
+    let costFunction = source.match(/\nfunction computeRowCost\([\s\S]*?\n\}/)?.[0];
+    if (!costFunction) {
+      assert.equal(name, "tokentracker-account-model-breakdown.ts");
+      const costBlock = source.match(/    const unslothUnpriced = src === "unsloth"[\s\S]*?1_000_000;/);
+      assert.ok(costBlock, "model breakdown per-row cost block exists");
+      costFunction = `function computeRowCost(row) {
+        const src = row.source || "unknown";
+        const mdl = String(row.model || "unknown").trim() || "unknown";
+        const ma = { totalCostUsd: 0 };
+        ${costBlock[0]}
+        return ma.totalCostUsd;
+      }`;
+    }
+    const { code } = transformSync([
+      allowlist[0], extractBlock(name), extractRowPricing(name), costFunction,
+    ].join("\n"), { loader: "ts", target: "es2020" });
+    const edgeCost = vm.runInNewContext(`${code}\ncomputeRowCost;`);
+    const { computeRowCost: localCost } = require("../src/lib/pricing");
+    for (const [model, expected] of [
+      ["claude-sonnet-4-6", 0.0009675],
+      ["glm-4.7-flash", 0],
+      ["zzzz-fixture-unknown-123xyz", 0],
+    ]) {
+      for (const total_cost_usd of [999, 0, undefined]) {
+        const row = {
+          source: "command-code", model, input_tokens: 100, output_tokens: 20,
+          cached_input_tokens: 600, cache_creation_input_tokens: 50, reasoning_output_tokens: 0,
+          total_cost_usd,
+        };
+        assert.equal(edgeCost(row), expected, `${name}: ${model} ignores CLI display estimates`);
+        assert.equal(localCost(row), expected, `local: ${model} matches edge pricing`);
+      }
+    }
+  });
+}
+
+test("all cloud cost paths keep Cline :free models at zero", () => {
+  for (const name of [CANONICAL, ...MIRRORS]) {
+    const { code } = transformSync(extractBlock(name), { loader: "ts", target: "es2020" });
+    const getModelPricing = vm.runInNewContext(`${code}\ngetModelPricing;`);
+    for (const model of ["deepseek/deepseek-r1:free", "cline-free/deepseek-v4.1-flash", "cline-pass/glm-5.3"]) {
+      assert.deepEqual(
+        JSON.parse(JSON.stringify(getModelPricing(model, "cline"))),
+        { input: 0, output: 0, cache_read: 0, cache_write: 0 },
+        `${name}: ${model}`,
+      );
+    }
   }
 });
 

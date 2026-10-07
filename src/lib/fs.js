@@ -413,6 +413,35 @@ async function openLock(
   }
 }
 
+async function updateJsonLocked(
+  filePath,
+  update,
+  { timeoutMs = 30_000, retryMs = 10 } = {},
+) {
+  const lockPath = `${filePath}.lock`;
+  const deadline = Date.now() + timeoutMs;
+  let lock = null;
+  while (!lock) {
+    lock = await openLock(lockPath, { quietIfLocked: true });
+    if (lock) break;
+    if (Date.now() >= deadline) {
+      throw new Error(`Timed out waiting to update JSON file: ${filePath}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, retryMs));
+  }
+
+  try {
+    const current = (await readJson(filePath)) || {};
+    const next = await update(current);
+    if (next == null) return current;
+    await writeJson(filePath, next);
+    await chmod600IfPossible(filePath);
+    return next;
+  } finally {
+    await lock.release();
+  }
+}
+
 module.exports = {
   ensureDir,
   writeFileAtomic,
@@ -422,4 +451,5 @@ module.exports = {
   chmod600IfPossible,
   openLock,
   inspectLock,
+  updateJsonLocked,
 };

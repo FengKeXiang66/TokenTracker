@@ -51,6 +51,25 @@ test("source-identical glossary labels are allowed without allowing full English
   );
 });
 
+test("Ark installation commands are language-neutral without exempting setup instructions", () => {
+  assert.equal(
+    isAllowedSourceIdentical({
+      key: "limits.agentPlan.setupHint.snippet_install",
+      text: "npm install -g @volcengine/ark-cli",
+    }),
+    true,
+  );
+  for (const suffix of ["snippet_login", "snippet_status", "description"]) {
+    assert.equal(
+      isAllowedSourceIdentical({
+        key: `limits.agentPlan.setupHint.${suffix}`,
+        text: "Sign in using your browser",
+      }),
+      false,
+    );
+  }
+});
+
 test("Dashboard remains localized while glossary terms may stay in English", () => {
   assert.equal(hasUnlocalizedUiTerm({ key: "example" }, "\u6253开 Dashboard"), true);
   assert.equal(hasUnlocalizedUiTerm({ key: "example" }, "\u6253开 Skills"), false);

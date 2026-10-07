@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { test } = require("node:test");
 
-const { openLock } = require("../src/lib/fs");
+const { openLock, updateJsonLocked } = require("../src/lib/fs");
 const { acquireSyncLock } = require("../src/commands/sync");
 
 async function withLockPath(fn) {
@@ -30,6 +30,49 @@ test("sync lock records its live owner and releases its own lease", async () => 
     assert.equal(await openLock(lockPath, { quietIfLocked: true }), null);
     await lock.release();
     await assert.rejects(fs.stat(lockPath), { code: "ENOENT" });
+  });
+});
+
+test("locked JSON updates serialize their read-modify-write transactions", async () => {
+  await withLockPath(async (lockPath) => {
+    const filePath = path.join(path.dirname(lockPath), "config.json");
+    await fs.writeFile(filePath, JSON.stringify({ existing: true }), "utf8");
+
+    let releaseFirst;
+    const firstMayFinish = new Promise((resolve) => {
+      releaseFirst = resolve;
+    });
+    let signalFirstRead;
+    const firstHasRead = new Promise((resolve) => {
+      signalFirstRead = resolve;
+    });
+
+    const first = updateJsonLocked(filePath, async (current) => {
+      signalFirstRead();
+      await firstMayFinish;
+      return { ...current, first: true };
+    });
+    await firstHasRead;
+    const second = updateJsonLocked(filePath, async (current) => ({
+      ...current,
+      second: true,
+    }));
+    let secondSettled = false;
+    void second.finally(() => {
+      secondSettled = true;
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(secondSettled, false, "the second transaction must wait for the first lock");
+
+    releaseFirst();
+    await Promise.all([first, second]);
+
+    assert.deepEqual(JSON.parse(await fs.readFile(filePath, "utf8")), {
+      existing: true,
+      first: true,
+      second: true,
+    });
   });
 });
 

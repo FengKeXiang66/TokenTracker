@@ -6,7 +6,7 @@
 
 ### 모든 CLI에서 AI에 쓰는 비용을 정확히 파악
 
-**34개의 AI 코딩 도구**에서 토큰 수치를 자동으로 수집하고 로컬에서 집계해, 실제 비용 추세를 아름다운 대시보드에서 확인. 클라우드 계정 불필요, API Key 불필요, 셋업 불필요 — 명령 한 줄이면 끝.
+**43개의 AI 코딩 도구**에서 토큰 수치를 자동으로 수집하고 로컬에서 집계해, 실제 비용 추세를 아름다운 대시보드에서 확인. 클라우드 계정 불필요, API Key 불필요, 셋업 불필요 — 명령 한 줄이면 끝.
 
 [![npm version](https://img.shields.io/npm/v/tokentracker-cli.svg?color=blue)](https://www.npmjs.com/package/tokentracker-cli)
 [![npm downloads](https://img.shields.io/npm/dm/tokentracker-cli.svg?color=brightgreen)](https://www.npmjs.com/package/tokentracker-cli)
@@ -19,8 +19,8 @@
 
 <br/>
 
-<video src="https://github.com/user-attachments/assets/5e709422-5af8-4e4c-8109-f5bb711eb3f8" controls muted playsinline poster="https://raw.githubusercontent.com/xiufengsun/tokentracker/main/docs/screenshots/dashboard-dark.png" width="820">
-  <img src="https://raw.githubusercontent.com/xiufengsun/tokentracker/main/docs/screenshots/dashboard-dark.png" alt="Token Tracker Dashboard" width="820" />
+<video src="https://github.com/user-attachments/assets/efb89086-b7d7-4cb6-ae3c-3a6cb50188d2" controls muted playsinline poster="https://raw.githubusercontent.com/xiufengsun/tokentracker/main/docs/screenshots/intro-film-poster.png" width="820">
+  <img src="https://raw.githubusercontent.com/xiufengsun/tokentracker/main/docs/screenshots/intro-film-poster.png" alt="TokenTracker intro film" width="820" />
 </video>
 
 <video src="https://github.com/user-attachments/assets/3275979d-bbed-4639-83e2-8b7d83bed6af" controls muted playsinline poster="https://raw.githubusercontent.com/xiufengsun/tokentracker/main/docs/screenshots/dashboard-light.png" width="820"></video>
@@ -50,13 +50,13 @@ npx tokentracker-cli
 **30초 안에 얻는 것:**
 - 📊 사용 추세, 모델별 분석, 비용 분석을 보여주는 `localhost:7680`의 로컬 대시보드
 - 🔌 설치된 모든 지원 AI 도구에 대한 hook 자동 감지
-- 🏠 100% 로컬 — 계정 없음, API Key 없음, 네트워크 호출 없음 (옵션 리더보드 제외)
-- 🧩 *옵션:* 250+개의 공개 Skill을 둘러보고 Claude · Codex · Gemini · OpenCode · Hermes 간에 동기화할 수 있는 Skills 탭
+- 🏠 로컬 우선 — 로컬 머신에서 로그를 직접 파싱하며 계정이나 API Key가 필요하지 않습니다
+- 🧩 *옵션:* 250+개의 공개 Skill을 둘러보고 Claude · Codex · AStudio · Gemini · OpenCode · Hermes 간에 동기화할 수 있는 Skills 탭
 
 > **네이티브 데스크톱 앱이 필요하다면?**
 > - **macOS** — [`TokenTrackerBar.dmg` 다운로드](https://github.com/xiufengsun/TokenTracker/releases/latest/download/TokenTrackerBar.dmg) → Applications로 드래그. 데스크톱 위젯, 메뉴바 상태 아이콘, WKWebView 안의 동일한 대시보드를 포함합니다.
 > - **Windows** — [`TokenTracker-Setup.exe` 다운로드](https://github.com/xiufengsun/TokenTracker/releases/latest/download/TokenTracker-Setup.exe) → 관리자 권한이 필요 없는 사용자 단위 설치 프로그램 실행. WebView2 안에 대시보드를 표시하는 시스템 트레이 앱입니다. 포터블 zip은 [릴리스 페이지](https://github.com/xiufengsun/TokenTracker/releases/latest)에 있습니다.
-> - **Linux** — [`TokenTracker-linux-x86_64.AppImage` 다운로드](https://github.com/xiufengsun/TokenTracker/releases/latest/download/TokenTracker-linux-x86_64.AppImage) → `chmod +x` 후 실행. WebKitGTK 창에 대시보드를 표시하는 트레이 앱입니다. 배포판의 `webkit2gtk-4.1`, `gtk3`, `libayatana-appindicator`가 필요하며 GNOME에서는 트레이 아이콘에 [AppIndicator 확장](https://extensions.gnome.org/extension/615/appindicator-support/)도 필요합니다.
+> - **Linux** — [`TokenTracker-linux-x86_64.AppImage` 다운로드](https://github.com/xiufengsun/TokenTracker/releases/latest/download/TokenTracker-linux-x86_64.AppImage) → `chmod +x` 후 실행. WebKitGTK 창에 대시보드를 표시하는 트레이 앱입니다. GTK/WebKit을 함께 담고 있어 비교적 최신 glibc 외에는 배포판 의존성이 없습니다. GNOME에서는 트레이 아이콘에 [AppIndicator 확장](https://extensions.gnome.org/extension/615/appindicator-support/)이 필요합니다. `.deb`, `.rpm` 패키지도 [릴리스 페이지](https://github.com/xiufengsun/TokenTracker/releases/latest)에서 받을 수 있으며, 이쪽은 배포판의 `webkit2gtk-4.1`, `gtk3`, appindicator를 사용합니다. `.deb`는 `libappindicator3-1`을 요구하는데 Debian 12는 이를 빼고 `libayatana-appindicator3-1`을 제공하므로, Debian 12에서는 AppImage를 사용하세요.
 
 짧은 명령어로 쓰려면 전역 설치:
 
@@ -88,19 +88,19 @@ brew install xiufengsun/tokentracker/tokentracker
 
 ## ✨ 기능
 
-- 🔌 **34개의 AI 도구 기본 지원** — Claude Code, Codex CLI, Cursor, Gemini CLI, Antigravity, Kiro, OpenCode, OpenClaw, Every Code, Hermes Agent, GitHub Copilot, Kimi Code, CodeBuddy, WorkBuddy, Grok Build, oh-my-pi, pi, Dots, Prime Agent, Craft Agents, Reasonix, Kilo CLI, Kilo Code, Roo Code, Zed Agent, Goose, Droid, Mimo Code, ZCode, Qoder, AnythingLLM Desktop, Claude Science, DeepSeek Harness,TRAE Work CN
-- 🏠 **100% 로컬** — 토큰 데이터가 기기를 떠나지 않습니다. 계정 없음, API Key 없음.
+- 🔌 **43개의 AI 도구 기본 지원** — Claude Code, Codex CLI, AStudio, Cursor, Gemini CLI, Antigravity, Kiro, OpenCode, OpenClaw, Every Code, Hermes Agent, GitHub Copilot, Kimi Code, CodeBuddy, WorkBuddy, Grok Build, oh-my-pi, OmO, pi, Dots, Prime Agent, Craft Agents, Reasonix, Kilo CLI, Kilo Code, Roo Code, Zed Agent, Goose, Droid, Mimo Code, ZCode, Qoder, AnythingLLM Desktop, Claude Science, DeepSeek Harness, TRAE Work CN, LM Studio, Unsloth Studio, Devin CLI, Cline, MiniMax Code, Command Code, TRAE
+- 🏠 **로컬 우선** — 내 컴퓨터에서 실행됩니다. 계정이나 API Key 없이 로그를 로컬에서 파싱합니다.
 - 🚀 **제로 설정** — 첫 실행 시 Hook 자동 설치. 0에서 대시보드까지 30초.
 - 📊 **아름다운 대시보드** — 사용 추세, 모델별 비용 분석, GitHub 스타일 활동 히트맵, 프로젝트 귀속 정보
 - 🖥️ **네이티브 데스크톱 앱** — macOS 메뉴바(위젯 포함)와 Windows 시스템 트레이. 각각 임베디드 서버와 네이티브 WebView 대시보드를 제공합니다
 - 🎨 **4종 데스크톱 위젯** — Pin Usage / Activity Heatmap / Top Models / Usage Limits를 데스크톱에 고정
-- 📈 **실시간 사용 한도** — Claude / Codex / Cursor / Gemini / Kimi / Kiro / Grok / Copilot / Antigravity / ZCode / OpenCode Go / Qoder / Qoder CN 한도를 표시하고 로컬 provider 앱이 잠시 종료되어도 last-good 캐시 유지
+- 📈 **실시간 사용 한도** — Claude / Codex / Cursor / Gemini / Kimi / Kiro / Grok / Copilot / Antigravity / ZCode / OpenCode Go / Qoder / Qoder CN / Command Code / Ark Coding Plan / Ark Agent Plan / Devin 한도를 표시하고 로컬 provider 앱이 잠시 종료되어도 last-good 캐시 유지
 - 🟢 **서비스 상태 페이지** — 8개 공식 provider 상태 페이지의 운영 및 장애 상태 표시
 - 💰 **비용 엔진** — [LiteLLM](https://github.com/BerriAI/litellm/blob/main/model_prices_and_context_window.json)을 통해 2,200+개 모델 가격 책정 (매일 자동 갱신) + 틈새 도구 (Kiro, Cursor Composer, Kimi, CodeBuddy hy3)를 위한 수동 큐레이션 오버라이드; 24시간 디스크 캐시 + 번들된 오프라인 스냅샷으로 인터넷 없이도 정확한 USD 표시. 벤더가 공식 가격을 공개하지 않은 모델 (예: Tencent hy3-preview)은 토큰만 추적되며 벤더가 요율을 공개할 때까지 비용은 $0으로 표시됩니다.
 - 🌐 **옵션 리더보드** — 전 세계 개발자들과 비교; 컬럼을 드래그하여 관심 있는 프로바이더에 집중 (옵트인, 참여하려면 사인인 필요)
-- 🔄 **기기 간 계정 뷰** — 클라우드 동기화를 켜면 작업하는 모든 기기(노트북 + 데스크톱 + 서버)의 사용량을 하나의 뷰로 통합 — 총량·트렌드·히트맵·모델 분석을 모두 기기 통합으로 집계 (옵트인, 사인인 필요; 기본 로컬 전용 경험은 즉시·오프라인 유지)
-- 🧩 **옵션 Skills 탭** — `anthropics/skills`, `ComposioHQ/awesome-claude-skills`, `skills.sh` 그리고 직접 추가한 임의의 GitHub 저장소에서 250+개의 공개 Skill을 둘러보고, 타겟 이름을 지정해 Claude / Codex / Gemini / OpenCode / Hermes에 동기화. 원클릭 Undo 지원.
-- 🔒 **프라이버시 우선** — 토큰 수치와 타임스탬프만. 프롬프트, 응답, 파일 내용은 절대 다루지 않음.
+- 🔄 **기기 간 계정 뷰** — 클라우드 동기화를 켜면 작업하는 모든 기기(노트북 + 데스크톱 + 서버)의 사용량을 하나의 뷰로 통합 — 총량·트렌드·히트맵·모델 분석을 모두 기기 통합으로 집계 (옵트인, 사인인 필요)
+- 🧩 **옵션 Skills 탭** — `anthropics/skills`, `ComposioHQ/awesome-claude-skills`, `skills.sh` 그리고 직접 추가한 임의의 GitHub 저장소에서 250+개의 공개 Skill을 둘러보고, 타겟 이름을 지정해 Claude / Codex / AStudio / Gemini / OpenCode / Hermes에 동기화. 원클릭 Undo 지원.
+- 🔒 **프라이버시 우선** — 로컬 사용량 지표(토큰 수치, 타임스탬프, 모델명)만 기록합니다. 프롬프트, 모델 응답, 코드는 절대 기기 밖으로 나가지 않습니다.
 
 ---
 
@@ -142,7 +142,7 @@ brew install xiufengsun/tokentracker/tokentracker
 <tr>
 <td colspan="2">
 
-**Skills Manager** — GitHub와 `skills.sh`에서 250+개의 공개 Skill을 둘러보고, 한 번 설치하면 Claude / Codex / Gemini / OpenCode / Hermes에 동기화. 타겟별 토글, 원클릭 Undo, 수동 파일 복사 불필요.
+**Skills Manager** — GitHub와 `skills.sh`에서 250+개의 공개 Skill을 둘러보고, 한 번 설치하면 Claude / Codex / AStudio / Gemini / OpenCode / Hermes에 동기화. 타겟별 토글, 원클릭 Undo, 수동 파일 복사 불필요.
 
 <img src="https://raw.githubusercontent.com/xiufengsun/tokentracker/main/docs/screenshots/skills.png" alt="Skills Manager" />
 
@@ -167,6 +167,7 @@ brew install xiufengsun/tokentracker/tokentracker
 |---|---|---|
 | **Claude Code** | ✅ 자동 | `settings.json`의 SessionEnd hook |
 | **Codex CLI** | ✅ 자동 | `config.toml`의 TOML notify hook |
+| **AStudio** | ✅ 자동 | `config.toml`에 TOML notify hook 작성 |
 | **Cursor** | ✅ 자동 | API + SQLite 인증 토큰 |
 | **Kiro** | ✅ 자동 | SQLite + JSONL 하이브리드 |
 | **Gemini CLI** | ✅ 자동 | SessionEnd hook |
@@ -196,15 +197,22 @@ brew install xiufengsun/tokentracker/tokentracker
 | **Mimo Code** (mimocode) | ✅ 자동 | 패시브 SQLite 리더 (`~/.local/share/mimocode/mimocode.db`, OpenCode-fork schema; mimo 네이티브 턴만 집계 — 미러링된 Claude/claude-mem 기록은 제외) |
 | **ZCode** (Z.ai) | ✅ 자동 | 패시브 SQLite 리더 (`~/.zcode/cli/db/db.sqlite`, OpenCode-fork schema; Z.ai/BigModel GLM 턴만 집계 — 번들된 Claude/Codex/Gemini 서브에이전트는 제외) |
 | **Qoder** | ✅ 자동 | 패시브 SQLite 리더 (`Qoder/SharedClientCache/cache/db/local.db`; assistant `token_info`만 읽고 캐시 입력을 분리하며 prompt/response는 읽지 않음) 및 Qoder 로컬 세션의 Plan Credits / Ultimate 무료 호출 한도 |
+| **LM Studio** | ✅ 자동 | `~/.lmstudio/server-logs/**/*.log` 패시브 재귀 리더. Chat Completions / Responses API 최종 응답에서 ID, 모델, 시각, 스칼라 `usage` 카운터만 읽고 응답 ID로 중복 제거합니다. prompt/response 본문은 보관하지 않습니다. 이 데이터는 로컬 추론과 LM Link(API 한계 비용 $0)를 포함하며 Bionic Secure Cloud 청구는 포함하지 않습니다. |
+| **Unsloth Studio** | ✅ 자동 | `$UNSLOTH_STUDIO_HOME/studio.db`(기본값 `~/.unsloth/studio/studio.db`) 패시브 SQLite 리더. 스칼라 `contextUsage`와 내용이 없는 `api_usage_events`만 읽으며 prompt, reply, 첨부, API subject, 자격 증명, 학습 지표는 제외합니다. 로컬 경로는 $0, 알려진 유료 provider 경로는 실제 응답 모델로 token 비용을 추정합니다. |
 | **AnythingLLM Desktop** | ✅ 자동 | 패시브 SQLite 리더 (`anythingllm-desktop/storage/anythingllm.db`, 메시지별 token 지표만 읽음) |
+| **Devin CLI** (Cognition) | ✅ 자동 | 패시브 SQLite 리더 (`$XDG_DATA_HOME/devin/cli/sessions.db`, 기본값 `~/.local/share/devin/cli/sessions.db`). `request_id`로 요청 단위 usage 지표를 중복 제거하고 (replay/fork/compaction 복사본은 이중 집계하지 않음) 기록된 generation model을 사용합니다. prompt·응답·`cogs_json`은 읽지 않습니다. Devin 모델 (`swe-2`, `swe-2-high`, `compactor`)에는 현재 가격 데이터가 없어 token 수는 보고되지만 달러 추정치에서 제외됩니다 — $0 표시가 무료를 의미하지는 않습니다. 네이티브 Windows 데이터 디렉터리는 확인되지 않았으며 WSL 설치는 `\\wsl$`을 통해 읽습니다. |
+| **Cline** (CLI v3 / 데스크톱 앱) | ✅ 자동 | 패시브 리더 (`~/.cline/data/sessions/<id>/*.messages.json`). 턴별 `metrics`는 사용량 델타이며 `inputTokens`에 cache 읽기+쓰기가, `outputTokens`에 reasoning이 이미 포함되어 있어 캐시 접두사는 차감되고 reasoning은 이중 청구되지 않습니다. Cline이 직접 보고한 `cost`를 우선 사용합니다. `cline-free/*`·`cline-pass/*` 게이트웨이 모델은 $0로 책정. VS Code 확장의 globalStorage는 읽지 않습니다. 경로 오버라이드: `TOKENTRACKER_CLINE_SESSIONS_DIR`, `TOKENTRACKER_CLINE_DATA_DIR`, `TOKENTRACKER_CLINE_HOME`, `CLINE_SESSION_DATA_DIR`, `CLINE_DATA_DIR`, `CLINE_DIR` |
+| **MiniMax Code** | ✅ 자동 | 패시브 리더 (`~/.minimax/v2/sessions/YYYY/MM/DD/<session>/messages.jsonl`). `message_id`로 중복 제거하고 메시지마다 라우팅된 상위 모델을 기록합니다. 항상 0인 `usage.cost`는 쓰지 않고 일반 가격표로 계산합니다. 디렉터리는 `TOKENTRACKER_MINIMAX_HOME`으로 변경 가능 |
+| **Command Code** | ✅ 자동 | 패시브 세션 로그 리더 (`~/.commandcode/projects/<cwd-slug>/<session-id>.jsonl`, `*.checkpoints.jsonl` 스냅샷과 `.prompts.` 보조 파일은 건너뜀). 세션 로그를 로컬에서 스캔하고 토큰 수와 CLI의 표시용 추정치 `costUsd` 등 필요한 사용량 메타데이터를 추출합니다. 비용은 Token Tracker의 공통 모델 가격표로 추정합니다. 캐시를 포함한 input에서 캐시 읽기와 쓰기 토큰을 모두 빼 이중 계산을 방지합니다. Token Tracker는 프롬프트·응답·코드 본문을 저장하거나 업로드하지 않습니다. 디렉터리는 `TOKENTRACKER_COMMANDCODE_HOME`으로 변경 가능 |
 | **Claude Science** | ✅ 자동 | 패시브 SQLite 리더 (`~/.claude-science/operon-cli.db`, `frames` 테이블의 token 카운터만 읽으며 prompt·산출물·연구 내용은 읽지 않음). 네이티브 Windows 빌드가 없어 Windows에서는 WSL 안에서 실행되는 앱을 읽습니다. |
 | **DeepSeek Harness** | ✅ 자동 | 패시브 세션 리더 (`~/.dsh/sessions/**/session.jsonl[.zstd]`, 세션 헤더와 assistant 이벤트를 파싱하고 멀티 프레임 zstd 압축 해제를 지원) |
+| **TRAE (국제판)** | ✅ 자동 | 공유 애플리케이션 키로 TRAE / TRAE SOLO의 로컬 SQLCipher 사용량을 읽습니다. 필요하면 `TOKENTRACKER_TRAE_SQLCIPHER_KEY`로 재정의할 수 있습니다. 공급자 API 호출은 없습니다. [설정 및 제한](docs/trae.md). |
 | **TRAE Work CN** | ✅ 자동 | **명시적인 옵트인이 필요합니다: `TOKENTRACKER_TRAE_CN_USAGE=1` 을 설정하세요.** 사용량을 읽으면 로컬에 저장된 로그인 인증이 TRAE의 내부 API로 전송되므로, 켜기 전에는 아무것도 전송되지 않습니다. 켠 뒤에는: 로컬 TRAE Work CN 인증이 있을 때 실행 가능한 비백그라운드 동기화 중에 macOS의 로그인된 앱에서 session-token 사용량을 읽습니다. 내부 API는 변경될 수 있습니다 |
 
 > **플러그인이나 hook을 수동으로 설치해야 하나요?** 아니요. `tokentracker` (또는 `tokentracker init`)가 첫 실행에서 모든 것을 처리합니다:
-> - **Hook 기반** 도구 (Claude Code, Codex, Gemini, Every Code, **CodeBuddy**, **WorkBuddy**, **Grok Build**) — 도구 자체의 설정에 SessionEnd hook 또는 TOML notify 엔트리를 작성합니다.
+> - **Hook 기반** 도구 (Claude Code, Codex, AStudio, Gemini, Every Code, **CodeBuddy**, **WorkBuddy**, **Grok Build**) — 도구 자체의 설정에 SessionEnd hook 또는 TOML notify 엔트리를 작성합니다.
 > - **플러그인 기반** 도구 (OpenCode, **OpenClaw**) — 플러그인은 npm 패키지 안에 포함되어 있습니다. OpenClaw 세션 플러그인은 `~/.tokentracker/tracker/openclaw-plugin/openclaw-session-sync/`에 있으며, OpenClaw 자체 CLI로 링크하고 활성화한 뒤 동기화를 트리거하는 세션 종료 이벤트를 허용하도록 `hooks.allowConversationAccess=true`를 설정합니다. 다운로드, 드래그 앤 드롭 불필요.
-> - **패시브 리더** (Cursor, Kiro, Hermes, Kimi Code, Copilot, **Grok Build**, **oh-my-pi**, **pi**, **Craft Agents**, **Reasonix**, **Kilo CLI**, **Kilo Code**, **Roo Code**, **Antigravity**, **Zed Agent**, **Goose**, **Droid**, **Mimo Code**, **ZCode**, **AnythingLLM Desktop**, **Claude Science**, **DeepSeek Harness**) — 이들 도구에는 아무것도 설치하지 않습니다. 도구가 이미 생성하는 파일 (SQLite DB, JSONL, OTEL export, session logs)만 읽습니다. Copilot App / CLI 사용량은 `~/.copilot/session-store.db`에서 요청별로 읽습니다. `data.db`는 레거시 마이그레이션 기준선으로 한 번만 사용하며 store가 정식 소스가 된 뒤에는 관찰 전용으로 유지됩니다. Chat 확장과 이전 CLI는 계속 OTEL을 사용하며, TokenTracker가 겹치는 요청을 한 번만 집계합니다. 마이그레이션 전 혼합 App/CLI 기록에서 모델을 안전하게 분리할 수 없는 잔여분은 추정 모델 대신 `github-copilot-legacy` 집계로 보존합니다.
+> - **패시브 리더** (Cursor, Kiro, Hermes, Kimi Code, Copilot, **Grok Build**, **oh-my-pi**, **pi**, **Craft Agents**, **Reasonix**, **Kilo CLI**, **Kilo Code**, **Roo Code**, **Antigravity**, **Zed Agent**, **Goose**, **Droid**, **Mimo Code**, **ZCode**, **LM Studio**, **Unsloth Studio**, **AnythingLLM Desktop**, **Devin CLI**, **MiniMax Code**, **Claude Science**, **DeepSeek Harness**, **Cline**) — 이들 도구에는 아무것도 설치하지 않습니다. 도구가 이미 생성하는 파일 (SQLite DB, JSONL, OTEL export, session logs)만 읽습니다. Copilot App / CLI 사용량은 `~/.copilot/session-store.db`에서 요청별로 읽습니다. `data.db`는 레거시 마이그레이션 기준선으로 한 번만 사용하며 store가 정식 소스가 된 뒤에는 관찰 전용으로 유지됩니다. Chat 확장과 이전 CLI는 계속 OTEL을 사용하며, TokenTracker가 겹치는 요청을 한 번만 집계합니다. 마이그레이션 전 혼합 App/CLI 기록에서 모델을 안전하게 분리할 수 없는 잔여분은 추정 모델 대신 `github-copilot-legacy` 집계로 보존합니다.
 > - **Grok Build 추정** — 현재 로컬 텔레메트리는 `updates.jsonl`의 누적 `totalTokens`를 노출하지만, 안정적인 프롬프트/출력/캐시 분할은 제공하지 않습니다; `signals.json`은 `contextTokensUsed` 스냅샷을 사용한 폴백으로 남아 있습니다. 호출별 사용 상세 정보가 제공될 때까지 TokenTracker는 Grok 비용을 추정합니다.
 >
 > 언제든 `tokentracker status`로 각 통합의 상태를 확인할 수 있습니다. `skipped`로 표시되면 `detail` 컬럼이 이유를 설명합니다 (예: 도구 CLI가 `PATH`에 없음, 설정 읽기 불가).
@@ -215,15 +223,21 @@ brew install xiufengsun/tokentracker/tokentracker
 
 ---
 
-## 🆚 왜 TokenTracker인가?
+## 🆚 왜 TokenTracker인가? <a id="ccusage-alternative"></a>
 
-|                          | **TokenTracker** | ccusage     | Cursor stats |
-|--------------------------|:---:|:---:|:---:|
-| **지원하는 AI 도구 수**   | **34**           | 1 (Claude)  | 1 (Cursor)   |
-| **로컬 우선, 계정 불필요** | ✅            | ✅           | ❌            |
-| **네이티브 데스크톱 앱** | ✅ macOS + Windows | ❌          | ❌            |
-| **데스크톱 위젯**        | ✅ 4종            | ❌           | ❌            |
-| **레이트 제한 추적**     | ✅ 13개 프로바이더 | ❌           | Cursor 전용  |
+> **위젯과 시각적 대시보드를 갖춘 데스크톱 환경을 찾고 계신가요?** TokenTracker는 여러 AI 코딩 도구에 대한 로컬 우선 파싱과 네이티브 데스크톱 앱, 데스크톱 위젯, 프로바이더 통합 사용량 한도 모니터링, 선택형 클라우드 동기화를 결합했습니다.
+
+| 기능 | **[TokenTracker](https://github.com/xiufengsun/TokenTracker)** | **[ccusage](https://github.com/ccusage/ccusage)** | **[Tokscale](https://github.com/junhoyeo/tokscale)** |
+|---|:---:|:---:|:---:|
+| **지원하는 AI 도구 수** | **43** | 멀티 에이전트 지원 | 멀티 에이전트 지원 |
+| **기본 인터페이스** | 네이티브 데스크톱 앱 & 웹 대시보드 | 터미널 CLI | 터미널 TUI & CLI |
+| **로컬 우선 분석** | ✅ | ✅ | ✅ |
+| **네이티브 데스크톱 앱** | ✅ macOS, Windows, Linux | ❌ | ❌ |
+| **데스크톱 위젯** | ✅ 4종 | ❌ | ❌ |
+| **레이트 제한 추적** | ✅ 17개 프로바이더 | 제한적 (Claude 블록/사용량) | 다수 프로바이더 지원 |
+| **터미널 분석** | 기본 CLI (`status`, `--json`) | 강력한 CLI 리포팅 | 풍부한 인터랙티브 TUI & CLI |
+| **JSON 내보내기** | ✅ | ✅ | ✅ |
+| **공개 리더보드** | 선택형 (옵트인) | ❌ | 선택형 (`submit`) |
 
 ---
 
@@ -231,7 +245,7 @@ brew install xiufengsun/tokentracker/tokentracker
 
 ```mermaid
 flowchart LR
-    A["AI coding tools<br/>Claude Code · Codex · Cursor · Gemini · Kiro<br/>OpenCode · OpenClaw · Every Code · Hermes · Copilot<br/>Kimi · CodeBuddy · WorkBuddy · Grok · Kilo · Roo · Zed · Goose<br/>Antigravity · oh-my-pi · pi · Craft · Droid · Mimo · ZCode · Qoder · AnythingLLM · Claude Science · DeepSeek Harness · TRAE Work CN"]
+    A["AI coding tools<br/>Claude Code · Codex · AStudio · Cursor · Gemini · Kiro<br/>OpenCode · OpenClaw · Every Code · Hermes · Copilot<br/>Kimi · CodeBuddy · WorkBuddy · Grok · Kilo · Roo · Zed · Goose<br/>Antigravity · oh-my-pi · pi · Craft · Droid · Mimo · ZCode · Qoder · AnythingLLM · Claude Science · DeepSeek Harness · TRAE · TRAE Work CN · LM Studio · Unsloth Studio · Devin CLI · MiniMax Code · Cline · Command Code"]
     A -->|hooks trigger| B[Token Tracker]
     B -->|parse logs<br/>30-min UTC buckets| C[(Local SQLite)]
     C --> D[Web Dashboard]
@@ -242,22 +256,24 @@ flowchart LR
 
 1. AI CLI 도구가 평소 사용 중에 로그를 생성
 2. 경량 hook이 변경을 감지하고 동기화를 트리거 (Cursor는 hook 대신 API 사용)
-3. 토큰 수치는 로컬에서 파싱 — 프롬프트나 응답 내용은 절대 다루지 않음
+3. 토큰 수치를 로컬에서 파싱 — 프롬프트, 모델 응답, 코드는 절대 저장하거나 업로드하지 않음
 4. 30분 UTC 버킷으로 집계
 5. 대시보드, 메뉴바 앱, 위젯 모두 동일한 로컬 스냅샷을 읽음
 
 ---
 
-## 🛡️ 프라이버시
+## 🛡️ 개인정보 보호
 
 > 📄 **[전체 개인정보 처리방침](docs/PRIVACY.md)**(영문) — 앱이 보낼 수 있는 모든 네트워크 요청, 각 요청이 전송하는 내용, 끄는 방법을 모두 정리했습니다.
 
-| 보호 | 설명 |
+TokenTracker는 사용량 데이터를 로컬에서 처리합니다. 프롬프트, 코드, 모델 응답을 수집하거나 업로드하지 않습니다.
+
+| 보호 항목 | 설명 |
 |---|---|
-| **콘텐츠 업로드 없음** | 토큰 수치와 타임스탬프만. 프롬프트, 응답, 파일 내용은 절대 다루지 않습니다. |
-| **기본적으로 로컬 전용** | 모든 데이터는 기기에 머뭅니다. 리더보드는 완전히 옵트인. |
-| **감사 가능** | 오픈 소스. [`src/lib/rollout.js`](src/lib/rollout.js)를 읽어보세요 — 숫자와 타임스탬프뿐입니다. |
-| **익명 사용 통계만** | 외부 전송은 익명 2가지뿐: (1) 하루 최대 1회 하트비트——머신 ID의 단방향 해시, 앱 버전, OS 플랫폼, 실행 형태(cli/macos/windows/linux); (2) 익명 대시보드 페이지/기능 이벤트(PostHog——autocapture와 세션 녹화 비활성화, 브라우저 Do-Not-Track 존중). 토큰 수, 모델명, 프롬프트, 경로는 절대 포함되지 않습니다. [`src/lib/telemetry.js`](src/lib/telemetry.js)와 [`dashboard/src/lib/analytics.js`](dashboard/src/lib/analytics.js)에서 감사 가능하며 `TOKENTRACKER_NO_TELEMETRY=1` 또는 `DO_NOT_TRACK=1` 하나로 둘 다 비활성화됩니다. |
+| **코드 및 프롬프트 미수집** | TokenTracker는 로컬 로그 파일을 파싱하여 토큰 수치와 타임스탬프를 추출합니다. 프롬프트, 응답 본문, 코드, 대화 내용은 절대 저장하거나 업로드하지 않습니다. |
+| **기본 로컬 우선** | 사용량 추적은 기기 내에서 로컬로 실행됩니다. 계정, 로그인, API Key가 필요하지 않습니다. 클라우드 동기화와 공개 리더보드는 순수 옵트인입니다. |
+| **감사 가능** | 오픈 소스. [`src/lib/rollout.js`](src/lib/rollout.js)를 직접 확인하세요 — 숫자, 타임스탬프, 모델명만 추출합니다. |
+| **투명한 네트워크 활동** | [개인정보 처리방침](docs/PRIVACY.md)에 상세히 명시되어 있습니다. 기본 네트워크 요청은 프로바이더 잔여 한도 확인(기기에 이미 존재하는 자격 증명 사용), GitHub 스타 수 확인 및 버전 업데이트 확인, 모델 가격 데이터 갱신(`raw.githubusercontent.com`), 익명 텔레메트리(일일 하트비트 및 PostHog 페이지뷰, 둘 다 `TOKENTRACKER_NO_TELEMETRY=1` 또는 `DO_NOT_TRACK=1`로 비활성화 가능)로 제한됩니다. 텔레메트리에는 토큰, 모델, 프롬프트, 코드가 절대 포함되지 않습니다. |
 
 ---
 
@@ -273,6 +289,7 @@ flowchart LR
 | `TOKENTRACKER_DISABLE_GIT_ATTRIBUTION` | Git 커밋 연결 비활성화(`1`이면 비활성화). 연결 기능은 각 세션의 작업 디렉터리에서 `git log`를 실행합니다. 비활성화하면 TokenTracker가 프로젝트 디렉터리에 전혀 접근하지 않습니다(Outcomes에는 수동 기록만 표시) | — |
 | `TOKENTRACKER_GIT_ATTRIBUTION_PROTECTED_DIRS` | Git 연결이 macOS 보호 위치에 접근하도록 허용(`1`이면 허용). 기본적으로 `~/Documents`, `~/Downloads`, `~/Desktop`, `~/Library`, 미디어 폴더, `/Volumes` 아래의 세션은 건너뜁니다. macOS가 위치마다 별도의 접근 허용 대화상자를 띄우기 때문입니다. 해당 위치에 저장소를 두고 있고 권한을 허용해도 괜찮을 때만 켜세요 | — |
 | `CODEX_HOME` | Codex CLI 디렉토리 오버라이드 | `~/.codex` |
+| `TOKENTRACKER_ACODE_HOME` | AStudio 디렉토리 오버라이드 | `~/.acode` |
 | `GEMINI_HOME` | Gemini CLI 디렉토리 오버라이드 | `~/.gemini` |
 
 ---

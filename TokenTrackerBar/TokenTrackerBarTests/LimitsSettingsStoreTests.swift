@@ -169,6 +169,58 @@ final class LimitsSettingsStoreTests: XCTestCase {
         XCTAssertEqual(defaults.object(forKey: "LimitsPreferencesUpdatedAt") as? Int64, 50)
     }
 
+    // MARK: - Devin opt-in selection
+
+    /// Devin's visibility switch doubles as the consent to read CLI
+    /// credentials: it must default OFF while every other provider stays on.
+    func testDevinDefaultsOffWhileOtherProvidersStayOn() {
+        let (store, _) = makeStore()
+
+        XCTAssertFalse(store.isVisible("devin"))
+        XCTAssertEqual(store.providerVisibility["devin"], false)
+        for id in LimitsSettingsStore.allProviders where id != "devin" {
+            XCTAssertTrue(store.isVisible(id), "\(id) must stay on")
+        }
+        XCTAssertTrue(LimitsSettingsStore.optInProviders.contains("devin"))
+    }
+
+    func testStoredDevinTrueSurvivesReloadAsTheExplicitSelection() {
+        let (store, defaults) = makeStore()
+        XCTAssertFalse(store.isVisible("devin"))
+
+        defaults.set(["devin": true], forKey: "LimitsProviderVisibility")
+        let reloaded = LimitsSettingsStore(userDefaults: defaults)
+
+        XCTAssertTrue(reloaded.isVisible("devin"))
+        XCTAssertEqual(reloaded.providerVisibility["devin"], true)
+    }
+
+    func testBridgeSnapshotWithoutDevinKeepsItOff() {
+        let (store, _) = makeStore()
+
+        XCTAssertTrue(store.applyBridgeSnapshot([
+            "providerVisibility": ["claude": true],
+            "updatedAt": NSNumber(value: 1),
+        ]))
+
+        XCTAssertFalse(store.isVisible("devin"))
+        XCTAssertEqual(store.providerVisibility["devin"], false)
+    }
+
+    func testMenuTogglePersistsTheSingleSelectionFact() {
+        let (store, defaults) = makeStore()
+
+        store.setProviderVisibilityFromMenu("devin", isVisible: true)
+        XCTAssertTrue(store.isVisible("devin"))
+        XCTAssertEqual(
+            defaults.dictionary(forKey: "LimitsProviderVisibility")?["devin"] as? Bool,
+            true
+        )
+
+        store.setProviderVisibilityFromMenu("devin", isVisible: false)
+        XCTAssertFalse(store.isVisible("devin"))
+    }
+
     private func makeStore(
         file: StaticString = #filePath,
         line: UInt = #line

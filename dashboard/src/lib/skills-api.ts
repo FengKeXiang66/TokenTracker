@@ -2,6 +2,7 @@ import { getLocalApiAuthHeaders } from "./local-api-auth";
 import { isValidJwtShape } from "./auth-token";
 import { getInsforgeAnonKey, getInsforgeRemoteUrl } from "./insforge-config";
 import { buildSkillInventoryMetadata } from "./skills-inventory";
+import { functionUrlFor, fetchFunctionResponse } from "./function-url";
 
 type AnyRecord = Record<string, any>;
 
@@ -64,6 +65,10 @@ export function getSkillRepos() {
 
 export function installSkill(skill: AnyRecord, targets: string[]) {
   return mutateSkillsJson({ action: "install", skill, targets });
+}
+
+export function updateSkills(ids: string[]) {
+  return mutateSkillsJson({ action: "update_all", ids });
 }
 
 export function uninstallSkill(id: string) {
@@ -132,7 +137,7 @@ async function fetchCloudSkillsJson({
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), CLOUD_REQUEST_TIMEOUT_MS);
   try {
-    const response = await fetch(`${baseUrl.replace(/\/$/, "")}/functions/${CLOUD_SLUG}`, {
+    const response = await fetchFunctionResponse(functionUrlFor(baseUrl, CLOUD_SLUG), {
       method,
       headers,
       cache: "no-store",

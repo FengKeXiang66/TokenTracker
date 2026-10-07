@@ -1,5 +1,5 @@
 const assert = require("node:assert/strict");
-const { describe, it } = require("node:test");
+const { describe, it, afterEach } = require("node:test");
 const fs = require("node:fs");
 const net = require("node:net");
 const os = require("node:os");
@@ -20,8 +20,12 @@ const {
   runCommand,
   resetUsageLimitsCache,
   normalizeAntigravityResponse,
+  normalizeAntigravityQuotaSummary,
+  loadAntigravityCredentials,
   parseListeningPorts,
   parseWindowsListeningPorts,
+  parseLinuxProcListeningPorts,
+  parseSsListeningPorts,
   listAntigravityPorts,
   detectAntigravityProcess,
   fetchAntigravityLimits,
@@ -199,25 +203,109 @@ describe("getUsageLimits gemini no-creds", () => {
   });
 });
 
+function writeAntigravityOauthToken(tmp, token = {}) {
+  const credPath = path.join(tmp, ".gemini", "jetski-standalone-oauth-token");
+  fs.mkdirSync(path.dirname(credPath), { recursive: true });
+  fs.writeFileSync(
+    credPath,
+    JSON.stringify({
+      token: {
+        access_token: "ya29.agy-live",
+        refresh_token: "1//agy-refresh",
+        expiry: "2099-01-01T00:00:00Z",
+        token_type: "Bearer",
+        ...token,
+      },
+      auth_method: "consumer",
+    }),
+    { encoding: "utf8", mode: 0o600 },
+  );
+  return credPath;
+}
+
+function antigravityQuotaSummaryPayload() {
+  return {
+    groups: [
+      {
+        displayName: "Claude and GPT models",
+        buckets: [
+          { bucketId: "3p-weekly", remainingFraction: 0.58, resetTime: "2026-09-07T00:00:00Z" },
+          { bucketId: "3p-5h", remainingFraction: 0.82, resetTime: "2026-08-31T10:00:00Z" },
+        ],
+      },
+      {
+        displayName: "Gemini Models",
+        buckets: [
+          { bucketId: "gemini-weekly", remainingFraction: 0.4, resetTime: "2026-09-07T00:00:00Z" },
+          { bucketId: "gemini-5h", remainingFraction: 0.9, resetTime: "2026-08-31T10:00:00Z" },
+        ],
+      },
+    ],
+  };
+}
+
+function antigravityRemoteFetchImpl({
+  quota = antigravityQuotaSummaryPayload(),
+  refresh = { access_token: "ya29.agy-refreshed", expires_in: 3600 },
+  load = { paidTier: { name: "Google AI Pro", id: "pro" } },
+  quotaStatus = 200,
+  calls = [],
+} = {}) {
+  return async (url) => {
+    const href = String(url);
+    calls.push(href);
+    if (href.includes("oauth2.googleapis.com/token")) {
+      return { ok: true, status: 200, async json() { return refresh; } };
+    }
+    if (href.includes("loadCodeAssist")) {
+      return { ok: true, status: 200, async json() { return load; } };
+    }
+    if (href.includes("retrieveUserQuotaSummary")) {
+      return {
+        ok: quotaStatus === 200,
+        status: quotaStatus,
+        async json() { return quota; },
+      };
+    }
+    return { ok: false, status: 404, async json() { return {}; } };
+  };
+}
+
 describe("getUsageLimits antigravity cache", () => {
-  it("shows message when no language server and no cache", async () => {
+  it("reads remaining quota from Cloud Code when OAuth credentials exist", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-limits-antigravity-remote-"));
+    try {
+      writeAntigravityOauthToken(tmp);
+      const fetchCalls = [];
+      const result = await getUsageLimits({
+        home: tmp,
+        platform: "linux",
+        providerTimeoutMs: 1000,
+        securityRunner() { return { status: 1, stdout: "" }; },
+        commandRunner() { return { status: 1, stdout: "" }; },
+        fetchImpl: antigravityRemoteFetchImpl({ calls: fetchCalls }),
+      });
+
+      assert.equal(result.antigravity.configured, true);
+      assert.equal(result.antigravity.error, null);
+      assert.equal(result.antigravity.cached, undefined);
+      assert.equal(result.antigravity.primary_window.used_percent, 42);
+      assert.equal(result.antigravity.secondary_window.used_percent, 18);
+      assert.equal(result.antigravity.tertiary_window.used_percent, 60);
+      assert.equal(result.antigravity.quaternary_window.used_percent, 10);
+      assert.ok(fetchCalls.some((url) => urlHostMatches(url, "daily-cloudcode-pa.googleapis.com")));
+    } finally {
+      resetUsageLimitsCache();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("shows message when no language server, no credentials, and no cache", async () => {
     resetUsageLimitsCache();
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-limits-antigravity-noprocess-"));
     try {
-      const agyHome = path.join(tmp, ".gemini", "antigravity-cli");
-      fs.mkdirSync(agyHome, { recursive: true });
-      fs.writeFileSync(
-        path.join(agyHome, "antigravity-oauth-token"),
-        JSON.stringify({
-          token: {
-            access_token: "ya29.agy-gemini-test",
-            refresh_token: "1//agy-refresh",
-            expiry: "2099-01-01T00:00:00Z",
-          },
-          auth_method: "consumer",
-        }),
-        "utf8",
-      );
+      fs.mkdirSync(path.join(tmp, ".gemini", "antigravity-cli"), { recursive: true });
 
       const result = await getUsageLimits({
         home: tmp,
@@ -553,6 +641,187 @@ describe("getUsageLimits claude data-age fields (stale + cached_at)", () => {
       assert.ok(result.claude.retry_at, "an active cooldown must expose retry_at for the client");
       const retryMs = Date.parse(result.claude.retry_at);
       assert.ok(retryMs > Date.now(), "retry_at must be a future instant");
+    } finally {
+      resetUsageLimitsCache();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("getUsageLimits reads Claude Code's cached usage", () => {
+  const CLAUDE_USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
+  const ACCOUNT = "11111111-2222-4333-8444-555555555555";
+
+  function writeClaudeCreds(home, token) {
+    const dir = path.join(home, ".claude");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, ".credentials.json"), JSON.stringify({ claudeAiOauth: { accessToken: token } }));
+  }
+
+  /** Write Claude Code's global config with a cached /api/oauth/usage body. */
+  function writeClaudeCodeConfig(dir, {
+    fetchedAtMs,
+    fiveHour,
+    cachedAccount = ACCOUNT,
+    currentAccount = ACCOUNT,
+    fiveHourResetMs = Date.now() + 3_600_000,
+    sevenDayResetMs = Date.now() + 86_400_000,
+  }) {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, ".claude.json"), JSON.stringify({
+      oauthAccount: { accountUuid: currentAccount },
+      cachedUsageUtilization: {
+        fetchedAtMs,
+        accountUuid: cachedAccount,
+        utilization: {
+          five_hour: { utilization: fiveHour, resets_at: new Date(fiveHourResetMs).toISOString() },
+          seven_day: { utilization: 12, resets_at: new Date(sevenDayResetMs).toISOString() },
+          limits: [],
+        },
+      },
+    }));
+  }
+
+  function writeOwnCache(home, { cachedAt, fiveHour }) {
+    const cacheDir = path.join(home, ".tokentracker", "tracker");
+    fs.mkdirSync(cacheDir, { recursive: true });
+    fs.writeFileSync(path.join(cacheDir, "claude-usage-limits-cache.json"), JSON.stringify({
+      claude: {
+        five_hour: { utilization: fiveHour, resets_at: new Date(Date.now() + 3_600_000).toISOString() },
+        seven_day: null, seven_day_opus: null, weekly_scoped: null, extra_usage: null,
+        cached_at: cachedAt,
+      },
+    }));
+  }
+
+  /** Run getUsageLimits on Linux with Claude's usage endpoint answering via `claudeResponse`. */
+  async function run(home, claudeResponse, extra = {}) {
+    return getUsageLimits({
+      home,
+      platform: "linux",
+      providerTimeoutMs: 2000,
+      securityRunner() { return { status: 1, stdout: "" }; },
+      commandRunner() { return { status: 1, stdout: "" }; },
+      fetchImpl(url) {
+        if (url === CLAUDE_USAGE_URL) return claudeResponse();
+        return Promise.reject(new Error("unmocked"));
+      },
+      ...extra,
+    });
+  }
+
+  const rateLimited = () => Promise.resolve({
+    ok: false,
+    status: 429,
+    headers: { get: (k) => (k === "retry-after" ? "3600" : null) },
+    json: async () => ({}),
+  });
+
+  it("serves Claude Code's newer cached read instead of our older cache when the live read 429s", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-limits-claude-code-cache-"));
+    try {
+      writeClaudeCreds(tmp, "sk-ant-oauth-cc-cache");
+      writeOwnCache(tmp, { cachedAt: new Date(Date.now() - 15 * 3_600_000).toISOString(), fiveHour: 80 });
+      const fetchedAtMs = Date.now() - 60 * 60 * 1000;
+      writeClaudeCodeConfig(tmp, { fetchedAtMs, fiveHour: 5 });
+
+      const result = await run(tmp, rateLimited);
+
+      assert.equal(result.claude.error, null);
+      assert.equal(result.claude.stale, true);
+      assert.equal(result.claude.five_hour.utilization, 5);
+      assert.equal(result.claude.seven_day.utilization, 12);
+      assert.equal(result.claude.cached_at, new Date(fetchedAtMs).toISOString());
+    } finally {
+      resetUsageLimitsCache();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("skips the usage API while Claude Code's cached read is within the fresh TTL", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-limits-claude-code-fresh-"));
+    try {
+      writeClaudeCreds(tmp, "sk-ant-oauth-cc-fresh");
+      writeClaudeCodeConfig(tmp, { fetchedAtMs: Date.now() - 2 * 60 * 1000, fiveHour: 33 });
+      let calls = 0;
+
+      const result = await run(tmp, () => { calls += 1; return rateLimited(); });
+
+      assert.equal(calls, 0, "a fresh Claude Code read must not spend another usage request");
+      assert.equal(result.claude.error, null);
+      assert.equal(result.claude.stale, false);
+      assert.equal(result.claude.five_hour.utilization, 33);
+    } finally {
+      resetUsageLimitsCache();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("ignores Claude Code's cached read when it belongs to another account", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-limits-claude-code-account-"));
+    try {
+      writeClaudeCreds(tmp, "sk-ant-oauth-cc-account");
+      const ownCachedAt = new Date(Date.now() - 3 * 3_600_000).toISOString();
+      writeOwnCache(tmp, { cachedAt: ownCachedAt, fiveHour: 70 });
+      writeClaudeCodeConfig(tmp, {
+        fetchedAtMs: Date.now() - 60 * 1000,
+        fiveHour: 1,
+        cachedAccount: "99999999-2222-4333-8444-555555555555",
+      });
+
+      const result = await run(tmp, rateLimited);
+
+      assert.equal(result.claude.five_hour.utilization, 70);
+      assert.equal(result.claude.cached_at, ownCachedAt);
+    } finally {
+      resetUsageLimitsCache();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("stays on the token's profile and ignores a $CLAUDE_CONFIG_DIR copy", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-limits-claude-code-configdir-"));
+    try {
+      writeClaudeCreds(tmp, "sk-ant-oauth-cc-configdir");
+      const ownCachedAt = new Date(Date.now() - 3 * 3_600_000).toISOString();
+      writeOwnCache(tmp, { cachedAt: ownCachedAt, fiveHour: 70 });
+      // The token comes from the default profile, so another profile's cache must not be used.
+      const configDir = path.join(tmp, "alt-claude");
+      writeClaudeCodeConfig(configDir, { fetchedAtMs: Date.now() - 60 * 1000, fiveHour: 21 });
+
+      const result = await run(tmp, rateLimited, { env: { CLAUDE_CONFIG_DIR: configDir } });
+
+      assert.equal(result.claude.five_hour.utilization, 70);
+      assert.equal(result.claude.cached_at, ownCachedAt);
+    } finally {
+      resetUsageLimitsCache();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps an older usable cache when Claude Code's newer read has only expired windows", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-limits-claude-code-expired-"));
+    try {
+      writeClaudeCreds(tmp, "sk-ant-oauth-cc-expired");
+      const ownCachedAt = new Date(Date.now() - 3 * 3_600_000).toISOString();
+      writeOwnCache(tmp, { cachedAt: ownCachedAt, fiveHour: 64 });
+      writeClaudeCodeConfig(tmp, {
+        fetchedAtMs: Date.now() - 60 * 60 * 1000,
+        fiveHour: 2,
+        fiveHourResetMs: Date.now() - 60 * 1000,
+        sevenDayResetMs: Date.now() - 60 * 1000,
+      });
+
+      const result = await run(tmp, rateLimited);
+
+      assert.equal(result.claude.error, null);
+      assert.equal(result.claude.five_hour.utilization, 64);
+      assert.equal(result.claude.cached_at, ownCachedAt);
     } finally {
       resetUsageLimitsCache();
       fs.rmSync(tmp, { recursive: true, force: true });
@@ -1769,6 +2038,52 @@ describe("getUsageLimits", () => {
     }
   });
 
+  it("skips the Claude usage API when the local token is already expired", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-limits-claude-local-expired-"));
+    try {
+      const nowMs = Date.now();
+      const claudeDir = path.join(tmp, ".claude");
+      fs.mkdirSync(claudeDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(claudeDir, ".credentials.json"),
+        JSON.stringify({
+          claudeAiOauth: {
+            accessToken: "locally-expired-token",
+            expiresAt: nowMs - 60_000,
+          },
+        }),
+      );
+
+      let usageApiCalled = false;
+      const result = await getUsageLimits({
+        home: tmp,
+        platform: "linux",
+        providerTimeoutMs: 1000,
+        securityRunner() {
+          return { status: 1, stdout: "" };
+        },
+        commandRunner() {
+          return { status: 1, stdout: "" };
+        },
+        fetchImpl(url) {
+          if (typeof url === "string" && url === "https://api.anthropic.com/api/oauth/usage") {
+            usageApiCalled = true;
+            throw new Error("must not call the usage API for a locally expired token");
+          }
+          return pendingUnlessCodexReset(url);
+        },
+      });
+
+      assert.equal(result.claude.configured, true);
+      assert.equal(result.claude.auth_action_required, "reauth");
+      assert.equal(usageApiCalled, false);
+    } finally {
+      resetUsageLimitsCache();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
   it("stays unconfigured when no Claude credential entry exists at all", async () => {
     resetUsageLimitsCache();
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-limits-claude-no-creds-"));
@@ -2158,6 +2473,236 @@ describe("getUsageLimits", () => {
       assert.equal(result.claude.error, null);
       // The live post-rollover window is served, not the stale pre-reset snapshot.
       assert.deepEqual(result.claude.five_hour, { utilization: 2, resets_at: freshFiveHourReset });
+    } finally {
+      resetUsageLimitsCache();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  // Anthropic's oauth/usage snapshot for a 5h window that has not started yet
+  // (right after a claude.com usage reset, or simply idle): 0% with no reset
+  // stamp, while seven_day still has a real one. Cached 5 minutes ago, so it is
+  // inside the 10-minute fresh TTL. `historyAgeMs` sets when Claude Code last
+  // appended a prompt to ~/.claude/history.jsonl (null = no history file).
+  function setupUnstartedClaudeWindow(tmp, { historyAgeMs, cache = {} } = {}) {
+    const claudeDir = path.join(tmp, ".claude");
+    fs.mkdirSync(claudeDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(claudeDir, ".credentials.json"),
+      JSON.stringify({ claudeAiOauth: { accessToken: "unstarted-window-token" } }),
+    );
+    const trackerDir = path.join(tmp, ".tokentracker", "tracker");
+    fs.mkdirSync(trackerDir, { recursive: true });
+    const futureReset = new Date(Date.now() + 3 * 86400 * 1000).toISOString();
+    fs.writeFileSync(
+      path.join(trackerDir, "claude-usage-limits-cache.json"),
+      JSON.stringify({
+        claude: {
+          five_hour: { utilization: 0, resets_at: null },
+          seven_day: { utilization: 27, resets_at: futureReset },
+          seven_day_opus: null,
+          weekly_scoped: null,
+          extra_usage: null,
+          cached_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+          ...cache,
+        },
+      }),
+    );
+    if (historyAgeMs !== null && historyAgeMs !== undefined) {
+      const historyPath = path.join(claudeDir, "history.jsonl");
+      fs.writeFileSync(historyPath, "{}\n");
+      const historyAt = new Date(Date.now() - historyAgeMs);
+      fs.utimesSync(historyPath, historyAt, historyAt);
+    }
+    return { futureReset };
+  }
+
+  function runUnstartedWindowLimits(tmp, claudeResponder) {
+    return getUsageLimits({
+      home: tmp,
+      platform: "linux",
+      providerTimeoutMs: 1000,
+      securityRunner() {
+        return { status: 1, stdout: "" };
+      },
+      commandRunner() {
+        return { status: 1, stdout: "" };
+      },
+      fetchImpl(url) {
+        if (typeof url === "string" && url === "https://api.anthropic.com/api/oauth/usage") {
+          return claudeResponder();
+        }
+        if (isCodexResetCreditsUrl(url)) return codexResetCreditsResponse();
+        return Promise.resolve({ ok: false, status: 404, json: async () => ({}) });
+      },
+    });
+  }
+
+  it("refetches an unstarted 5h window once Claude is used after the snapshot", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-limits-claude-unstarted-used-"));
+    try {
+      const { futureReset } = setupUnstartedClaudeWindow(tmp, { historyAgeMs: 60 * 1000 });
+      const liveFiveHourReset = new Date(Date.now() + 5 * 3600 * 1000).toISOString();
+      let upstreamCalls = 0;
+      const result = await runUnstartedWindowLimits(tmp, () => {
+        upstreamCalls += 1;
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            five_hour: { utilization: 13, resets_at: liveFiveHourReset },
+            seven_day: { utilization: 29, resets_at: futureReset },
+            seven_day_opus: null,
+          }),
+        });
+      });
+
+      assert.equal(upstreamCalls, 1, "a prompt after the snapshot must force a live Claude call");
+      assert.equal(result.claude.error, null);
+      assert.deepEqual(result.claude.five_hour, { utilization: 13, resets_at: liveFiveHourReset });
+      assert.deepEqual(result.claude.seven_day, { utilization: 29, resets_at: futureReset });
+    } finally {
+      resetUsageLimitsCache();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps the fresh cache for an unstarted 5h window while Claude sits idle", async () => {
+    // 16 minutes: just past the 15-minute retry period after the last prompt.
+    for (const historyAgeMs of [16 * 60 * 1000, null]) {
+      resetUsageLimitsCache();
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-limits-claude-unstarted-idle-"));
+      try {
+        setupUnstartedClaudeWindow(tmp, { historyAgeMs });
+        let upstreamCalls = 0;
+        const result = await runUnstartedWindowLimits(tmp, () => {
+          upstreamCalls += 1;
+          return Promise.resolve({ ok: false, status: 500 });
+        });
+
+        assert.equal(upstreamCalls, 0, `idle (history age ${historyAgeMs}) must not spend a Claude request`);
+        assert.equal(result.claude.stale, false);
+        assert.deepEqual(result.claude.five_hour, { utilization: 0, resets_at: null });
+      } finally {
+        resetUsageLimitsCache();
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    }
+  });
+
+  it("ignores a future-dated history file instead of extending the retry period", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-limits-claude-unstarted-future-"));
+    try {
+      // A clock correction or a file copied from another machine can leave
+      // history.jsonl dated ahead of now; a negative age is not a recent prompt.
+      setupUnstartedClaudeWindow(tmp, { historyAgeMs: -24 * 3600 * 1000 });
+      let upstreamCalls = 0;
+      const result = await runUnstartedWindowLimits(tmp, () => {
+        upstreamCalls += 1;
+        return Promise.resolve({ ok: false, status: 500 });
+      });
+
+      assert.equal(upstreamCalls, 0, "a future-dated history file must not bypass the fresh cache");
+      assert.equal(result.claude.stale, false);
+    } finally {
+      resetUsageLimitsCache();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps the fresh cache when only a model-scoped window is unstarted", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-limits-claude-unstarted-opus-"));
+    try {
+      const fiveHourReset = new Date(Date.now() + 2 * 3600 * 1000).toISOString();
+      setupUnstartedClaudeWindow(tmp, {
+        historyAgeMs: 60 * 1000,
+        cache: {
+          five_hour: { utilization: 40, resets_at: fiveHourReset },
+          seven_day_opus: { utilization: 0, resets_at: null },
+          weekly_scoped: [{ label: "Fable", utilization: 0, resets_at: null }],
+        },
+      });
+      let upstreamCalls = 0;
+      const result = await runUnstartedWindowLimits(tmp, () => {
+        upstreamCalls += 1;
+        return Promise.resolve({ ok: false, status: 500 });
+      });
+
+      assert.equal(upstreamCalls, 0, "an unused model's window must not disable the fresh cache");
+      assert.equal(result.claude.five_hour.utilization, 40);
+    } finally {
+      resetUsageLimitsCache();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps refetching an unstarted window after a live read that is still unstarted", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-limits-claude-unstarted-lag-"));
+    try {
+      // One prompt a minute ago, then no more: history.jsonl is not touched again,
+      // so after poll 1 rewrites the cache, history is older than cached_at.
+      const { futureReset } = setupUnstartedClaudeWindow(tmp, { historyAgeMs: 60 * 1000 });
+      const liveFiveHourReset = new Date(Date.now() + 5 * 3600 * 1000).toISOString();
+      const upstreamReplies = [
+        { five_hour: { utilization: 0, resets_at: null }, seven_day: { utilization: 27, resets_at: futureReset } },
+        { five_hour: { utilization: 15, resets_at: liveFiveHourReset }, seven_day: { utilization: 28, resets_at: futureReset } },
+      ];
+      let upstreamCalls = 0;
+      const responder = () => {
+        const body = upstreamReplies[Math.min(upstreamCalls, upstreamReplies.length - 1)];
+        upstreamCalls += 1;
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ ...body, seven_day_opus: null }) });
+      };
+
+      const first = await runUnstartedWindowLimits(tmp, responder);
+      assert.equal(upstreamCalls, 1);
+      assert.deepEqual(first.claude.five_hour, { utilization: 0, resets_at: null });
+
+      resetUsageLimitsCache();
+      const second = await runUnstartedWindowLimits(tmp, responder);
+      assert.equal(upstreamCalls, 2, "a still-unstarted live read must not end the retry period");
+      assert.deepEqual(second.claude.five_hour, { utilization: 15, resets_at: liveFiveHourReset });
+
+      resetUsageLimitsCache();
+      const third = await runUnstartedWindowLimits(tmp, responder);
+      assert.equal(upstreamCalls, 2, "once the window has started, the fresh cache applies again");
+      assert.equal(third.claude.five_hour.utilization, 15);
+    } finally {
+      resetUsageLimitsCache();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("still serves the unstarted-window snapshot when the live Claude call fails", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-limits-claude-unstarted-429-"));
+    try {
+      setupUnstartedClaudeWindow(tmp, { historyAgeMs: 60 * 1000 });
+      let upstreamCalls = 0;
+      const responder = () => {
+        upstreamCalls += 1;
+        return Promise.resolve({
+          ok: false,
+          status: 429,
+          headers: { get: () => "120" },
+          json: async () => ({}),
+        });
+      };
+      const result = await runUnstartedWindowLimits(tmp, responder);
+
+      assert.equal(result.claude.error, null);
+      assert.equal(result.claude.stale, true);
+      assert.equal(result.claude.five_hour.utilization, 0);
+      assert.equal(result.claude.seven_day.utilization, 27);
+
+      resetUsageLimitsCache();
+      const duringCooldown = await runUnstartedWindowLimits(tmp, responder);
+      assert.equal(upstreamCalls, 1, "the retry period must not punch through the 429 cooldown");
+      assert.equal(duringCooldown.claude.stale, true);
     } finally {
       resetUsageLimitsCache();
       fs.rmSync(tmp, { recursive: true, force: true });
@@ -3080,6 +3625,213 @@ describe("normalizeAntigravityResponse", () => {
   });
 });
 
+describe("normalizeAntigravityQuotaSummary", () => {
+  it("accepts the Cloud Code HTTP payload with top-level groups", () => {
+    const result = normalizeAntigravityQuotaSummary(antigravityQuotaSummaryPayload());
+    assert.equal(result.primary_window.used_percent, 42);
+    assert.equal(result.secondary_window.used_percent, 18);
+    assert.equal(result.tertiary_window.used_percent, 60);
+    assert.equal(result.quaternary_window.used_percent, 10);
+    assert.equal(result.primary_window.reset_at, "2026-09-07T00:00:00.000Z");
+  });
+
+  it("still accepts the local Connect-RPC wrapper", () => {
+    const result = normalizeAntigravityQuotaSummary({
+      code: 0,
+      response: antigravityQuotaSummaryPayload(),
+    });
+    assert.equal(result.primary_window.used_percent, 42);
+    assert.equal(result.quaternary_window.used_percent, 10);
+  });
+});
+
+describe("loadAntigravityCredentials", () => {
+  it("reads jetski-standalone-oauth-token nested token objects", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-creds-jetski-"));
+    try {
+      writeAntigravityOauthToken(tmp);
+      const creds = loadAntigravityCredentials({ home: tmp, platform: "linux" });
+      assert.equal(creds.accessToken, "ya29.agy-live");
+      assert.equal(creds.refreshToken, "1//agy-refresh");
+      assert.equal(creds.source, "file");
+      assert.match(creds.path, /jetski-standalone-oauth-token$/);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("reads antigravity-cli/antigravity-oauth-token", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-creds-cli-"));
+    try {
+      const credPath = path.join(tmp, ".gemini", "antigravity-cli", "antigravity-oauth-token");
+      fs.mkdirSync(path.dirname(credPath), { recursive: true });
+      fs.writeFileSync(credPath, JSON.stringify({
+        token: { access_token: "ya29.cli", refresh_token: "1//cli", expiry: "2099-01-01T00:00:00Z" },
+      }), "utf8");
+      const creds = loadAntigravityCredentials({ home: tmp, platform: "linux" });
+      assert.equal(creds.accessToken, "ya29.cli");
+      assert.equal(creds.source, "file");
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("does not treat Gemini CLI oauth_creds.json as Antigravity credentials", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-creds-gemini-"));
+    try {
+      const geminiDir = path.join(tmp, ".gemini");
+      fs.mkdirSync(geminiDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(geminiDir, "oauth_creds.json"),
+        JSON.stringify({ access_token: "ya29.gemini-cli", refresh_token: "1//gemini", expiry_date: Date.now() + 3_600_000 }),
+        "utf8",
+      );
+      const creds = loadAntigravityCredentials({ home: tmp, platform: "linux" });
+      assert.equal(creds, null);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("reads the macOS Keychain via securityRunner", () => {
+    const payload = JSON.stringify({
+      token: {
+        access_token: "ya29.keychain",
+        refresh_token: "1//keychain",
+        expiry: "2099-01-01T00:00:00Z",
+      },
+    });
+    const creds = loadAntigravityCredentials({
+      home: path.join(os.tmpdir(), "tokentracker-agy-no-home"),
+      platform: "darwin",
+      securityRunner(bin, args) {
+        assert.equal(bin, "/usr/bin/security");
+        assert.ok(args.includes("gemini"));
+        assert.ok(args.includes("antigravity"));
+        return { status: 0, stdout: `${payload}\n` };
+      },
+    });
+    assert.equal(creds.accessToken, "ya29.keychain");
+    assert.equal(creds.source, "keychain");
+  });
+
+  it("prefers a fresh keychain token over an expired file", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-creds-fresh-kc-"));
+    try {
+      writeAntigravityOauthToken(tmp, { expiry: "2020-01-01T00:00:00Z" });
+      const creds = loadAntigravityCredentials({
+        home: tmp,
+        platform: "darwin",
+        nowMs: Date.parse("2026-08-31T00:00:00.000Z"),
+        securityRunner() {
+          return {
+            status: 0,
+            stdout: JSON.stringify({
+              token: {
+                access_token: "ya29.keychain-fresh",
+                refresh_token: "1//keychain-fresh",
+                expiry: "2099-01-01T00:00:00Z",
+              },
+            }),
+          };
+        },
+      });
+      assert.equal(creds.source, "keychain");
+      assert.equal(creds.path, null);
+      assert.equal(creds.accessToken, "ya29.keychain-fresh");
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("prefers a fresh file over an expired keychain token", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-creds-fresh-file-"));
+    try {
+      const credPath = writeAntigravityOauthToken(tmp);
+      const creds = loadAntigravityCredentials({
+        home: tmp,
+        platform: "darwin",
+        nowMs: Date.parse("2026-08-31T00:00:00.000Z"),
+        securityRunner() {
+          return {
+            status: 0,
+            stdout: JSON.stringify({
+              token: {
+                access_token: "ya29.keychain-stale",
+                refresh_token: "1//keychain-stale",
+                expiry: "2020-01-01T00:00:00Z",
+              },
+            }),
+          };
+        },
+      });
+      assert.equal(creds.source, "file");
+      assert.equal(creds.path, credPath);
+      assert.equal(creds.accessToken, "ya29.agy-live");
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("picks the newest expired credential when every candidate is stale", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-creds-all-stale-"));
+    try {
+      writeAntigravityOauthToken(tmp, {
+        access_token: "ya29.older-file",
+        expiry: "2020-01-01T00:00:00Z",
+      });
+      const newerPath = path.join(tmp, ".gemini", "antigravity-cli", "antigravity-oauth-token");
+      fs.mkdirSync(path.dirname(newerPath), { recursive: true });
+      fs.writeFileSync(newerPath, JSON.stringify({
+        token: {
+          access_token: "ya29.newer-file",
+          refresh_token: "1//newer-file",
+          expiry: "2024-06-01T00:00:00Z",
+        },
+      }), "utf8");
+      const creds = loadAntigravityCredentials({
+        home: tmp,
+        platform: "linux",
+        nowMs: Date.parse("2026-08-31T00:00:00.000Z"),
+      });
+      assert.equal(creds.source, "file");
+      assert.equal(creds.path, newerPath);
+      assert.equal(creds.accessToken, "ya29.newer-file");
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("prefers an unknown-expiry credential over expired ones", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-creds-unknown-expiry-"));
+    try {
+      writeAntigravityOauthToken(tmp, {
+        access_token: "ya29.expired-file",
+        expiry: "2020-01-01T00:00:00Z",
+      });
+      const unknownPath = path.join(tmp, ".gemini", "antigravity-cli", "antigravity-oauth-token");
+      fs.mkdirSync(path.dirname(unknownPath), { recursive: true });
+      fs.writeFileSync(unknownPath, JSON.stringify({
+        token: {
+          access_token: "ya29.unknown-expiry",
+          refresh_token: "1//unknown-expiry",
+        },
+      }), "utf8");
+      const creds = loadAntigravityCredentials({
+        home: tmp,
+        platform: "linux",
+        nowMs: Date.parse("2026-08-31T00:00:00.000Z"),
+      });
+      assert.equal(creds.source, "file");
+      assert.equal(creds.path, unknownPath);
+      assert.equal(creds.accessToken, "ya29.unknown-expiry");
+      assert.equal(creds.expiryMs, null);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("Antigravity helpers", () => {
   it("parses listening ports", () => {
     const output = `
@@ -3278,6 +4030,120 @@ lang      123 me    23u  IPv4 0x124                0t0  TCP 127.0.0.1:51235 (LIS
     assert.equal(result.configured, false);
   });
 
+  it("falls back to ps when /bin/ps is missing or returns error", async () => {
+    const calls = [];
+    const commandRunner = (command, args) => {
+      calls.push({ command, args });
+      if (command === "/bin/ps") {
+        return { status: null, stdout: "", stderr: "", error: new Error("spawn /bin/ps ENOENT") };
+      }
+      if (command === "ps") {
+        return {
+          status: 0,
+          stdout: "\n 456 agy\n",
+        };
+      }
+      return { status: 1, stdout: "", stderr: "" };
+    };
+
+    const result = await detectAntigravityProcess({ commandRunner });
+    assert.equal(calls[0].command, "/bin/ps");
+    assert.equal(calls[1].command, "ps");
+    assert.equal(result.configured, true);
+    assert.equal(result.pid, 456);
+  });
+
+  it("discovers listening ports via Linux procfs", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-procfs-test-"));
+    try {
+      const pidDir = path.join(tmp, "456", "fd");
+      const netDir = path.join(tmp, "net");
+      fs.mkdirSync(pidDir, { recursive: true });
+      fs.mkdirSync(netDir, { recursive: true });
+      fs.symlinkSync("socket:[123456]", path.join(pidDir, "12"));
+      fs.writeFileSync(
+        path.join(netDir, "tcp"),
+        [
+          "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode",
+          "   0: 0100007F:8A11 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 123456 1 00000000 100 0 0 10 0",
+        ].join("\n"),
+        "utf8",
+      );
+
+      const ports = parseLinuxProcListeningPorts(456, { procRoot: tmp });
+      assert.deepEqual(ports, [35345]);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("does not retry ps on timeout or abort errors", async () => {
+    const calls = [];
+    const timeoutError = new Error("spawn /bin/ps ETIMEDOUT");
+    timeoutError.code = "ETIMEDOUT";
+
+    const commandRunner = (command, args) => {
+      calls.push({ command, args });
+      return { status: null, stdout: "", stderr: "", error: timeoutError };
+    };
+
+    const result = await detectAntigravityProcess({ commandRunner });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].command, "/bin/ps");
+    assert.equal(result.configured, false);
+  });
+
+  it("parses listening ports from ss command output", () => {
+    const output = [
+      "State  Recv-Q Send-Q Local Address:Port  Peer Address:Port Process",
+      'LISTEN 0      4096       127.0.0.1:35345      0.0.0.0:*     users:(("agy",pid=456,fd=14))',
+      'LISTEN 0      4096       127.0.0.1:32919      0.0.0.0:*     users:(("agy",pid=456,fd=12))',
+      'LISTEN 0      4096       127.0.0.1:9999       0.0.0.0:*     users:(("other",pid=789,fd=3))',
+    ].join("\n");
+
+    const ports = parseSsListeningPorts(output, 456);
+    assert.deepEqual(ports, [32919, 35345]);
+  });
+
+  it("exercises listAntigravityPorts Linux fallback chain (procfs miss -> lsof miss -> ss hit)", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-listports-fallback-"));
+    try {
+      const calls = [];
+      const commandRunner = (command, args) => {
+        calls.push({ command, args });
+        if (command === "which") {
+          if (args[0] === "lsof") return { status: 1, stdout: "", stderr: "" };
+          if (args[0] === "ss") return { status: 0, stdout: "/usr/bin/ss\n", stderr: "" };
+        }
+        if (command === "/usr/bin/ss" || command === "ss") {
+          return {
+            status: 0,
+            stdout: [
+              "State  Recv-Q Send-Q Local Address:Port  Peer Address:Port Process",
+              'LISTEN 0      4096       127.0.0.1:35345      0.0.0.0:*     users:(("agy",pid=456,fd=14))',
+              'LISTEN 0      4096       127.0.0.1:32919      0.0.0.0:*     users:(("agy",pid=456,fd=12))',
+            ].join("\n"),
+            stderr: "",
+          };
+        }
+        return { status: 1, stdout: "", stderr: "" };
+      };
+
+      const ports = await listAntigravityPorts(456, {
+        commandRunner,
+        platform: "linux",
+        procRoot: tmp, // procfs miss
+      });
+
+      assert.deepEqual(ports, [32919, 35345]);
+      assert.ok(calls.some((c) => (c.command === "which" && c.args?.[0] === "lsof") || String(c.command).endsWith("lsof")));
+      assert.ok(calls.some((c) => c.command === "which" && c.args?.[0] === "ss"));
+      assert.ok(calls.some((c) => c.command === "/usr/bin/ss" || c.command === "ss"));
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
   it("persists live Antigravity quota for use after the process exits", async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-antigravity-cache-write-"));
     try {
@@ -3326,7 +4192,13 @@ lang 123 me 22u IPv4 0x123 0t0 TCP 127.0.0.1:51234 (LISTEN)
         };
       };
 
-      const result = await fetchAntigravityLimits({ home: tmp, commandRunner, requestFn, nowMs });
+      const result = await fetchAntigravityLimits({
+        platform: "linux",
+        home: tmp,
+        commandRunner,
+        requestFn,
+        nowMs,
+      });
       assert.equal(result.configured, true);
       assert.equal(result.primary_window.used_percent, 75);
 
@@ -3360,6 +4232,7 @@ lang 123 me 22u IPv4 0x123 0t0 TCP 127.0.0.1:51234 (LISTEN)
       const commandRunner = () => ({ stdout: "", stderr: "", status: 1 });
 
       const result = await fetchAntigravityLimits({
+        platform: "linux",
         home: tmp,
         commandRunner,
         nowMs: Date.parse("2026-05-21T01:00:00.000Z"),
@@ -3422,6 +4295,7 @@ lang 123 me 22u IPv4 0x123 0t0 TCP 127.0.0.1:51234 (LISTEN)
       };
 
       const result = await fetchAntigravityLimits({
+        platform: "linux",
         home: tmp,
         commandRunner,
         requestFn,
@@ -3462,6 +4336,7 @@ lang 123 me 22u IPv4 0x123 0t0 TCP 127.0.0.1:51234 (LISTEN)
       const commandRunner = () => ({ stdout: "", stderr: "", status: 1 });
 
       const result = await fetchAntigravityLimits({
+        platform: "linux",
         home: tmp,
         commandRunner,
         nowMs: Date.parse("2026-05-21T01:00:00.000Z"),
@@ -3480,6 +4355,7 @@ lang 123 me 22u IPv4 0x123 0t0 TCP 127.0.0.1:51234 (LISTEN)
       const commandRunner = () => ({ stdout: "", stderr: "", status: 1 });
 
       const result = await fetchAntigravityLimits({
+        platform: "linux",
         home: tmp,
         commandRunner,
         nowMs: Date.parse("2026-05-21T01:00:00.000Z"),
@@ -3500,6 +4376,7 @@ lang 123 me 22u IPv4 0x123 0t0 TCP 127.0.0.1:51234 (LISTEN)
       const commandRunner = () => ({ stdout: "", stderr: "", status: 1 });
 
       const result = await fetchAntigravityLimits({
+        platform: "linux",
         home: tmp,
         commandRunner,
         nowMs: Date.parse("2026-05-21T01:00:00.000Z"),
@@ -3507,6 +4384,588 @@ lang 123 me 22u IPv4 0x123 0t0 TCP 127.0.0.1:51234 (LISTEN)
 
       assert.equal(result.configured, true);
       assert.ok(result.error.includes("not running"), `expected "not running" message, got: ${result.error}`);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("fetchAntigravityLimits remote OAuth", () => {
+  it("fetches remaining quota without a language server process", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-remote-live-"));
+    try {
+      writeAntigravityOauthToken(tmp);
+      const calls = [];
+      const result = await fetchAntigravityLimits({
+        platform: "linux",
+        home: tmp,
+        commandRunner() { return { status: 1, stdout: "" }; },
+        fetchImpl: antigravityRemoteFetchImpl({ calls }),
+        nowMs: Date.parse("2026-08-31T00:00:00.000Z"),
+      });
+      assert.equal(result.configured, true);
+      assert.equal(result.error, null);
+      assert.equal(result.primary_window.used_percent, 42);
+      assert.equal(result.account_plan, "Google AI Pro");
+      assert.equal(calls[0], "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary");
+      assert.ok(!calls.some((url) => url.includes("oauth2.googleapis.com/token")));
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("refreshes an expired access token before calling Cloud Code", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-remote-refresh-"));
+    try {
+      const credPath = writeAntigravityOauthToken(tmp, { expiry: "2026-08-01T00:00:00Z" });
+      const calls = [];
+      const result = await fetchAntigravityLimits({
+        platform: "linux",
+        home: tmp,
+        commandRunner() { return { status: 1, stdout: "" }; },
+        fetchImpl: antigravityRemoteFetchImpl({
+          calls,
+          refresh: { access_token: "ya29.agy-refreshed", expires_in: 3600 },
+        }),
+        nowMs: Date.parse("2026-08-31T00:00:00.000Z"),
+      });
+      assert.equal(result.configured, true);
+      assert.equal(result.primary_window.used_percent, 42);
+      assert.equal(calls[0], "https://oauth2.googleapis.com/token");
+      assert.ok(calls.includes("https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary"));
+      const saved = JSON.parse(fs.readFileSync(credPath, "utf8"));
+      assert.equal(saved.token.access_token, "ya29.agy-refreshed");
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("retries after 401 by refreshing the access token", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-remote-401-"));
+    try {
+      writeAntigravityOauthToken(tmp);
+      let quotaCalls = 0;
+      const result = await fetchAntigravityLimits({
+        platform: "linux",
+        home: tmp,
+        commandRunner() { return { status: 1, stdout: "" }; },
+        async fetchImpl(url) {
+          const href = String(url);
+          if (href.includes("oauth2.googleapis.com/token")) {
+            return { ok: true, status: 200, async json() { return { access_token: "ya29.after-401", expires_in: 3600 }; } };
+          }
+          if (href.includes("retrieveUserQuotaSummary")) {
+            quotaCalls += 1;
+            if (quotaCalls === 1) {
+              return { ok: false, status: 401, async json() { return {}; } };
+            }
+            return { ok: true, status: 200, async json() { return antigravityQuotaSummaryPayload(); } };
+          }
+          if (href.includes("loadCodeAssist")) {
+            return { ok: true, status: 200, async json() { return {}; } };
+          }
+          return { ok: false, status: 404, async json() { return {}; } };
+        },
+        nowMs: Date.parse("2026-08-31T00:00:00.000Z"),
+      });
+      assert.equal(result.configured, true);
+      assert.equal(result.primary_window.used_percent, 42);
+      assert.equal(quotaCalls, 2);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("falls back to the local language server when Cloud Code fails", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-remote-fallback-"));
+    try {
+      writeAntigravityOauthToken(tmp);
+      const commandRunner = (command) => {
+        if (command === "/bin/ps") {
+          return {
+            stdout: `
+123 /Applications/Antigravity.app/Contents/MacOS/language_server_macos --app_data_dir antigravity --csrf_token abc123 --extension_server_port 42427
+`,
+            status: 0,
+          };
+        }
+        if (command === "which") {
+          return { stdout: "/usr/bin/lsof\n", status: 0 };
+        }
+        if (String(command).endsWith("lsof")) {
+          return { stdout: "lang 123 me 22u IPv4 0x123 0t0 TCP 127.0.0.1:51234 (LISTEN)\n", status: 0 };
+        }
+        return { stdout: "", stderr: "", status: 1 };
+      };
+      const requestFn = async ({ path: requestPath }) => {
+        if (requestPath.includes("GetUnleashData")) return { code: 0 };
+        if (requestPath.includes("RetrieveUserQuotaSummary")) {
+          return {
+            code: 0,
+            response: antigravityQuotaSummaryPayload(),
+          };
+        }
+        throw new Error(`unexpected ${requestPath}`);
+      };
+      const result = await fetchAntigravityLimits({
+        platform: "linux",
+        home: tmp,
+        commandRunner,
+        requestFn,
+        async fetchImpl() {
+          return { ok: false, status: 503, async json() { return {}; } };
+        },
+        nowMs: Date.parse("2026-08-31T00:00:00.000Z"),
+      });
+      assert.equal(result.configured, true);
+      assert.equal(result.error, null);
+      assert.equal(result.primary_window.used_percent, 42);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("falls back to last-good cache when Cloud Code fails and the IDE is closed", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-remote-cache-"));
+    try {
+      writeAntigravityOauthToken(tmp);
+      const trackerDir = path.join(tmp, ".tokentracker", "tracker");
+      fs.mkdirSync(trackerDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(trackerDir, "usage-limits-cache.json"),
+        JSON.stringify({
+          antigravity: {
+            primary_window: { used_percent: 33, reset_at: "2099-01-01T00:00:00.000Z" },
+            cached_at: "2026-08-31T00:00:00.000Z",
+          },
+        }),
+        "utf8",
+      );
+      const result = await fetchAntigravityLimits({
+        platform: "linux",
+        home: tmp,
+        commandRunner() { return { status: 1, stdout: "" }; },
+        async fetchImpl() {
+          return { ok: false, status: 503, async json() { return {}; } };
+        },
+        nowMs: Date.parse("2026-08-31T01:00:00.000Z"),
+      });
+      assert.equal(result.configured, true);
+      assert.equal(result.cached, true);
+      assert.equal(result.primary_window.used_percent, 33);
+      assert.equal(result.auth_action_required, undefined);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("flags reauth when expired credentials can only serve the disk cache", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-remote-reauth-"));
+    try {
+      writeAntigravityOauthToken(tmp, { expiry: "2020-01-01T00:00:00Z" });
+      const trackerDir = path.join(tmp, ".tokentracker", "tracker");
+      fs.mkdirSync(trackerDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(trackerDir, "usage-limits-cache.json"),
+        JSON.stringify({
+          antigravity: {
+            primary_window: { used_percent: 33, reset_at: "2099-01-01T00:00:00.000Z" },
+            cached_at: "2026-08-31T00:00:00.000Z",
+          },
+        }),
+        "utf8",
+      );
+      const result = await fetchAntigravityLimits({
+        platform: "linux",
+        home: tmp,
+        commandRunner() { return { status: 1, stdout: "" }; },
+        async fetchImpl(url) {
+          if (String(url).includes("oauth2.googleapis.com/token")) {
+            return { ok: false, status: 400, async json() { return { error: "invalid_request" }; } };
+          }
+          return { ok: false, status: 503, async json() { return {}; } };
+        },
+        nowMs: Date.parse("2026-08-31T01:00:00.000Z"),
+      });
+      assert.equal(result.configured, true);
+      assert.equal(result.cached, true);
+      assert.equal(result.cached_at, "2026-08-31T00:00:00.000Z");
+      assert.equal(result.primary_window.used_percent, 33);
+      assert.equal(result.auth_action_required, "reauth");
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("reads the keychain at most once per fetchAntigravityLimits call", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-security-once-"));
+    try {
+      writeAntigravityOauthToken(tmp, { expiry: "2020-01-01T00:00:00Z" });
+      const trackerDir = path.join(tmp, ".tokentracker", "tracker");
+      fs.mkdirSync(trackerDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(trackerDir, "usage-limits-cache.json"),
+        JSON.stringify({
+          antigravity: {
+            primary_window: { used_percent: 33, reset_at: "2099-01-01T00:00:00.000Z" },
+            cached_at: "2026-08-31T00:00:00.000Z",
+          },
+        }),
+        "utf8",
+      );
+      let securityCalls = 0;
+      const result = await fetchAntigravityLimits({
+        platform: "darwin",
+        home: tmp,
+        commandRunner() { return { status: 1, stdout: "" }; },
+        securityRunner() {
+          securityCalls += 1;
+          return { status: 1, stdout: "" };
+        },
+        async fetchImpl(url) {
+          if (String(url).includes("oauth2.googleapis.com/token")) {
+            return { ok: false, status: 400, async json() { return { error: "invalid_request" }; } };
+          }
+          return { ok: false, status: 503, async json() { return {}; } };
+        },
+        nowMs: Date.parse("2026-08-31T01:00:00.000Z"),
+      });
+      assert.equal(securityCalls, 1);
+      assert.equal(result.cached, true);
+      assert.equal(result.auth_action_required, "reauth");
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("prefers the daily Cloud Code host over the unprefixed host", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-remote-host-"));
+    try {
+      writeAntigravityOauthToken(tmp);
+      const calls = [];
+      await fetchAntigravityLimits({
+        platform: "linux",
+        home: tmp,
+        commandRunner() { return { status: 1, stdout: "" }; },
+        fetchImpl: antigravityRemoteFetchImpl({ calls }),
+        nowMs: Date.parse("2026-08-31T00:00:00.000Z"),
+      });
+      const quotaCalls = calls.filter((url) => url.includes("retrieveUserQuotaSummary"));
+      assert.equal(quotaCalls[0], "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary");
+      assert.ok(!quotaCalls.includes("https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary"));
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA opt-out", () => {
+  afterEach(() => {
+    delete process.env.TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA;
+    resetUsageLimitsCache();
+  });
+
+  it("does not serve a pre-existing aggregate from before the opt-out was set", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-optout-aggregate-"));
+    try {
+      writeAntigravityOauthToken(tmp);
+      const calls = [];
+      const opts = {
+        home: tmp,
+        platform: "linux",
+        providerTimeoutMs: 1000,
+        securityRunner() { return { status: 1, stdout: "" }; },
+        commandRunner() { return { status: 1, stdout: "" }; },
+        fetchImpl: antigravityRemoteFetchImpl({ calls }),
+      };
+
+      // Warm the aggregate cache while Antigravity is still enabled.
+      const before = await getUsageLimits(opts);
+      assert.equal(before.antigravity.configured, true);
+      assert.ok(calls.length > 0, "warm-up must actually hit the quota endpoint");
+
+      // Enabling the opt-out must not be answered from that cached aggregate.
+      process.env.TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA = "1";
+      const after = await getUsageLimits(opts);
+      assert.equal(after.antigravity.configured, false);
+      assert.equal(after.antigravity.cached, undefined);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("does not cache a pre-opt-out result into the post-opt-out slot when the flag flips mid-fetch", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-optout-inflight-"));
+    try {
+      writeAntigravityOauthToken(tmp);
+      const calls = [];
+      const opts = {
+        home: tmp,
+        platform: "linux",
+        providerTimeoutMs: 1000,
+        securityRunner() { return { status: 1, stdout: "" }; },
+        commandRunner() { return { status: 1, stdout: "" }; },
+        // Flip the opt-out only once the real Antigravity quota answer is in hand:
+        // the provider has already read credentials and produced live data, but the
+        // aggregate cache write has not happened yet. That is the exact window in
+        // which a re-derived selection key would file live data under the
+        // post-opt-out slot.
+        async fetchImpl(url, ...rest) {
+          const response = await antigravityRemoteFetchImpl({ calls })(url, ...rest);
+          if (String(url).includes("retrieveUserQuotaSummary")) {
+            process.env.TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA = "1";
+          }
+          return response;
+        },
+      };
+
+      await getUsageLimits(opts);
+      assert.ok(calls.length > 0, "the quota endpoint must be reached before the flip");
+
+      // No resetUsageLimitsCache() on purpose: the slot written by the in-flight
+      // fetch is exactly what must not answer a post-opt-out read.
+      const after = await getUsageLimits(opts);
+      assert.equal(after.antigravity.configured, false);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("skips credential reads and makes no remote fetch when set", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-optout-"));
+    try {
+      writeAntigravityOauthToken(tmp);
+      process.env.TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA = "1";
+      const calls = [];
+      const result = await fetchAntigravityLimits({
+        platform: "linux",
+        home: tmp,
+        commandRunner() { throw new Error("must not scan processes"); },
+        fetchImpl: antigravityRemoteFetchImpl({ calls }),
+        nowMs: Date.parse("2026-08-31T00:00:00.000Z"),
+      });
+      assert.deepEqual(result, { configured: false, error: null });
+      assert.deepEqual(calls, []);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("suppresses cached Antigravity limits when set", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-optout-cache-"));
+    try {
+      const trackerDir = path.join(tmp, ".tokentracker", "tracker");
+      fs.mkdirSync(trackerDir, { recursive: true });
+      fs.writeFileSync(path.join(trackerDir, "usage-limits-cache.json"), JSON.stringify({
+        antigravity: {
+          primary_window: { used_percent: 42, reset_at: "2099-05-22T00:00:00.000Z" },
+          cached_at: new Date(Date.now() - 60_000).toISOString(),
+        },
+      }));
+      process.env.TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA = "1";
+      const result = await getUsageLimits({
+        home: tmp,
+        platform: "linux",
+        providerTimeoutMs: 1000,
+        securityRunner() { return { status: 1, stdout: "" }; },
+        commandRunner() { return { status: 1, stdout: "" }; },
+        fetchImpl() { return new Promise(() => {}); },
+      });
+      assert.equal(result.antigravity.configured, false);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
+// The invariant these lock in: fetchAntigravityLimits spends ONE providerTimeoutMs
+// across its whole serial chain (remote quota attempt → ps → lsof → per-port probes →
+// local RPCs), not one per step. Before it was budgeted, a 15s provider budget bought
+// 15s remote + 4s ps + 4s lsof + 15s per probed port + 15s per local RPC, and
+// /functions/tokentracker-usage-limits has no outer timeout of its own to absorb that.
+describe("fetchAntigravityLimits provider budget", () => {
+  const PROVIDER_TIMEOUT_MS = 1000;
+  // Wall-clock slack for timer/event-loop jitter on a loaded CI runner. Deliberately
+  // far below a second full budget, so any regression that pays one per step still fails.
+  const TOLERANCE_MS = 400;
+
+  // Never settles — stands in for a Cloud Code host that accepts the connection and
+  // then goes quiet, which is the case that used to spend the budget twice.
+  const hangingFetch = () => new Promise(() => {});
+  const failingFetch = () => Promise.reject(new Error("network unreachable"));
+  // Mirrors requestLocalJson's real socket: rejects only when its own per-call timeout
+  // elapses, so an unbudgeted caller pays the full timeout once per call.
+  const hangingRequestFn = ({ timeoutMs }) => new Promise((_, reject) => {
+    setTimeout(() => reject(new Error("timeout")), timeoutMs);
+  });
+
+  function antigravityProcessCommandRunner(portCount) {
+    const portLines = Array.from(
+      { length: portCount },
+      (_, i) => `lang 123 me ${20 + i}u IPv4 0x1 0t0 TCP 127.0.0.1:${41000 + i} (LISTEN)`,
+    ).join("\n");
+    return (command) => {
+      if (command === "/bin/ps") {
+        return {
+          status: 0,
+          stdout: "123 /Applications/Antigravity.app/Contents/MacOS/language_server_macos --app_data_dir antigravity --csrf_token abc123\n",
+        };
+      }
+      if (command === "which") return { status: 0, stdout: "/usr/bin/lsof\n" };
+      if (String(command).endsWith("lsof")) return { status: 0, stdout: `${portLines}\n` };
+      return { status: 1, stdout: "", stderr: "" };
+    };
+  }
+
+  function writeAntigravityCache(tmp, nowMs) {
+    const trackerDir = path.join(tmp, ".tokentracker", "tracker");
+    fs.mkdirSync(trackerDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(trackerDir, "usage-limits-cache.json"),
+      JSON.stringify({
+        antigravity: {
+          primary_window: { used_percent: 71, reset_at: new Date(nowMs + 3600_000).toISOString() },
+          cached_at: new Date(nowMs).toISOString(),
+        },
+      }),
+      "utf8",
+    );
+  }
+
+  async function measure(run) {
+    const startedAtMs = Date.now();
+    const result = await run();
+    return { result, elapsedMs: Date.now() - startedAtMs };
+  }
+
+  function assertWithinBudget(elapsedMs, label) {
+    assert.ok(
+      elapsedMs <= PROVIDER_TIMEOUT_MS + TOLERANCE_MS,
+      `${label}: took ${elapsedMs}ms, budget ${PROVIDER_TIMEOUT_MS}ms (+${TOLERANCE_MS}ms tolerance)`,
+    );
+  }
+
+  // Port count is the multiplier that used to turn one budget into N: each probe
+  // previously got the full providerTimeoutMs of its own.
+  for (const portCount of [1, 3, 10]) {
+    it(`stays inside the budget when every local probe hangs (${portCount} listening ports)`, async () => {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-antigravity-budget-"));
+      try {
+        writeAntigravityOauthToken(tmp);
+        const { result, elapsedMs } = await measure(() => fetchAntigravityLimits({
+          home: tmp,
+          platform: "linux",
+          providerTimeoutMs: PROVIDER_TIMEOUT_MS,
+          commandRunner: antigravityProcessCommandRunner(portCount),
+          requestFn: hangingRequestFn,
+          fetchImpl: failingFetch,
+          securityRunner() { return { status: 1, stdout: "" }; },
+        }));
+        assertWithinBudget(elapsedMs, `${portCount} ports`);
+        assert.equal(result.configured, true);
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    });
+  }
+
+  it("stays inside the budget when the remote attempt hangs and the IDE is running", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-antigravity-budget-remote-"));
+    try {
+      writeAntigravityOauthToken(tmp);
+      const { result, elapsedMs } = await measure(() => fetchAntigravityLimits({
+        home: tmp,
+        platform: "linux",
+        providerTimeoutMs: PROVIDER_TIMEOUT_MS,
+        commandRunner: antigravityProcessCommandRunner(3),
+        requestFn: hangingRequestFn,
+        fetchImpl: hangingFetch,
+        securityRunner() { return { status: 1, stdout: "" }; },
+      }));
+      assertWithinBudget(elapsedMs, "remote hang + local fallback");
+      assert.equal(result.configured, true);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("stays inside the budget when a probed port answers but the local RPCs hang", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-antigravity-budget-rpc-"));
+    try {
+      writeAntigravityOauthToken(tmp);
+      const requestFn = ({ path: requestPath, timeoutMs }) => {
+        if (requestPath.includes("GetUnleashData")) return Promise.resolve({ code: 0 });
+        return new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), timeoutMs));
+      };
+      const { result, elapsedMs } = await measure(() => fetchAntigravityLimits({
+        home: tmp,
+        platform: "linux",
+        providerTimeoutMs: PROVIDER_TIMEOUT_MS,
+        commandRunner: antigravityProcessCommandRunner(1),
+        requestFn,
+        fetchImpl: failingFetch,
+        securityRunner() { return { status: 1, stdout: "" }; },
+      }));
+      assertWithinBudget(elapsedMs, "probe ok + hanging RPCs");
+      assert.equal(result.configured, true);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  // This is what the reserved guard buys. Without it the chain spends the budget right
+  // up to the deadline and the cache read never runs, so a user with perfectly good
+  // stale bars sees a red error instead.
+  it("still serves the disk cache when the remote attempt nearly exhausts the budget", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-antigravity-budget-guard-"));
+    try {
+      writeAntigravityOauthToken(tmp);
+      const nowMs = Date.now();
+      writeAntigravityCache(tmp, nowMs);
+      const { result, elapsedMs } = await measure(() => fetchAntigravityLimits({
+        home: tmp,
+        platform: "linux",
+        providerTimeoutMs: PROVIDER_TIMEOUT_MS,
+        nowMs,
+        commandRunner: antigravityProcessCommandRunner(3),
+        requestFn: hangingRequestFn,
+        fetchImpl: hangingFetch,
+        securityRunner() { return { status: 1, stdout: "" }; },
+      }));
+      assertWithinBudget(elapsedMs, "guard reserves cache time");
+      assert.equal(result.configured, true);
+      assert.equal(result.error, null);
+      assert.equal(result.cached, true);
+      assert.equal(result.primary_window.used_percent, 71);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("skips a step outright rather than issuing it with no budget left", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-antigravity-budget-skip-"));
+    try {
+      writeAntigravityOauthToken(tmp);
+      const localCalls = [];
+      const requestFn = ({ path: requestPath, timeoutMs }) => {
+        localCalls.push({ path: requestPath, timeoutMs });
+        return new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), timeoutMs));
+      };
+      await fetchAntigravityLimits({
+        home: tmp,
+        platform: "linux",
+        providerTimeoutMs: PROVIDER_TIMEOUT_MS,
+        commandRunner: antigravityProcessCommandRunner(10),
+        requestFn,
+        fetchImpl: failingFetch,
+        securityRunner() { return { status: 1, stdout: "" }; },
+      });
+      // 10 ports were advertised; the budget only ever funds the first probes, and
+      // every issued call carries a positive, shrinking timeout rather than the full one.
+      assert.ok(localCalls.length < 10, `issued ${localCalls.length} local calls for 10 ports`);
+      assert.ok(localCalls.every((call) => call.timeoutMs > 0 && call.timeoutMs <= PROVIDER_TIMEOUT_MS));
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
@@ -3594,6 +5053,77 @@ describe("getUsageLimits plan_label", () => {
       resetUsageLimitsCache();
       fs.rmSync(tmp, { recursive: true, force: true });
     }
+  });
+
+  // Grok bypasses withPlanLabel on purpose: the shared normalizer Title-Cases
+  // ("Supergrok Heavy", "Api Key") and maps "free" to null, but xAI's
+  // subscription_tier_display is already the exact product name and Free is a tier users
+  // asked to see (#635). Routing grok back through withPlanLabel breaks both.
+  it("surfaces Grok's subscription tier verbatim, including Free", async () => {
+    async function grokPlanLabel(subscriptionTier) {
+      resetUsageLimitsCache();
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-limits-plan-grok-"));
+      try {
+        const grokHome = path.join(tmp, ".grok");
+        fs.mkdirSync(grokHome, { recursive: true });
+        fs.writeFileSync(
+          path.join(grokHome, "auth.json"),
+          JSON.stringify({ "https://auth.x.ai::test": { key: "grok-token" } }),
+          "utf8",
+        );
+
+        const result = await getUsageLimits({
+          home: tmp,
+          platform: "linux",
+          providerTimeoutMs: 1000,
+          securityRunner() {
+            return { status: 1, stdout: "" };
+          },
+          commandRunner() {
+            return { status: 1, stdout: "" };
+          },
+          fetchImpl(url) {
+            if (typeof url === "string" && url.startsWith("https://cli-chat-proxy.grok.com/v1/billing")) {
+              return Promise.resolve({
+                ok: true,
+                status: 200,
+                json: async () => ({
+                  config: {
+                    currentPeriod: {
+                      type: "USAGE_PERIOD_TYPE_WEEKLY",
+                      start: "2026-09-08T00:00:00+00:00",
+                      end: "2026-09-15T00:00:00+00:00",
+                    },
+                    creditUsagePercent: 12,
+                    onDemandCap: { val: 0 },
+                    onDemandUsed: { val: 0 },
+                    isUnifiedBillingUser: true,
+                  },
+                }),
+              });
+            }
+            if (url === "https://cli-chat-proxy.grok.com/v1/settings") {
+              return Promise.resolve({ ok: true, status: 200, json: async () => ({
+                subscription_tier_display: subscriptionTier,
+              }) });
+            }
+            return pendingUnlessCodexReset(url);
+          },
+        });
+
+        assert.equal(result.grok.configured, true);
+        assert.equal(result.grok.error, null);
+        return result.grok.plan_label;
+      } finally {
+        resetUsageLimitsCache();
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    }
+
+    assert.equal(await grokPlanLabel("SuperGrok Heavy"), "SuperGrok Heavy");
+    assert.equal(await grokPlanLabel("API Key"), "API Key");
+    assert.equal(await grokPlanLabel("Free"), "Free");
+    assert.equal(await grokPlanLabel("TIER_UNSPECIFIED"), null);
   });
 
   it("leaves plan_label null for a free Claude account", async () => {
@@ -3705,12 +5235,14 @@ describe("getUsageLimits Ark timeout fallback", () => {
 describe("getUsageLimits Claude stale fallback", () => {
   const FUTURE_RESET = "2099-01-01T00:00:00.000Z";
 
-  function makeClaudeHome(tmp) {
+  const CLAUDE_TOKEN_EXPIRES_AT_MS = Date.now() + 6 * 60 * 60 * 1000;
+
+  function makeClaudeHome(tmp, { expiresAt = CLAUDE_TOKEN_EXPIRES_AT_MS } = {}) {
     const claudeDir = path.join(tmp, ".claude");
     fs.mkdirSync(claudeDir, { recursive: true });
     fs.writeFileSync(
       path.join(claudeDir, ".credentials.json"),
-      JSON.stringify({ claudeAiOauth: { accessToken: "claude-token" } }),
+      JSON.stringify({ claudeAiOauth: { accessToken: "claude-token", expiresAt } }),
     );
   }
 
@@ -3903,6 +5435,144 @@ describe("getUsageLimits Claude stale fallback", () => {
       assert.equal(claudeCalls, 0, "forceRefresh must never bypass the 429 cooldown");
       assert.equal(limited.claude.configured, true);
       assert.match(limited.claude.error, /rate limited \(429\)/);
+    } finally {
+      resetUsageLimitsCache();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("drops a stamped cooldown when the access token rotates", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-limits-claude-cooldown-rotate-"));
+    try {
+      makeClaudeHome(tmp);
+
+      const first = await runLimits(tmp, () => Promise.resolve({
+        ok: false,
+        status: 429,
+        headers: { get: (h) => (h === "retry-after" ? "600" : null) },
+      }));
+      assert.match(first.claude.error, /retry in ~10m/);
+
+      const cooldownPath = path.join(tmp, ".tokentracker", "tracker", "claude-usage-rate-limit.json");
+      const cooldown = JSON.parse(fs.readFileSync(cooldownPath, "utf8"));
+      assert.equal(cooldown.token_expires_at, new Date(CLAUDE_TOKEN_EXPIRES_AT_MS).toISOString());
+      assert.equal(JSON.stringify(cooldown).includes("claude-token"), false);
+
+      fs.writeFileSync(
+        path.join(tmp, ".claude", ".credentials.json"),
+        JSON.stringify({
+          claudeAiOauth: {
+            accessToken: "claude-token-rotated",
+            expiresAt: CLAUDE_TOKEN_EXPIRES_AT_MS + 60 * 60 * 1000,
+          },
+        }),
+      );
+
+      let claudeCalls = 0;
+      resetUsageLimitsCache();
+      const retried = await runLimits(tmp, () => {
+        claudeCalls += 1;
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            five_hour: { utilization: 7, resets_at: FUTURE_RESET },
+            seven_day: { utilization: 8, resets_at: FUTURE_RESET },
+            seven_day_opus: null,
+          }),
+        });
+      });
+
+      assert.equal(claudeCalls, 1, "a new token must be allowed to retry immediately");
+      assert.equal(retried.claude.error, null);
+      assert.equal(retried.claude.five_hour.utilization, 7);
+      assert.equal(fs.existsSync(cooldownPath), false);
+    } finally {
+      resetUsageLimitsCache();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps a stamped cooldown while the same token is still armed", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-limits-claude-cooldown-match-"));
+    try {
+      makeClaudeHome(tmp);
+      const trackerDir = path.join(tmp, ".tokentracker", "tracker");
+      fs.mkdirSync(trackerDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(trackerDir, "claude-usage-rate-limit.json"),
+        JSON.stringify({
+          retry_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+          token_expires_at: new Date(CLAUDE_TOKEN_EXPIRES_AT_MS).toISOString(),
+        }),
+      );
+
+      let claudeCalls = 0;
+      const limited = await runLimits(tmp, () => {
+        claudeCalls += 1;
+        throw new Error("Claude endpoint must not be called during a matching cooldown");
+      });
+
+      assert.equal(claudeCalls, 0);
+      assert.match(limited.claude.error, /rate limited \(429\)/);
+    } finally {
+      resetUsageLimitsCache();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("honors a cooldown file written before token stamping as still active", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-limits-claude-cooldown-legacy-"));
+    try {
+      makeClaudeHome(tmp);
+      const trackerDir = path.join(tmp, ".tokentracker", "tracker");
+      fs.mkdirSync(trackerDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(trackerDir, "claude-usage-rate-limit.json"),
+        JSON.stringify({ retry_at: new Date(Date.now() + 30 * 60 * 1000).toISOString() }),
+      );
+
+      let claudeCalls = 0;
+      const limited = await runLimits(tmp, () => {
+        claudeCalls += 1;
+        throw new Error("legacy cooldown files without a token stamp must still block");
+      });
+
+      assert.equal(claudeCalls, 0);
+      assert.match(limited.claude.error, /rate limited \(429\)/);
+    } finally {
+      resetUsageLimitsCache();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("leaves a naturally expired cooldown file in place", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-limits-claude-cooldown-elapsed-"));
+    try {
+      makeClaudeHome(tmp);
+      const trackerDir = path.join(tmp, ".tokentracker", "tracker");
+      fs.mkdirSync(trackerDir, { recursive: true });
+      const cooldownPath = path.join(trackerDir, "claude-usage-rate-limit.json");
+      fs.writeFileSync(
+        cooldownPath,
+        JSON.stringify({
+          retry_at: new Date(Date.now() - 1000).toISOString(),
+          token_expires_at: new Date(CLAUDE_TOKEN_EXPIRES_AT_MS).toISOString(),
+        }),
+      );
+
+      let claudeCalls = 0;
+      await runLimits(tmp, () => {
+        claudeCalls += 1;
+        return Promise.resolve({ ok: false, status: 500 });
+      });
+
+      assert.equal(claudeCalls, 1, "an elapsed cooldown must not block a retry");
+      assert.equal(fs.existsSync(cooldownPath), true, "elapsed cooldown files are left for the next write/clear");
     } finally {
       resetUsageLimitsCache();
       fs.rmSync(tmp, { recursive: true, force: true });

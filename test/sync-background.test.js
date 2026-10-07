@@ -6,6 +6,7 @@ const { test } = require("node:test");
 
 const { cmdSync } = require("../src/commands/sync");
 const { openLock } = require("../src/lib/fs");
+const { DEFAULT_ANON_KEY } = require("../src/lib/runtime-config");
 
 function tokenCountLine({ ts, totalTokens }) {
   const usage = {
@@ -37,6 +38,39 @@ async function writeEveryCodeRollout(codeHome, date, uuid, totalTokens) {
   await fs.mkdir(dir, { recursive: true });
   const filePath = path.join(dir, `rollout-${date}T00-00-00-${uuid}.jsonl`);
   await fs.writeFile(filePath, tokenCountLine({ ts: `${date}T00:00:00.000Z`, totalTokens }) + "\n", "utf8");
+  return filePath;
+}
+
+async function writeAcodeRollout(acodeHome, date, uuid, totalTokens) {
+  const [year, month, day] = date.split("-");
+  const dir = path.join(acodeHome, "sessions", year, month, day);
+  await fs.mkdir(dir, { recursive: true });
+  const filePath = path.join(dir, `rollout-${date}T00-00-00-${uuid}.jsonl`);
+  const body = [
+    JSON.stringify({
+      type: "turn_context",
+      timestamp: `${date}T00:00:00.000Z`,
+      payload: { model: "xopglm52" },
+    }),
+    tokenCountLine({ ts: `${date}T00:00:01.000Z`, totalTokens }),
+  ].join("\n") + "\n";
+  await fs.writeFile(filePath, body, "utf8");
+  return filePath;
+}
+
+async function writeArchivedAcodeRollout(acodeHome, date, uuid, totalTokens) {
+  const dir = path.join(acodeHome, "archived_sessions");
+  await fs.mkdir(dir, { recursive: true });
+  const filePath = path.join(dir, `rollout-${date}T00-00-00-${uuid}.jsonl`);
+  const body = [
+    JSON.stringify({
+      type: "turn_context",
+      timestamp: `${date}T00:00:00.000Z`,
+      payload: { model: "xopglm52" },
+    }),
+    tokenCountLine({ ts: `${date}T00:00:01.000Z`, totalTokens }),
+  ].join("\n") + "\n";
+  await fs.writeFile(filePath, body, "utf8");
   return filePath;
 }
 
@@ -102,14 +136,19 @@ async function withTempSyncEnv(fn) {
     HOME: process.env.HOME,
     USERPROFILE: process.env.USERPROFILE,
     CODEX_HOME: process.env.CODEX_HOME,
+    CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR,
     CODE_HOME: process.env.CODE_HOME,
+    TOKENTRACKER_ACODE_HOME: process.env.TOKENTRACKER_ACODE_HOME,
     GEMINI_HOME: process.env.GEMINI_HOME,
     OPENCODE_HOME: process.env.OPENCODE_HOME,
     XDG_DATA_HOME: process.env.XDG_DATA_HOME,
     TOKENTRACKER_REASONIX_HOME: process.env.TOKENTRACKER_REASONIX_HOME,
+    TOKENTRACKER_TRAE_HOME: process.env.TOKENTRACKER_TRAE_HOME,
+    TOKENTRACKER_TRAE_DB: process.env.TOKENTRACKER_TRAE_DB,
     REASONIX_STATE_HOME: process.env.REASONIX_STATE_HOME,
     TOKENTRACKER_DEVICE_TOKEN: process.env.TOKENTRACKER_DEVICE_TOKEN,
     TOKENTRACKER_INSFORGE_BASE_URL: process.env.TOKENTRACKER_INSFORGE_BASE_URL,
+    TOKENTRACKER_INSFORGE_ANON_KEY: process.env.TOKENTRACKER_INSFORGE_ANON_KEY,
     TOKENTRACKER_OPENCLAW_HOME: process.env.TOKENTRACKER_OPENCLAW_HOME,
     TOKENTRACKER_OPENCLAW_AGENT_ID: process.env.TOKENTRACKER_OPENCLAW_AGENT_ID,
     TOKENTRACKER_OPENCLAW_PREV_SESSION_ID: process.env.TOKENTRACKER_OPENCLAW_PREV_SESSION_ID,
@@ -119,15 +158,20 @@ async function withTempSyncEnv(fn) {
     process.env.HOME = home;
     process.env.USERPROFILE = home;
     process.env.CODEX_HOME = path.join(home, ".codex");
+    delete process.env.CLAUDE_CONFIG_DIR;
     process.env.CODE_HOME = path.join(home, ".code");
+    process.env.TOKENTRACKER_ACODE_HOME = path.join(home, ".acode");
     process.env.GEMINI_HOME = path.join(home, ".gemini");
     process.env.OPENCODE_HOME = path.join(home, ".opencode");
     process.env.XDG_DATA_HOME = path.join(home, ".local", "share");
     process.env.TOKENTRACKER_OPENCLAW_HOME = path.join(home, ".openclaw");
+    process.env.TOKENTRACKER_TRAE_HOME = path.join(home, "trae-data");
+    delete process.env.TOKENTRACKER_TRAE_DB;
     delete process.env.TOKENTRACKER_REASONIX_HOME;
     delete process.env.REASONIX_STATE_HOME;
     delete process.env.TOKENTRACKER_DEVICE_TOKEN;
     delete process.env.TOKENTRACKER_INSFORGE_BASE_URL;
+    delete process.env.TOKENTRACKER_INSFORGE_ANON_KEY;
     delete process.env.TOKENTRACKER_OPENCLAW_AGENT_ID;
     delete process.env.TOKENTRACKER_OPENCLAW_PREV_SESSION_ID;
     delete process.env.TOKENTRACKER_OPENCLAW_SESSION_KEY;
@@ -155,6 +199,80 @@ async function countReaddir(fn, predicate = () => true) {
     fs.readdir = realReaddir;
   }
 }
+
+test("automatic sync fails closed with credentials while collecting local usage twice", async () => {
+  for (const raw of [null, "", "{", "{}", '{"enabled":"true"}', '{"enabled":false}']) {
+    await withTempSyncEnv(async (home) => {
+      const trackerDir = path.join(home, ".tokentracker", "tracker");
+      await fs.mkdir(trackerDir, { recursive: true });
+      const prefPath = path.join(trackerDir, "cloud-sync-pref.json");
+      if (raw !== null) await fs.writeFile(prefPath, raw);
+      await fs.writeFile(path.join(trackerDir, "auto.retry.json"), JSON.stringify({ retryAtMs: Date.now() + 60_000 }));
+      await writeCodexRollout(process.env.CODEX_HOME, "2026-06-30", "019f16bd-1010-7000-8000-aaaaaaaaaaaa", 24);
+      process.env.TOKENTRACKER_DEVICE_TOKEN = "test-device-token";
+      process.env.TOKENTRACKER_INSFORGE_BASE_URL = "https://cloud.example";
+      const originalFetch = global.fetch;
+      let fetchCalls = 0;
+      global.fetch = async () => { fetchCalls += 1; throw new Error("unexpected upload"); };
+      try {
+        await cmdSync(["--auto", "--source", "codex"]);
+        const firstQueue = await readQueue(home);
+        assert.match(firstQueue, /"total_tokens":24/);
+        await cmdSync(["--auto", "--from-retry", "--source", "codex"]);
+        assert.equal(await readQueue(home), firstQueue);
+        await cmdSync(["--auto", "--background", "--publish-account"]);
+        assert.equal(fetchCalls, 0, `preference ${raw}`);
+        assert.equal(JSON.parse(await fs.readFile(path.join(trackerDir, "queue.state.json"), "utf8")).offset, 0);
+        assert.equal(await fs.stat(path.join(trackerDir, "auto.retry.json")).catch(() => null), null);
+        assert.equal(await fs.readFile(prefPath, "utf8").catch(() => null), raw);
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+  }
+});
+
+test("turning off during an automatic drain stops later batches and manual sync remains explicit", async () => {
+  await withTempSyncEnv(async (home) => {
+    const trackerDir = path.join(home, ".tokentracker", "tracker");
+    await fs.mkdir(trackerDir, { recursive: true });
+    const prefPath = path.join(trackerDir, "cloud-sync-pref.json");
+    await fs.writeFile(prefPath, JSON.stringify({ enabled: true }));
+    const rows = Array.from({ length: 201 }, (_, index) => ({
+      source: "fixture", model: `model-${index}`, hour_start: "2026-06-30T00:00:00.000Z",
+      input_tokens: 1, cached_input_tokens: 0, cache_creation_input_tokens: 0,
+      output_tokens: 0, reasoning_output_tokens: 0, total_tokens: 1,
+      billable_total_tokens: 1, conversation_count: 1,
+    }));
+    await fs.writeFile(path.join(trackerDir, "queue.jsonl"), rows.map(JSON.stringify).join("\n") + "\n");
+    process.env.TOKENTRACKER_DEVICE_TOKEN = "test-device-token";
+    process.env.TOKENTRACKER_INSFORGE_BASE_URL = "https://cloud.example";
+    const originalFetch = global.fetch;
+    let calls = 0;
+    global.fetch = async () => {
+      calls += 1;
+      await fs.writeFile(prefPath, JSON.stringify({ enabled: false }));
+      return { ok: true, status: 200, headers: { get: () => null }, text: async () => JSON.stringify({ inserted: 200, skipped: 0 }) };
+    };
+    try {
+      await cmdSync(["--auto", "--source", "codex"]);
+      assert.equal(calls, 1, "saved opt-in uploads, then opt-out stops the next batch");
+      assert.equal(await fs.stat(path.join(trackerDir, "auto.retry.json")).catch(() => null), null);
+      process.env.TOKENTRACKER_LOCAL_SYNC_ATTEMPT_ID = "webview-automatic-sync";
+      try {
+        await cmdSync(["--source", "codex", "--drain"]);
+        assert.equal(calls, 1, "WebView/API uploads also honor opt-out without an auto flag");
+      } finally {
+        delete process.env.TOKENTRACKER_LOCAL_SYNC_ATTEMPT_ID;
+      }
+      await cmdSync(["--source", "codex", "--drain"]);
+      assert.equal(calls, 2, "manual sync can upload the remaining queue without enabling automatic sync");
+      assert.equal(JSON.parse(await fs.readFile(prefPath, "utf8")).enabled, false);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+});
 
 async function readQueue(home) {
   return fs.readFile(path.join(home, ".tokentracker", "tracker", "queue.jsonl"), "utf8");
@@ -324,6 +442,23 @@ test("Codex notify sync accepts an explicit null context", async () => {
   });
 });
 
+test("Codex notify sync does not create Acode inventory state", async () => {
+  await withTempSyncEnv(async (home) => {
+    await writeCodexRollout(
+      process.env.CODEX_HOME,
+      "2026-06-30",
+      "019f16bd-1007-7000-8000-aaaaaaaaaaaa",
+      41,
+    );
+
+    await cmdSync(["--auto", "--from-notify", "--source=codex"]);
+
+    const cursors = await readCursors(home);
+    assert.ok(cursors.codexDayInventoryCache);
+    assert.equal(Object.hasOwn(cursors, "acodeDayInventoryCache"), false);
+  });
+});
+
 test("background auto sync still includes Every Code sessions", async () => {
   await withTempSyncEnv(async (home) => {
     const codeHome = process.env.CODE_HOME;
@@ -334,6 +469,74 @@ test("background auto sync still includes Every Code sessions", async () => {
     const queue = await readQueue(home);
     assert.match(queue, /"source":"every-code"/);
     assert.match(queue, /"total_tokens":42/);
+  });
+});
+
+test("background auto sync includes live Acode sessions but skips archives", async () => {
+  await withTempSyncEnv(async (home) => {
+    const acodeHome = process.env.TOKENTRACKER_ACODE_HOME;
+    await writeAcodeRollout(acodeHome, "2026-06-30", "019f16bd-1100-7000-8000-aaaaaaaaaaaa", 43);
+    await writeArchivedAcodeRollout(acodeHome, "2026-06-30", "019f16bd-1101-7000-8000-aaaaaaaaaaaa", 47);
+
+    await cmdSync(["--auto", "--background"]);
+
+    const rows = (await readQueue(home)).trim().split("\n").map(JSON.parse);
+    const acodeRows = rows.filter((row) => row.source === "acode");
+    assert.equal(acodeRows.length, 1);
+    assert.equal(acodeRows[0].model, "xopglm52");
+    assert.equal(acodeRows[0].total_tokens, 43);
+  });
+});
+
+test("Acode notify sync only scans Acode sessions", async () => {
+  await withTempSyncEnv(async (home) => {
+    await writeCodexRollout(
+      process.env.CODEX_HOME,
+      "2026-06-30",
+      "019f16bd-1102-7000-8000-aaaaaaaaaaaa",
+      53,
+    );
+    await writeAcodeRollout(
+      process.env.TOKENTRACKER_ACODE_HOME,
+      "2026-06-30",
+      "019f16bd-1103-7000-8000-aaaaaaaaaaaa",
+      59,
+    );
+
+    await cmdSync(["--auto", "--from-notify", "--source=acode"]);
+
+    const rows = (await readQueue(home)).trim().split("\n").map(JSON.parse);
+    assert.deepEqual(rows.map((row) => row.source), ["acode"]);
+    assert.equal(rows[0].total_tokens, 59);
+  });
+});
+
+test("full sync scans Acode archives without recounting a live session copy", async () => {
+  await withTempSyncEnv(async (home) => {
+    const acodeHome = process.env.TOKENTRACKER_ACODE_HOME;
+    const duplicateUuid = "019f16bd-1104-7000-8000-aaaaaaaaaaaa";
+    const liveFile = await writeAcodeRollout(acodeHome, "2026-06-30", duplicateUuid, 61);
+    const archivedDuplicate = path.join(
+      acodeHome,
+      "archived_sessions",
+      path.basename(liveFile),
+    );
+    await fs.mkdir(path.dirname(archivedDuplicate), { recursive: true });
+    await fs.copyFile(liveFile, archivedDuplicate);
+    await writeArchivedAcodeRollout(
+      acodeHome,
+      "2026-06-30",
+      "019f16bd-1105-7000-8000-aaaaaaaaaaaa",
+      67,
+    );
+
+    await cmdSync([]);
+
+    const rows = (await readQueue(home)).trim().split("\n").map(JSON.parse);
+    const acodeRows = rows.filter((row) => row.source === "acode");
+    assert.equal(acodeRows.at(-1).total_tokens, 128);
+    const cursors = await readCursors(home);
+    assert.equal(cursors.acodeHashes.length, 2);
   });
 });
 
@@ -522,13 +725,17 @@ test("explicit account publication uploads after bounded background parsing", as
   await withTempSyncEnv(async (home) => {
     const codexHome = process.env.CODEX_HOME;
     await writeCodexRollout(codexHome, "2026-06-30", "019f16bd-1007-7000-8000-aaaaaaaaaaaa", 64);
+    await fs.mkdir(path.join(home, ".tokentracker", "tracker"), { recursive: true });
+    await fs.writeFile(path.join(home, ".tokentracker", "tracker", "cloud-sync-pref.json"), JSON.stringify({ enabled: true }));
     process.env.TOKENTRACKER_DEVICE_TOKEN = "test-device-token";
     process.env.TOKENTRACKER_INSFORGE_BASE_URL = "https://cloud.example";
     const originalFetch = global.fetch;
     let ingestCalls = 0;
-    global.fetch = async (url) => {
+    let ingestHeaders = null;
+    global.fetch = async (url, options = {}) => {
       if (String(url).endsWith("/functions/tokentracker-ingest")) {
         ingestCalls += 1;
+        ingestHeaders = options.headers;
         return {
           ok: true,
           status: 200,
@@ -546,6 +753,7 @@ test("explicit account publication uploads after bounded background parsing", as
     }
 
     assert.equal(ingestCalls, 1);
+    assert.equal(ingestHeaders.apikey, DEFAULT_ANON_KEY);
     const queueState = JSON.parse(
       await fs.readFile(path.join(home, ".tokentracker", "tracker", "queue.state.json"), "utf8"),
     );
@@ -573,6 +781,8 @@ test("background account publication respects persisted upload failure backoff",
       JSON.stringify({ version: 1, retryAtMs: Date.now() + 60_000 }),
       "utf8",
     );
+    await fs.mkdir(path.join(home, ".tokentracker", "tracker"), { recursive: true });
+    await fs.writeFile(path.join(home, ".tokentracker", "tracker", "cloud-sync-pref.json"), JSON.stringify({ enabled: true }));
     process.env.TOKENTRACKER_DEVICE_TOKEN = "test-device-token";
     process.env.TOKENTRACKER_INSFORGE_BASE_URL = "https://cloud.example";
     const originalFetch = global.fetch;
@@ -624,6 +834,8 @@ test("bounded native publication leaves backlog for the next native tick without
       conversation_count: 1,
     }));
     await fs.writeFile(queuePath, `${rows.map(JSON.stringify).join("\n")}\n`, "utf8");
+    await fs.mkdir(path.join(home, ".tokentracker", "tracker"), { recursive: true });
+    await fs.writeFile(path.join(home, ".tokentracker", "tracker", "cloud-sync-pref.json"), JSON.stringify({ enabled: true }));
     process.env.TOKENTRACKER_DEVICE_TOKEN = "test-device-token";
     process.env.TOKENTRACKER_INSFORGE_BASE_URL = "https://cloud.example";
     const originalFetch = global.fetch;

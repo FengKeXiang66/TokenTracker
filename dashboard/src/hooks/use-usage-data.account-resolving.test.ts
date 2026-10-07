@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   fetchCloudUsageDaily,
@@ -94,5 +94,45 @@ describe("useUsageData — accountViewResolving gate (double-flash fix)", () => 
     await waitFor(() => expect(getUsageSummary).toHaveBeenCalled());
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.summary).toEqual(SUMMARY.totals);
+  });
+
+  it("ignores a local response that resolves after scope resolution starts", async () => {
+    const summaryResolvers: Array<(value: any) => void> = [];
+    const dailyResolvers: Array<(value: any) => void> = [];
+    vi.mocked(getUsageSummary).mockImplementation(
+      () => new Promise((resolve) => summaryResolvers.push(resolve)),
+    );
+    vi.mocked(getUsageDaily).mockImplementation(
+      () => new Promise((resolve) => dailyResolvers.push(resolve)),
+    );
+
+    const { result, rerender } = renderHook(
+      ({ resolving }) => useUsageData({ ...baseProps, accountViewResolving: resolving }),
+      { initialProps: { resolving: false } },
+    );
+    await waitFor(() => expect(getUsageSummary).toHaveBeenCalledTimes(1));
+
+    // Auth/scope resolution begins while the local request is still pending.
+    rerender({ resolving: true });
+    expect(result.current.summary).toBeNull();
+    expect(result.current.loading).toBe(true);
+
+    await act(async () => {
+      summaryResolvers[0]?.(SUMMARY);
+      dailyResolvers[0]?.(DAILY);
+    });
+    // The response belongs to the pre-resolution context and must not paint.
+    expect(result.current.summary).toBeNull();
+    expect(result.current.daily).toEqual([]);
+
+    // Once resolution completes, a fresh request is allowed to populate the
+    // view normally.
+    rerender({ resolving: false });
+    await waitFor(() => expect(getUsageSummary).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      summaryResolvers[1]?.(SUMMARY);
+      dailyResolvers[1]?.(DAILY);
+    });
+    await waitFor(() => expect(result.current.summary).toEqual(SUMMARY.totals));
   });
 });

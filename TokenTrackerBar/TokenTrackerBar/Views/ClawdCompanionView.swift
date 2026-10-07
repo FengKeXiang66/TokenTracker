@@ -1584,10 +1584,20 @@ struct ClawdCompanionView: View {
                 ("5h", opencodeGo.primaryWindow), ("Weekly", opencodeGo.secondaryWindow), ("Month", opencodeGo.tertiaryWindow)
             ])
         }
+        if let commandCode = limits.commandCode {
+            generic("commandCode", configured: commandCode.configured, error: commandCode.error, windows: [
+                ("5h", commandCode.primaryWindow), ("Weekly", commandCode.secondaryWindow)
+            ])
+        }
         if let qoder = limits.qoder {
             generic("qoder", configured: qoder.configured, error: qoder.error, windows: [
                 ("Credits", qoder.primaryWindow),
                 ("Ultimate Free Calls", qoder.secondaryWindow)
+            ])
+        }
+        if let devin = limits.devin {
+            generic("devin", configured: devin.configured, error: devin.error, windows: [
+                ("Daily", devin.primaryWindow), ("Weekly", devin.secondaryWindow)
             ])
         }
 

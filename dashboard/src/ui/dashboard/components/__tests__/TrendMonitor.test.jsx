@@ -11,6 +11,7 @@ import {
   TrendMonitor,
   computeInterpolatedSeries,
   getTrendMonitorScale,
+  mergeModelSegments,
 } from "../TrendMonitor.jsx";
 
 describe("getTrendMonitorScale", () => {
@@ -44,6 +45,16 @@ describe("TrendMonitor", () => {
     expect(parseFloat(bars.at(-1)?.parentElement?.style.height ?? "")).toBe(100);
     expect(bars[0].parentElement?.className).toContain("absolute");
     expect(bars[0].parentElement?.parentElement?.className).toContain("self-stretch");
+  });
+
+  it("preserves proportional monthly heights for the reported growing series", () => {
+    const values = [0.05, 0.1, 0.2, 0.3, 0.5, 0.8, 1.2, 6.5, 8.9].map((v) => v * 1e9);
+    const { container } = render(
+      <TrendMonitor rows={values.map((value) => ({ total_tokens: value }))} period="total" />,
+    );
+    const bars = Array.from(container.querySelectorAll('[data-trend-bar="true"]'));
+    expect(parseFloat(bars[7].parentElement.style.height)).toBeCloseTo(6.5 / 8.9 * 100);
+    expect(parseFloat(bars[8].parentElement.style.height)).toBe(100);
   });
 
   it("renders real-zero observations as flat baseline bars, not interpolated", () => {
@@ -144,6 +155,18 @@ describe("TrendMonitor", () => {
     fireEvent.mouseLeave(tooltip);
     act(() => vi.advanceTimersByTime(200));
     expect(container.querySelector('[data-trend-tooltip="true"]')).toBeNull();
+  });
+
+  it("merges model segments whose names differ only by case", () => {
+    expect(mergeModelSegments({
+      "GPT-5.5": 120,
+      "gpt-5.5": 80,
+      "Claude-Sonnet": 40,
+      " claude-sonnet ": 10,
+    })).toEqual([
+      { type: "model", name: "GPT-5.5", value: 200 },
+      { type: "model", name: "Claude-Sonnet", value: 50 },
+    ]);
   });
 });
 

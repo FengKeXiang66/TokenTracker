@@ -147,6 +147,51 @@ test("status reports Codex notify unset when config points to another command", 
   }
 });
 
+test("status JSON reports Acode notify and session paths", async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-status-acode-"));
+  const prevHome = process.env.HOME;
+  const prevUserProfile = process.env.USERPROFILE;
+  const prevAcodeHome = process.env.TOKENTRACKER_ACODE_HOME;
+  const prevWrite = process.stdout.write;
+
+  try {
+    process.env.HOME = tmp;
+    process.env.USERPROFILE = tmp;
+    const acodeHome = path.join(tmp, ".acode-custom");
+    process.env.TOKENTRACKER_ACODE_HOME = acodeHome;
+    const notifyPath = path.join(tmp, ".tokentracker", "bin", "notify.cjs");
+    await fs.mkdir(path.join(acodeHome, "sessions", "2026", "08", "31"), { recursive: true });
+    await fs.mkdir(path.join(acodeHome, "archived_sessions"), { recursive: true });
+    await fs.writeFile(
+      path.join(acodeHome, "config.toml"),
+      `notify = ["/usr/bin/env", "node", ${JSON.stringify(notifyPath)}, "--source=acode"]\n`,
+      "utf8",
+    );
+
+    let out = "";
+    process.stdout.write = (chunk, enc, cb) => {
+      out += typeof chunk === "string" ? chunk : chunk.toString(enc || "utf8");
+      if (typeof cb === "function") cb();
+      return true;
+    };
+    await cmdStatus(["--json"]);
+
+    const status = JSON.parse(out);
+    assert.equal(status.hooks.acode_notify, true);
+    assert.equal(status.providers.acode.installed, true);
+    assert.match(status.providers.acode.detail, /\.acode-custom/);
+  } finally {
+    process.stdout.write = prevWrite;
+    if (prevHome === undefined) delete process.env.HOME;
+    else process.env.HOME = prevHome;
+    if (prevUserProfile === undefined) delete process.env.USERPROFILE;
+    else process.env.USERPROFILE = prevUserProfile;
+    if (prevAcodeHome === undefined) delete process.env.TOKENTRACKER_ACODE_HOME;
+    else process.env.TOKENTRACKER_ACODE_HOME = prevAcodeHome;
+    await fs.rm(tmp, { recursive: true, force: true });
+  }
+});
+
 test("status JSON reports Copilot canonical store diagnostics", async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-status-copilot-"));
   const prevHome = process.env.HOME;
@@ -454,10 +499,9 @@ test("status renders the Trae SOLO entitlement snapshot from Local State", async
     // Text render: the plan line must describe the snapshot.
     out = "";
     await cmdStatus();
-    // Not "passive reader" — that wording means "tokens are counted" on every
-    // other provider line, and Trae contributes no usage at all.
-    assert.match(out, /- Trae SOLO: plan info only, no token usage \(/);
-    assert.doesNotMatch(out, /- Trae SOLO: passive reader/);
+    // This fixture only has an entitlement snapshot, not a usage database.
+    assert.match(out, /- TRAE: plan info only, no local usage database found \(/);
+    assert.doesNotMatch(out, /- TRAE: local usage reader/);
     assert.match(out, /- Trae SOLO plan: plan Pro, year period, package billing/);
     assert.match(out, /20 fast requests\/hr/);
     assert.match(out, /snapshot \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/);

@@ -156,6 +156,21 @@ test("normalizeArkCodingPlanResponse throws on unusable payload", () => {
   assert.throws(() => normalizeArkCodingPlanResponse({ items: [{ product: "coding-plan", subscribed: true, periods: [] }] }));
 });
 
+test("percentFromPeriod treats null and blank percent as absent and derives used/total", () => {
+  const { percentFromPeriod } = require("../src/lib/ark-coding-plan-limits");
+  // Number(null) and Number("") are both 0 — a naive check would report a fake
+  // fresh 0% window instead of deriving real usage (review #563).
+  assert.equal(percentFromPeriod({ percent: null, used: 250, total: 1000 }), 25);
+  assert.equal(percentFromPeriod({ percent: "", used: 250, total: 1000 }), 25);
+  assert.equal(percentFromPeriod({ percent: undefined, used: 1, total: 4 }), 25);
+  // A genuine 0 with no used/total stays 0 (fresh window).
+  assert.equal(percentFromPeriod({ percent: 0 }), 0);
+  // Direct percent still wins over used/total.
+  assert.equal(percentFromPeriod({ percent: 10, used: 250, total: 1000 }), 10);
+  // Nothing usable -> NaN so the caller skips the period.
+  assert.ok(Number.isNaN(percentFromPeriod({ percent: null })));
+});
+
 test("normalizeArkPlansResponse extracts tier from plans payload", () => {
   assert.equal(normalizeArkPlansResponse(JSON.parse(PLANS_JSON)), "lite");
   assert.equal(normalizeArkPlansResponse({ plans: [] }), null);

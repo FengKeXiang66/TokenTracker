@@ -1,10 +1,18 @@
+use std::time::Duration;
+
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::{App, AppHandle, Manager};
+use tauri::{App, AppHandle, Manager, Runtime};
 
 const OPEN_ID: &str = "open-dashboard";
 const QUIT_ID: &str = "quit";
+const TRAY_ID: &str = "main-tray";
+
+/// How long to wait before re-publishing the menu. Long enough that the
+/// desktop's tray client has finished its initial layout exchange, short
+/// enough that a user reaching for the tray immediately still gets labels.
+const MENU_REPUBLISH_DELAY: Duration = Duration::from_millis(1500);
 const FALLBACK_TRAY_ICON: &[u8] = include_bytes!("../icons/icon.png");
 
 fn fallback_tray_icon() -> tauri::Result<Image<'static>> {
@@ -23,17 +31,56 @@ fn fallback_tray_icon() -> tauri::Result<Image<'static>> {
 ///
 /// The upside is that libappindicator opens the context menu on *left* click
 /// too, so "Open Dashboard" as the first item is the primary entry point.
+fn build_menu<R: Runtime, M: Manager<R>>(manager: &M) -> tauri::Result<Menu<R>> {
+    let open = MenuItem::with_id(manager, OPEN_ID, "Open Dashboard", true, None::<&str>)?;
+    let quit = MenuItem::with_id(manager, QUIT_ID, "Quit", true, None::<&str>)?;
+    Menu::with_items(manager, &[&open, &quit])
+}
+
+/// Publish a second, freshly built menu once startup has quiesced.
+///
+/// libappindicator exports the menu in two passes: the structure first, then
+/// the item properties ~50ms later as `ItemsPropertiesUpdated` plus a second
+/// `LayoutUpdated`. GNOME's AppIndicator extension cannot absorb that. Its
+/// `GetLayout` deliberately asks for `type`/`children-display` only and fetches
+/// labels separately on an idle callback, and the second `LayoutUpdated`
+/// cancels that pending fetch. The re-run then finds the item ids already
+/// known and skips re-requesting them (`dbusMenu.js`), so the labels are never
+/// fetched and the tray menu renders as blank rows.
+///
+/// Re-publishing a newly built menu gets new item ids, so the extension has to
+/// create the items afresh — and by then nothing is racing the property fetch.
+fn republish_menu(app: &AppHandle) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(MENU_REPUBLISH_DELAY);
+        let _ = app.clone().run_on_main_thread(move || {
+            let Some(tray) = app.tray_by_id(TRAY_ID) else {
+                return;
+            };
+            match build_menu(&app) {
+                Ok(menu) => {
+                    if let Err(error) = tray.set_menu(Some(menu)) {
+                        eprintln!("[TokenTracker] failed to republish the tray menu: {error}");
+                    }
+                }
+                Err(error) => {
+                    eprintln!("[TokenTracker] failed to rebuild the tray menu: {error}");
+                }
+            }
+        });
+    });
+}
+
 pub fn install(app: &App) -> tauri::Result<()> {
-    let open = MenuItem::with_id(app, OPEN_ID, "Open Dashboard", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, QUIT_ID, "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &quit])?;
+    let menu = build_menu(app)?;
 
     let icon = app
         .default_window_icon()
         .cloned()
         .unwrap_or(fallback_tray_icon()?);
 
-    TrayIconBuilder::with_id("main-tray")
+    TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon)
         .tooltip("TokenTracker")
         .menu(&menu)
@@ -43,6 +90,8 @@ pub fn install(app: &App) -> tauri::Result<()> {
             _ => {}
         })
         .build(app)?;
+
+    republish_menu(app.handle());
 
     Ok(())
 }

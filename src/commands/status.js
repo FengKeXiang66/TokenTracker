@@ -8,10 +8,13 @@ const { readJson } = require("../lib/fs");
 const { readCursorStateSummary } = require("../lib/cursor-store");
 const {
   readCodexNotify,
+  readAcodeNotify,
   readEveryCodeNotify,
   buildCodexNotifyCmd,
+  buildAcodeNotifyCmd,
   isManagedNotifyCmd,
 } = require("../lib/codex-config");
+const { countRecordOnlyFiles, formatRecordOnlyWarning } = require("../lib/codex-usage-record");
 const {
   isClaudeHookConfigured,
   areClaudeUsageHooksConfigured,
@@ -57,6 +60,10 @@ const {
   resolveWorkbuddyProjectFiles,
   resolveOmpSessionFiles,
   resolveOmpAgentDir,
+  resolveOmoSessionFiles,
+  resolveOmoAgentDir,
+  resolveMinimaxCodeSessionFiles,
+  resolveMinimaxCodeSessionsDir,
   resolvePiSessionFiles,
   resolvePiAgentDir,
   piAgentDirCollidesWithOmp,
@@ -68,16 +75,26 @@ const {
   resolveReasonixTelemetryFiles,
   resolveKilocodeTaskFiles,
   resolveRoocodeTaskFiles,
+  resolveClineSessionFilesWithStatus,
   resolveZedDbPath,
+  resolveLmstudioHome,
+  resolveLmstudioLogFiles,
+  resolveUnslothDbPath,
   resolveQoderDbPaths,
   resolveQoderCnDbPaths,
+  resolveQoderProjectsDir,
+  resolveQoderCnProjectsDir,
+  listQoderNewSessionFiles,
   resolveClaudeScienceDbPaths,
   resolveAnythingllmDbPath,
+  resolveDevinDbPath,
   resolveGooseDbPath,
   listDroidSettingsFiles,
   resolveDroidSessionsDir,
   resolveDshHomes,
   resolveDshSessionFiles,
+  resolveCommandCodeHomes,
+  resolveCommandCodeSessionFiles,
   resolveTraeStoragePath,
   readTraeEntitlementFromStorage,
   resolveGrokBuildSessions,
@@ -98,7 +115,14 @@ const {
 } = require("../lib/trae-cn-config");
 const wsl = require("../lib/wsl-probe");
 const { getWslMode, isInvalidWslMode, shouldProbeWsl, discoverWslHome } = wsl;
-const { resolveInstallPaths, resolveZcodeNativeDbPath } = require("../lib/install-resolver");
+const { resolveInstallPaths, resolveZcodeNativeDbPath, resolveMimoNativeDbPath } = require("../lib/install-resolver");
+const {
+  describeScanRootOrigin,
+  describeScanRootState,
+  hasAnyScanChild,
+  resolveEnvRoot,
+  resolveScanRoots,
+} = require("../lib/scan-roots");
 const { probeGrokHookState, resolveGrokHome } = require("../lib/grok-hook");
 const { probeOmpHookState } = require("../lib/omp-hook");
 
@@ -125,6 +149,13 @@ function formatResolvedPaths(paths, filename) {
     try { if (fssync.existsSync(file)) active.push(`${label}: ${file}`); } catch (_e) {}
   }
   return active;
+}
+
+// Combine a legacy DB path with its new-JSONL projects-dir path for the
+// machine-readable summary. Either side may be "" (absent); both absent
+// yields "" so callers can fall back to "not found".
+function summarizeQoderDetail(dbPath, newPath) {
+  return [dbPath, newPath].filter(Boolean).join(" + ") || "";
 }
 
 // The Trae SOLO entitlement snapshot is read directly from the Trae Local
@@ -173,8 +204,12 @@ async function cmdStatus(argv = []) {
   const uploadThrottlePath = path.join(trackerDir, "upload.throttle.json");
   const autoRetryPath = path.join(trackerDir, "auto.retry.json");
   const syncSkipPath = path.join(trackerDir, "sync.skip.json");
-  const codexHome = process.env.CODEX_HOME || path.join(home, ".codex");
+  // Normalized like sync (a relative CODEX_HOME is anchored to home, not cwd)
+  // so status lists exactly the root sync walks.
+  const codexHome = resolveEnvRoot("codex", { env: process.env, home }) || path.join(home, ".codex");
   const codexConfigPath = path.join(codexHome, "config.toml");
+  const acodeHome = process.env.TOKENTRACKER_ACODE_HOME || path.join(home, ".acode");
+  const acodeConfigPath = path.join(acodeHome, "config.toml");
   const codeHome = process.env.CODE_HOME || path.join(home, ".code");
   const codeConfigPath = path.join(codeHome, "config.toml");
   const claudeSettingsPath = path.join(home, ".claude", "settings.json");
@@ -196,13 +231,42 @@ async function cmdStatus(argv = []) {
   });
   const notifyPath = path.join(binDir, "notify.cjs");
   const codexNotifyCmd = buildCodexNotifyCmd(notifyPath);
+  const acodeNotifyCmd = buildAcodeNotifyCmd(notifyPath);
   const claudeHookCommand = buildClaudeHookCommand(notifyPath);
   const codebuddyHookCommand = buildHookCommand(notifyPath, "codebuddy");
   const workbuddyHookCommand = buildHookCommand(notifyPath, "workbuddy");
   const geminiHookCommand = buildGeminiHookCommand(notifyPath);
 
   const config = await readJson(configPath);
+  // Extra scan roots (#657): CODEX_HOME / CLAUDE_CONFIG_DIR of this process
+  // plus config.scanRoots, resolved exactly as sync does, so status lists every
+  // root sync walks — this is the output users paste when usage looks wrong.
+  const scanRoots = resolveScanRoots({
+    home,
+    env: process.env,
+    config,
+    base: { codex: [codexHome], claude: [path.join(home, ".claude")] },
+  });
+  const extraScanRoots = [];
+  for (const provider of ["codex", "claude"]) {
+    for (const entry of scanRoots[provider]) {
+      if (entry.origin === "native") continue;
+      extraScanRoots.push({
+        provider,
+        origin: describeScanRootOrigin(entry, provider),
+        path: entry.path,
+        exists: entry.exists,
+        error: entry.error || null,
+      });
+    }
+  }
+  const describeExtraScanRoot = (root) =>
+    `${root.provider} ${root.origin}: ${root.path}${describeScanRootState(root)}`;
+  const scanRootsLine = extraScanRoots.length > 0
+    ? `- Extra scan roots: ${extraScanRoots.map(describeExtraScanRoot).join(" | ")}`
+    : null;
   const { cursors } = await readCursorStateSummary({ trackerDir, cursorsPath });
+  const codexRecordOnlyWarning = formatRecordOnlyWarning(countRecordOnlyFiles(cursors));
   const queueState = (await readJson(queueStatePath)) || { offset: 0 };
   const uploadThrottle = normalizeUploadState(
     await readJson(uploadThrottlePath),
@@ -227,6 +291,8 @@ async function cmdStatus(argv = []) {
   // terminal `tokentracker` run, so a correctly-installed integration would
   // otherwise report as not configured. See isManagedNotifyCmd.
   const notifyConfigured = isManagedNotifyCmd(codexNotify, codexNotifyCmd);
+  const acodeNotify = await readAcodeNotify(acodeConfigPath);
+  const acodeConfigured = isManagedNotifyCmd(acodeNotify, acodeNotifyCmd);
   const everyCodeNotify = await readEveryCodeNotify(codeConfigPath);
   const everyCodeConfigured =
     Array.isArray(everyCodeNotify) && everyCodeNotify.length > 0;
@@ -389,6 +455,10 @@ async function cmdStatus(argv = []) {
       ? wsl.discoverWslHome(".claude")
       : null;
     if (wslClaudeHomeStatus) claudeHomesStatus.push({ dir: wslClaudeHomeStatus, label: "WSL" });
+    for (const entry of scanRoots.claude) {
+      if (entry.origin === "native" || !entry.exists) continue;
+      claudeHomesStatus.push({ dir: entry.path, label: describeScanRootOrigin(entry, "claude") });
+    }
     for (const { dir, label } of claudeHomesStatus) {
       const projects = path.join(dir, "projects");
       try {
@@ -429,6 +499,16 @@ async function cmdStatus(argv = []) {
   const ompFiles = ompInstalled ? resolveOmpSessionFiles(process.env) : [];
   const ompHookState = await probeOmpHookState({ home, trackerDir, env: process.env });
 
+  // OmO — passive scan only (no hooks).
+  const omoAgentDir = resolveOmoAgentDir(process.env);
+  const omoInstalled = Boolean(omoAgentDir) && fssync.existsSync(path.join(omoAgentDir, "sessions"));
+  const omoFiles = omoInstalled ? resolveOmoSessionFiles(process.env) : [];
+
+  // MiniMax Code — passive scan only (no hooks).
+  const minimaxCodeSessionsDir = resolveMinimaxCodeSessionsDir(process.env);
+  const minimaxCodeInstalled = Boolean(minimaxCodeSessionsDir) && fssync.existsSync(minimaxCodeSessionsDir);
+  const minimaxCodeFiles = minimaxCodeInstalled ? resolveMinimaxCodeSessionFiles(process.env) : [];
+
   // pi (@mariozechner/pi-coding-agent) — passive scan only (no hooks).
   // Skip when its agent dir collides with omp's; sync would dedupe anyway.
   const piCollides = piAgentDirCollidesWithOmp(process.env);
@@ -466,10 +546,7 @@ async function cmdStatus(argv = []) {
   const kiloDbPath = kiloActive.join(" | ");
 
   // Mimo (mimocode — OpenCode-fork SQLite) — passive scan of mimocode.db.
-  const mimoHome = process.env.MIMO_HOME || path.join(xdgDataHome, "mimocode");
-  const mimoNativeValue = process.platform === "win32" && typeof process.env.APPDATA === "string"
-    ? path.join(process.env.APPDATA.trim(), "mimocode", "mimocode.db")
-    : path.join(mimoHome, "mimocode.db");
+  const mimoNativeValue = resolveMimoNativeDbPath({ home });
   const wslMimoDir = process.platform === "win32" && wsl.shouldProbeWsl(process.env)
     ? wsl.discoverWslHome(".local/share/mimocode")
     : null;
@@ -488,15 +565,28 @@ async function cmdStatus(argv = []) {
   const zcodeInstalled = zcodeActive.length > 0;
   const zcodeDbPath = zcodeActive.join(" | ");
 
-  // Qoder Desktop 1.18+ — token usage lives in SharedClientCache/local.db.
+  // Qoder Desktop 1.18+ — token usage lives in SharedClientCache/local.db (legacy)
+  // and since 2026-08 (app 0.1.2+) also in ~/.qoder/projects JSONL (credit-based).
   const qoderPaths = resolveQoderDbPaths({
     home,
     env: process.env,
     platform: process.platform,
   });
   const qoderActive = formatResolvedPaths(qoderPaths);
-  const qoderInstalled = qoderActive.length > 0;
+  // New JSONL location (com.qoder.app.stable + ~/.qoder/projects)
+  const qoderProjectsDirResolved = resolveQoderProjectsDir({ home, env: process.env });
+  let qoderNewFiles = [];
+  try {
+    qoderNewFiles = await listQoderNewSessionFiles(qoderProjectsDirResolved);
+  } catch (_e) {
+    qoderNewFiles = [];
+  }
+  const qoderNewInstalled = qoderNewFiles.length > 0;
+  const qoderInstalled = qoderActive.length > 0 || qoderNewInstalled;
   const qoderDbPath = qoderActive.join(" | ");
+  const qoderNewPath = qoderNewFiles.length > 0
+    ? `${qoderProjectsDirResolved} (${qoderNewFiles.length} sessions)`
+    : "";
 
   // Qoder CN (国内版) — same schema, separate Application Support/QoderCN dir.
   const qoderCnPaths = resolveQoderCnDbPaths({
@@ -505,8 +595,28 @@ async function cmdStatus(argv = []) {
     platform: process.platform,
   });
   const qoderCnActive = formatResolvedPaths(qoderCnPaths);
-  const qoderCnInstalled = qoderCnActive.length > 0;
+  // CN new-JSONL mirrors sync.js: the new CN app writes ~/.qoder-cn/projects,
+  // but sync only parses the CN dir when it diverges from the international
+  // one (same files must not count under two sources). Only report CN JSONL
+  // when the dirs diverge.
+  const qoderCnProjectsDirResolved = resolveQoderCnProjectsDir({ home, env: process.env });
+  const qoderCnSharesIntlDir = path.normalize(qoderCnProjectsDirResolved) === path.normalize(qoderProjectsDirResolved)
+    || (process.platform === "win32"
+      && path.normalize(qoderCnProjectsDirResolved).toLowerCase() === path.normalize(qoderProjectsDirResolved).toLowerCase());
+  let qoderCnNewFiles = [];
+  if (!qoderCnSharesIntlDir) {
+    try {
+      qoderCnNewFiles = await listQoderNewSessionFiles(qoderCnProjectsDirResolved);
+    } catch (_e) {
+      qoderCnNewFiles = [];
+    }
+  }
+  const qoderCnNewInstalled = qoderCnNewFiles.length > 0;
+  const qoderCnInstalled = qoderCnActive.length > 0 || qoderCnNewInstalled;
   const qoderCnDbPath = qoderCnActive.join(" | ");
+  const qoderCnNewPath = qoderCnNewFiles.length > 0
+    ? `${qoderCnProjectsDirResolved} (${qoderCnNewFiles.length} sessions)`
+    : "";
 
   // Claude Science — token usage lives on the `frames` table of operon-cli.db.
   // Unlike the native/WSL pair other providers resolve to, this is an open-ended
@@ -587,7 +697,7 @@ async function cmdStatus(argv = []) {
   // users are asked to paste when Codex usage looks wrong, so it must list
   // every root sync actually walks — and no empty shell sync would skip.
   const codexPaths = resolveInstallPaths({
-    nativeValue: process.env.CODEX_HOME || path.join(home, ".codex"),
+    nativeValue: codexHome,
     wslDir: ".codex",
     requireAnyChild: ["sessions", "archived_sessions"],
     union: true,
@@ -595,7 +705,21 @@ async function cmdStatus(argv = []) {
   // Both children, matching requireAnyChild above: an install holding only
   // archived_sessions/ is counted by sync and must not read as "not detected".
   const codexActive = formatResolvedPaths(codexPaths, ["sessions", "archived_sessions"]);
+  for (const entry of scanRoots.codex) {
+    if (entry.origin === "native" || !entry.exists) continue;
+    if (!hasAnyScanChild(entry.path, ["sessions", "archived_sessions"])) continue;
+    codexActive.push(`${describeScanRootOrigin(entry, "codex")}: ${entry.path}`);
+  }
   const codexInstalledStatus = codexActive.length > 0;
+
+  const acodePaths = resolveInstallPaths({
+    nativeValue: acodeHome,
+    wslDir: ".acode",
+    requireAnyChild: ["sessions", "archived_sessions"],
+    union: true,
+  });
+  const acodeActive = formatResolvedPaths(acodePaths, ["sessions", "archived_sessions"]);
+  const acodeInstalled = acodeActive.length > 0;
 
   // Kimi (passive sessions scan)
   const kimiPaths = resolveInstallPaths({
@@ -613,6 +737,21 @@ async function cmdStatus(argv = []) {
   // different globalStorage subdir (rooveterinaryinc.roo-cline).
   const roocodeTaskFiles = resolveRoocodeTaskFiles(process.env);
   const roocodeInstalled = roocodeTaskFiles.length > 0;
+
+  // Cline CLI v3 / desktop app — passive scan of
+  // <home>/data/sessions/*/<session>.messages.json (Cline's own data dir, not
+  // the VS Code globalStorage the Roo/Kilo forks still use).
+  const clineScan = resolveClineSessionFilesWithStatus(process.env);
+  const clineSessionFiles = clineScan.files;
+  const clineInstalled = clineSessionFiles.length > 0;
+  const clineSessionsDirCount = new Set(
+    clineSessionFiles.map((file) => path.dirname(path.dirname(file.filePath))),
+  ).size;
+  const clineDiscoveryError = clineScan.errors.length > 0
+    ? clineScan.errors
+      .map(({ root, error }) => `${root}: ${error.code ? `${error.code}: ` : ""}${error.message}`)
+      .join("; ")
+    : null;
 
   // Zed Agent — passive read of threads.db across all model providers
   // (hosted "zed.dev" and bring-your-own alike). threadTotals tracks one entry
@@ -637,10 +776,34 @@ async function cmdStatus(argv = []) {
   const dshSessionsDir = dshHomes.map((homeDir) => path.join(homeDir, "sessions")).join(", ");
   const dshSessionFiles = await resolveDshSessionFiles(process.env);
   const dshInstalled = dshSessionFiles.length > 0;
+  let commandCodeProjectsDir = "";
+  let commandCodeSessionFiles = [];
+  let commandCodeDiscoveryError = null;
+  try {
+    commandCodeProjectsDir = resolveCommandCodeHomes(process.env)
+      .map((homeDir) => path.join(homeDir, "projects"))
+      .join(", ");
+    commandCodeSessionFiles = await resolveCommandCodeSessionFiles(process.env);
+  } catch (error) {
+    // Discovery stays strict for sync, but a provider read error must not
+    // suppress the rest of the status diagnostics.
+    commandCodeDiscoveryError = `${error?.code ? `${error.code}: ` : ""}${error?.message || String(error)}`;
+  }
+  const commandCodeInstalled = commandCodeSessionFiles.length > 0;
+  const lmstudioHome = resolveLmstudioHome(process.env);
+  const lmstudioLogFiles = await resolveLmstudioLogFiles(process.env);
+  const lmstudioInstalled = lmstudioLogFiles.length > 0;
+  const unslothDbPath = resolveUnslothDbPath(process.env);
+  const unslothInstalled = Boolean(unslothDbPath && fssync.existsSync(unslothDbPath));
 
-  // Trae SOLO (ByteDance AI IDE) — passive entitlement snapshot reader.
+  // Devin CLI (Cognition) — passive reader of message_nodes usage metrics.
+  const devinDbPath = resolveDevinDbPath(process.env);
+  const devinInstalled = Boolean(devinDbPath && fssync.existsSync(devinDbPath));
+
+  const { resolveTraeDbPaths } = require("../lib/trae-db");
+  const traeDbPaths = resolveTraeDbPaths(process.env);
   const traeStoragePath = resolveTraeStoragePath(process.env);
-  const traeInstalled = Boolean(traeStoragePath);
+  const traeInstalled = Boolean(traeStoragePath || traeDbPaths.length);
   // Render path for the entitlement snapshot: read it straight from the
   // Trae Local State storage.json via the shared parser. The queue stays
   // token-count-only, so the status read path never depends on queue rows
@@ -829,8 +992,10 @@ async function cmdStatus(argv = []) {
   // syscalls (~5–10ms cold). Memoize.
   const passiveProviders = detectPassiveProviders({
     home,
+    env: process.env,
     hookStatus: {
       codex_notify: notifyConfigured,
+      acode_notify: acodeConfigured,
       every_code_notify: everyCodeConfigured,
       claude: claudeHookConfigured,
       gemini: geminiHookConfigured,
@@ -863,8 +1028,13 @@ async function cmdStatus(argv = []) {
       last_upload_error: lastUploadError || null,
       last_sync_skipped: syncSkip?.at ? syncSkip : null,
       auto_retry: autoRetry || null,
+      // Extra scan roots (#657): CODEX_HOME / CLAUDE_CONFIG_DIR of this process
+      // plus config.scanRoots; `exists` false + `error` null means absent,
+      // `error` set means present but unreadable.
+      extra_scan_roots: extraScanRoots,
       hooks: {
         codex_notify: notifyConfigured,
+        acode_notify: acodeConfigured,
         every_code_notify: everyCodeConfigured,
         claude: claudeHookConfigured,
         gemini: geminiHookConfigured,
@@ -879,6 +1049,9 @@ async function cmdStatus(argv = []) {
         grok: grokInstalled ? Boolean(grokHookState?.configured) : null,
       },
       providers: {
+        acode: acodeInstalled
+          ? { installed: true, detail: acodeActive.join(" | ") }
+          : { installed: false },
         kimi_code: kimiInstalled || kimiCodeInstalled
           ? { installed: true, files: kimiWireFiles.length + kimiCodeWireFiles.length }
           : { installed: false },
@@ -912,6 +1085,12 @@ async function cmdStatus(argv = []) {
               notify_extension_path: ompHookState.extensionPath || null,
             }
           : { installed: false },
+        omo: omoInstalled
+          ? { installed: true, files: omoFiles.length }
+          : { installed: false },
+        minimax_code: minimaxCodeInstalled
+          ? { installed: true, files: minimaxCodeFiles.length }
+          : { installed: false },
         pi: piInstalled
           ? { installed: true, files: piFiles.length }
           : { installed: false },
@@ -937,10 +1116,10 @@ async function cmdStatus(argv = []) {
           ? { installed: true, detail: zcodeDbPath }
           : { installed: false },
         qoder: qoderInstalled
-          ? { installed: true, detail: qoderDbPath }
+          ? { installed: true, detail: summarizeQoderDetail(qoderDbPath, qoderNewPath) }
           : { installed: false },
         "qoder-cn": qoderCnInstalled
-          ? { installed: true, detail: qoderCnDbPath }
+          ? { installed: true, detail: summarizeQoderDetail(qoderCnDbPath, qoderCnNewPath) }
           : { installed: false },
         "claude-science": claudeScienceInstalled
           ? { installed: true, detail: claudeScienceDbPath }
@@ -951,6 +1130,15 @@ async function cmdStatus(argv = []) {
         roocode: roocodeInstalled
           ? { installed: true, files: roocodeTaskFiles.length }
           : { installed: false },
+        cline: clineInstalled
+          ? {
+              installed: true,
+              files: clineSessionFiles.length,
+              ...(clineDiscoveryError ? { error: clineDiscoveryError } : {}),
+            }
+          : clineDiscoveryError
+            ? { installed: false, error: clineDiscoveryError }
+            : { installed: false },
         zed: zedInstalled ? { installed: true, detail: zedDbPath } : { installed: false },
         goose: gooseInstalled
           ? { installed: true, detail: gooseDbPath }
@@ -961,10 +1149,34 @@ async function cmdStatus(argv = []) {
         dsh: dshInstalled
           ? { installed: true, files: dshSessionFiles.length, detail: dshSessionsDir }
           : { installed: false },
+        "command-code": commandCodeInstalled
+          ? {
+              installed: true,
+              files: commandCodeSessionFiles.length,
+              detail: commandCodeProjectsDir,
+            }
+          : commandCodeDiscoveryError
+            ? { installed: false, error: commandCodeDiscoveryError }
+            : { installed: false },
+        lmstudio: lmstudioInstalled
+          ? {
+              installed: true,
+              files: lmstudioLogFiles.length,
+              detail: path.join(lmstudioHome, "server-logs"),
+            }
+          : { installed: false },
+        unsloth: unslothInstalled
+          ? { installed: true, detail: unslothDbPath }
+          : { installed: false },
+        devin: devinInstalled
+          ? { installed: true, detail: devinDbPath }
+          : { installed: false },
         trae: traeInstalled
           ? {
               installed: true,
-              detail: traeStoragePath,
+              detail: traeDbPaths[0] || traeStoragePath,
+              usage_databases: traeDbPaths.length,
+              usage_key_source: process.env.TOKENTRACKER_TRAE_SQLCIPHER_KEY?.trim() ? "environment" : "application",
               ...(traeEntitlement ? { entitlement: traeEntitlement } : {}),
             }
           : { installed: false },
@@ -1035,7 +1247,9 @@ async function cmdStatus(argv = []) {
       lastUploadError ? `- Last upload error: ${lastUploadError}` : null,
       syncSkipLine,
       autoRetryLine,
+      scanRootsLine,
       `- Codex notify: ${notifyConfigured ? JSON.stringify(codexNotify) : "unset"}`,
+      `- AStudio notify: ${acodeConfigured ? JSON.stringify(acodeNotify) : "unset"}`,
       `- Every Code notify: ${everyCodeConfigured ? JSON.stringify(everyCodeNotify) : "unset"}`,
       `- Claude hooks: ${claudeHookConfigured ? "set" : "unset"}`,
       claudeCodeInstalled
@@ -1064,6 +1278,12 @@ async function cmdStatus(argv = []) {
       ompInstalled || ompHookState.ompPresent
         ? `- oh-my-pi: passive reader (${ompFiles.length} session jsonl file${ompFiles.length !== 1 ? "s" : ""} found${ompHookState.configured ? ", notify extension: yes" : ", notify extension: no"})`
         : null,
+      omoInstalled
+        ? `- OmO: passive reader (${omoFiles.length} session jsonl file${omoFiles.length !== 1 ? "s" : ""} found)`
+        : null,
+      minimaxCodeInstalled
+        ? `- MiniMax Code: passive reader (${minimaxCodeFiles.length} session jsonl file${minimaxCodeFiles.length !== 1 ? "s" : ""} found)`
+        : null,
       piInstalled
         ? `- pi: passive reader (${piFiles.length} session jsonl file${piFiles.length !== 1 ? "s" : ""} found)`
         : null,
@@ -1089,10 +1309,10 @@ async function cmdStatus(argv = []) {
         ? `- ZCode: passive reader (${zcodeDbPath})`
         : null,
       qoderInstalled
-        ? `- Qoder: passive reader (${qoderDbPath})`
+        ? `- Qoder: passive reader (${[qoderDbPath, qoderNewPath].filter(Boolean).join(" + ") || "not found"}${qoderNewInstalled && qoderActive.length > 0 ? " [legacy DB + new JSONL (both tracked)]" : ""}${qoderNewInstalled && qoderActive.length === 0 ? " [new JSONL only]" : ""})`
         : null,
       qoderCnInstalled
-        ? `- Qoder CN: passive reader (${qoderCnDbPath})`
+        ? `- Qoder CN: passive reader (${summarizeQoderDetail(qoderCnDbPath, qoderCnNewPath) || "not found"}${qoderCnNewInstalled && qoderCnActive.length > 0 ? " [legacy DB + new JSONL (both tracked)]" : ""}${qoderCnNewInstalled && qoderCnActive.length === 0 ? " [new JSONL only]" : ""})`
         : null,
       claudeScienceInstalled
         ? `- Claude Science: passive reader (${claudeScienceDbPath})`
@@ -1115,12 +1335,21 @@ async function cmdStatus(argv = []) {
       codexInstalledStatus
         ? `- Codex CLI: sessions found (${codexActive.join(" | ")})`
         : null,
+      codexRecordOnlyWarning ? `- ⚠ ${codexRecordOnlyWarning}` : null,
+      acodeInstalled
+        ? `- AStudio: sessions found (${acodeActive.join(" | ")})`
+        : null,
       kilocodeInstalled
         ? `- Kilo Code (VS Code extension): passive reader (${kilocodeTaskFiles.length} task${kilocodeTaskFiles.length !== 1 ? "s" : ""} across ${new Set(kilocodeTaskFiles.map((t) => t.ide)).size} IDE${new Set(kilocodeTaskFiles.map((t) => t.ide)).size !== 1 ? "s" : ""})`
         : null,
       roocodeInstalled
         ? `- Roo Code (VS Code extension): passive reader (${roocodeTaskFiles.length} task${roocodeTaskFiles.length !== 1 ? "s" : ""} across ${new Set(roocodeTaskFiles.map((t) => t.ide)).size} IDE${new Set(roocodeTaskFiles.map((t) => t.ide)).size !== 1 ? "s" : ""})`
         : null,
+      clineInstalled
+        ? `- Cline: passive reader (${clineSessionFiles.length} transcript${clineSessionFiles.length !== 1 ? "s" : ""} in ${clineSessionsDirCount} sessions dir${clineSessionsDirCount !== 1 ? "s" : ""})${clineDiscoveryError ? `; discovery failed (${clineDiscoveryError})` : ""}`
+        : clineDiscoveryError
+          ? `- Cline: discovery failed (${clineDiscoveryError})`
+          : null,
       zedInstalled
         ? `- Zed Agent: passive reader (threads.db, all providers${
             zedThreadsCounted > 0
@@ -1137,13 +1366,24 @@ async function cmdStatus(argv = []) {
       dshInstalled
         ? `- DeepSeek Harness: passive reader (${dshSessionFiles.length} session${dshSessionFiles.length !== 1 ? "s" : ""} in ${dshSessionsDir})`
         : null,
+      commandCodeInstalled
+        ? `- Command Code: passive reader (${commandCodeSessionFiles.length} session${commandCodeSessionFiles.length !== 1 ? "s" : ""} in ${commandCodeProjectsDir})`
+        : commandCodeDiscoveryError
+          ? `- Command Code: discovery failed (${commandCodeDiscoveryError})`
+          : null,
+      lmstudioInstalled
+        ? `- LM Studio: passive reader (${lmstudioLogFiles.length} log${lmstudioLogFiles.length !== 1 ? "s" : ""} in ${path.join(lmstudioHome, "server-logs")})`
+        : null,
+      unslothInstalled
+        ? `- Unsloth Studio: passive reader (${unslothDbPath})`
+        : null,
+      devinInstalled
+        ? `- Devin CLI: passive reader (${devinDbPath})`
+        : null,
       traeInstalled
-        // Deliberately NOT "passive reader": every other line with that wording
-        // means tokens are being counted. Trae encrypts its session transcripts
-        // (SQLCipher) and its plaintext summaries carry no token counts, so this
-        // provider contributes plan info and nothing else — say so, or users go
-        // looking for Trae usage in the dashboard that will never appear.
-        ? `- Trae SOLO: plan info only, no token usage (${traeStoragePath})`
+        ? traeDbPaths.length
+          ? `- TRAE: local usage reader, ${traeDbPaths.length} database(s) (shared application key; optional key override)`
+          : `- TRAE: plan info only, no local usage database found (${traeStoragePath})`
         : null,
       traeEntitlement
         ? `- Trae SOLO plan: ${formatTraeEntitlementLine(traeEntitlement)}`
@@ -1335,11 +1575,17 @@ function renderLightTable(summary) {
     push(`Hook · ${name}`, state ? "set" : "unset");
   }
 
+  for (const root of summary.extra_scan_roots || []) {
+    const state = root.exists ? "" : (root.error ? ` (unreadable: ${root.error})` : " (missing)");
+    push(`Scan root · ${root.provider}`, `${root.origin}: ${root.path}${state}`);
+  }
+
   for (const [name, info] of Object.entries(summary.providers || {})) {
     const detail = [];
     if (typeof info.installed === "boolean") detail.push(info.installed ? "installed" : "not installed");
     if (typeof info.files === "number") detail.push(`${info.files} file${info.files !== 1 ? "s" : ""}`);
     if (info.detail) detail.push(info.detail);
+    if (info.error) detail.push(info.error);
     if (Array.isArray(info.wsl_distros) && info.wsl_distros.length) {
       detail.push(`WSL: ${info.wsl_distros.map((d) => `${d.name} (v${d.version ?? "?"})`).join(", ")}`);
     }
@@ -1438,4 +1684,4 @@ function parseEpochMsToIso(v) {
   return d.toISOString();
 }
 
-module.exports = { cmdStatus };
+module.exports = { cmdStatus, summarizeQoderDetail };

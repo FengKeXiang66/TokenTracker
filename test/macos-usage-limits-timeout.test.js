@@ -34,7 +34,7 @@ test("macOS usage-limits request outlives the server provider timeout budget", (
   );
   assert.match(
     source,
-    /func fetchUsageLimits\(\)[\s\S]*fetch\([\s\S]*"\/functions\/tokentracker-usage-limits"[\s\S]*requestTimeout: Self\.usageLimitsRequestTimeout[\s\S]*\)/,
+    /func fetchUsageLimits\(devinEnabled: Bool = false\)[\s\S]*fetch\([\s\S]*"\/functions\/tokentracker-usage-limits"[\s\S]*requestTimeout: Self\.usageLimitsRequestTimeout[\s\S]*\)/,
     "Only the usage-limits endpoint should opt into the longer request timeout.",
   );
   assert.match(
@@ -49,12 +49,22 @@ test("macOS usage-limits hydrates the last good record before refreshing", () =>
 
   assert.match(
     source,
-    /@Published var usageLimits: UsageLimitsResponse\? = UsageLimitsCache\.load\(\)/,
-    "A restarted app should render its last good limits record instead of a skeleton.",
+    /usageLimits = UsageLimitsCache\.load\(\)\?\.applyingDevinSelection/,
+    "A restarted app should render its last good limits record instead of a skeleton — with Devin rows stripped while its switch is off.",
   );
   assert.match(
     source,
-    /let newLimits = try await APIClient\.shared\.fetchUsageLimits\(\)[\s\S]*UsageLimitsCache\.save\(newLimits\)/,
-    "A successful background refresh should persist the replacement record.",
+    /APIClient\.shared\.fetchUsageLimits\(devinEnabled: selected\)[\s\S]*limitsPublicationAuthority\.publish\([\s\S]*UsageLimitsCache\.save\(published,\s*devinSelected: LimitsSettingsStore\.shared\.isVisible\("devin"\)\)/,
+    "A successful background refresh must persist the authoritative record with the current Devin selection, so disabled quota is also removed from disk.",
+  );
+});
+
+test("macOS local API session bypasses URLCache after a system clock rollback", () => {
+  const source = readAPIClient();
+
+  assert.match(
+    source,
+    /self\.session = URLSession\(configuration: LocalAPIConfiguration\.makeSessionConfiguration\(\)\)/,
+    "The API client must use the configuration covered by the native runtime test.",
   );
 });

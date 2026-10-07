@@ -30,7 +30,9 @@ const SOURCE_IDENTICAL_KEY_ALLOWLIST = [
   /^settings[.]menubar[.]iconStyle[.](?:clawd|bot)$/,
   /^settings[.]menubar[.]updates[.]footerCore$/,
   /^limits[.]provider[.]/,
-  /^provider[.]display[.](?:omp|deepseek_harness)$/,
+  /^limits[.]agentPlan[.]setupHint[.]snippet_install$/,
+  /^limits[.]commandCode[.]setupHint[.]snippet_(?:login|login_windows|env_windows|read|export|setenv)$/,
+  /^provider[.]display[.](?:omp|omo|minimax_code|command_code|deepseek_harness|cline|trae)$/,
   /^limits[.]label[.](?:cursor_api|zcode_glm52|zcode_glm5t|claude_opus|codex_spark_[57][hd]|gemini_(?:pro|flash|lite)|antigravity_)/,
   /^skills[.]mode[.]skillssh$/,
   /^skills[.]repo[.]placeholder$/,
@@ -199,16 +201,24 @@ function readLocale(locale) {
   const values = new Map();
   const duplicateKeys = [];
 
+  const parseJsonStrict = (text, context) => {
+    try {
+      return JSON.parse(text);
+    } catch (error) {
+      throw new Error(`Invalid JSON in ${context}: ${error.message}`);
+    }
+  };
+
   for (const filename of LOCALE_FILES) {
     const relativePath = path.join(locale, filename);
     const filePath = path.join(I18N_ROOT, relativePath);
     const raw = fs.readFileSync(filePath, "utf8");
-    const parsed = JSON.parse(raw);
+    const parsed = parseJsonStrict(raw, relativePath);
     const fileKeys = new Set();
     for (const line of raw.split(/\r?\n/)) {
       const match = /^\s*"((?:\\.|[^"\\])+)"\s*:/.exec(line);
       if (!match) continue;
-      const key = JSON.parse(`"${match[1]}"`);
+      const key = parseJsonStrict(`"${match[1]}"`, `${relativePath} key literal`);
       if (fileKeys.has(key)) duplicateKeys.push(`${key} (${relativePath}, repeated)`);
       fileKeys.add(key);
     }

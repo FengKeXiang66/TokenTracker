@@ -426,7 +426,9 @@ jobs:
             librsvg2-dev \
             pkg-config \
             desktop-file-utils \
-            fuse3
+            fuse3 \
+            rpm \
+            cpio
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -456,80 +458,137 @@ jobs:
       - name: Bundle EmbeddedServer
         run: npm --prefix TokenTrackerLinux run bundle:node
 
-      - name: Build AppImage
+      - name: Build Linux packages
         run: npm --prefix TokenTrackerLinux run build
 
-      # Rename to a stable, predictable asset name (Tauri emits
-      # TokenTracker_<version>_amd64.AppImage) and prove the bundle actually
-      # carries the embedded runtime. Without this check a broken resource
-      # mapping would ship an AppImage that starts and then fails to find
-      # tracker.js on every user's machine.
-      - name: Verify and stage the AppImage
+      # Rename to stable, predictable asset names (Tauri emits
+      # TokenTracker_<version>_amd64.AppImage / _amd64.deb / -1.x86_64.rpm) and
+      # prove each bundle actually carries the embedded runtime. Without this
+      # check a broken resource mapping would ship a package that starts and
+      # then fails to find tracker.js on every user's machine. Every format gets
+      # the same check: the AppImage bundles its own GTK/WebKit while deb and rpm
+      # rely on system libraries, so they are built by separate tauri bundlers
+      # and can fail independently.
+      - name: Verify and stage the Linux packages
         run: |
           set -euo pipefail
           shopt -s nullglob
-          bundle_dir="TokenTrackerLinux/src-tauri/target/release/bundle/appimage"
-          images=("$bundle_dir"/*.AppImage)
-          if [ "${#images[@]}" -ne 1 ]; then
-            echo "::error::Expected exactly 1 AppImage, found ${#images[@]}: ${images[*]-none}"
-            exit 1
-          fi
-          image="${images[0]}"
-          echo "Built: $image"
+          bundle_root="TokenTrackerLinux/src-tauri/target/release/bundle"
+          mkdir -p dist-linux
 
-          # Inspect the payload without needing FUSE.
+          # Assert the extracted package tree carries a complete runtime.
+          verify_payload() {
+            local label="$1" root="$2"
+
+            if [ ! -e "$root/usr/bin/tokentracker-linux" ]; then
+              echo "::error::$label is missing usr/bin/tokentracker-linux"
+              exit 1
+            fi
+
+            # Locate the runtime by searching rather than hardcoding the resource
+            # directory name: Tauri derives it from productName, and paths.rs
+            # resolves it at runtime. What matters here is that it is complete.
+            local node_bin
+            node_bin="$(find "$root/usr/lib" -type f -name node -path '*/EmbeddedServer/*' -print -quit)"
+            if [ -z "$node_bin" ]; then
+              echo "::error::$label carries no EmbeddedServer/node -- the bundle.resources mapping did not apply"
+              find "$root/usr/lib" -maxdepth 3 | head -50
+              exit 1
+            fi
+            echo "$label embedded runtime: ${node_bin#"$root"}"
+
+            local missing=0 required
+            for required in \
+              "tokentracker/bin/tracker.js" \
+              "tokentracker/package.json" \
+              "tokentracker/dashboard/dist/index.html"
+            do
+              if [ ! -e "$(dirname "$node_bin")/$required" ]; then
+                echo "::error::$label is missing EmbeddedServer/$required"
+                missing=1
+              fi
+            done
+            if [ "$missing" -ne 0 ]; then
+              find "$(dirname "$node_bin")" -maxdepth 3 | head -50
+              exit 1
+            fi
+
+            # The bundled Node must stay executable or `serve` can never start.
+            if [ ! -x "$node_bin" ]; then
+              echo "::error::$label bundled Node is not executable"
+              exit 1
+            fi
+          }
+
+          # The browser returns OAuth sign-in through tokentracker://. deb and rpm
+          # rely on their packaged desktop entry for that (the AppImage registers
+          # its own at runtime), so a package without it can never sign in.
+          verify_scheme_handler() {
+            local label="$1" desktop="$2/usr/share/applications/TokenTracker.desktop"
+            if [ ! -f "$desktop" ]; then
+              echo "::error::$label is missing usr/share/applications/TokenTracker.desktop"
+              exit 1
+            fi
+            if ! grep -Fxq 'MimeType=x-scheme-handler/tokentracker;' "$desktop" \
+              || ! grep -Fxq 'Exec=tokentracker-linux %u' "$desktop"; then
+              echo "::error::$label desktop entry does not register tokentracker://"
+              cat "$desktop"
+              exit 1
+            fi
+          }
+
+          # Exactly one artifact per format, so a silent extra build is caught.
+          pick_one() {
+            local label="$1"; shift
+            local found=("$@")
+            if [ "${#found[@]}" -ne 1 ]; then
+              echo "::error::Expected exactly 1 $label, found ${#found[@]}: ${found[*]-none}" >&2
+              exit 1
+            fi
+            printf '%s' "${found[0]}"
+          }
+
           workdir="$(mktemp -d)"
+
+          # --- AppImage -------------------------------------------------------
+          image="$(pick_one AppImage "$bundle_root"/appimage/*.AppImage)"
+          echo "Built: $image"
           cp "$image" "$workdir/app.AppImage"
           chmod +x "$workdir/app.AppImage"
+          # Extract rather than mount so the check does not depend on FUSE.
           (cd "$workdir" && ./app.AppImage --appimage-extract >/dev/null)
-
-          root="$workdir/squashfs-root"
-          if [ ! -e "$root/usr/bin/tokentracker-linux" ]; then
-            echo "::error::AppImage is missing usr/bin/tokentracker-linux"
-            exit 1
-          fi
-
-          # Locate the embedded runtime by searching rather than hardcoding the
-          # resource directory name: Tauri derives it from productName, and
-          # paths.rs resolves it at runtime via resource_dir(). What matters here
-          # is that the runtime is present and complete.
-          node_bin="$(find "$root/usr/lib" -type f -name node -path '*/EmbeddedServer/*' -print -quit)"
-          if [ -z "$node_bin" ]; then
-            echo "::error::AppImage carries no EmbeddedServer/node -- the bundle.resources mapping did not apply"
-            echo "--- AppImage usr/lib contents ---"
-            find "$root/usr/lib" -maxdepth 3 | head -50
-            exit 1
-          fi
-          embedded_dir="$(dirname "$node_bin")"
-          echo "Embedded runtime: ${embedded_dir#"$root"}"
-
-          missing=0
-          for required in \
-            "tokentracker/bin/tracker.js" \
-            "tokentracker/package.json" \
-            "tokentracker/dashboard/dist/index.html"
-          do
-            if [ ! -e "$embedded_dir/$required" ]; then
-              echo "::error::AppImage is missing EmbeddedServer/$required"
-              missing=1
-            fi
-          done
-          if [ "$missing" -ne 0 ]; then
-            find "$embedded_dir" -maxdepth 3 | head -50
-            exit 1
-          fi
-
-          # The bundled Node must stay executable or `serve` can never start.
-          if [ ! -x "$node_bin" ]; then
-            echo "::error::Bundled Node is not executable"
-            exit 1
-          fi
-
-          mkdir -p dist-linux
+          verify_payload "AppImage" "$workdir/squashfs-root"
           cp "$image" "dist-linux/TokenTracker-linux-x86_64.AppImage"
-          rm -rf "$workdir"
 
-      - name: Upload AppImage to release
+          # --- deb ------------------------------------------------------------
+          deb="$(pick_one deb "$bundle_root"/deb/*.deb)"
+          echo "Built: $deb"
+          mkdir -p "$workdir/deb"
+          dpkg-deb -x "$deb" "$workdir/deb"
+          verify_payload "deb" "$workdir/deb"
+          verify_scheme_handler "deb" "$workdir/deb"
+          cp "$deb" "dist-linux/TokenTracker-linux-x86_64.deb"
+
+          # --- rpm ------------------------------------------------------------
+          rpm_pkg="$(pick_one rpm "$bundle_root"/rpm/*.rpm)"
+          echo "Built: $rpm_pkg"
+          mkdir -p "$workdir/rpm"
+          rpm_abs="$(realpath "$rpm_pkg")"
+          # Some rpm2cpio/cpio combinations return a non-zero status after
+          # extracting the complete payload (for example on an archive trailer).
+          # Treat that status as diagnostic only; verify_payload below remains
+          # the authoritative, fail-closed check for the shipped runtime.
+          if ! (cd "$workdir/rpm" && rpm2cpio "$rpm_abs" | cpio -idm --quiet); then
+            echo "::warning::RPM extraction returned a non-zero status; checking the extracted payload"
+          fi
+          verify_payload "rpm" "$workdir/rpm"
+          verify_scheme_handler "rpm" "$workdir/rpm"
+          cp "$rpm_pkg" "dist-linux/TokenTracker-linux-x86_64.rpm"
+
+          rm -rf "$workdir"
+          ls -la dist-linux
+
+      - name: Upload Linux packages to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ inputs.version }}
@@ -541,7 +600,9 @@ jobs:
             exit 1
           fi
           gh release upload "$tag" \
-            dist-linux/TokenTracker-linux-x86_64.AppImage --clobber
+            dist-linux/TokenTracker-linux-x86_64.AppImage \
+            dist-linux/TokenTracker-linux-x86_64.deb \
+            dist-linux/TokenTracker-linux-x86_64.rpm --clobber
 
   # Flip the draft live ONLY after ALL THREE platforms finished uploading, so the
   # release appears complete and atomically — releases/latest stays on the
@@ -556,7 +617,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Publish the release
+      - name: Verify every platform asset landed
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ inputs.version }}
@@ -568,13 +629,78 @@ jobs:
             exit 1
           fi
 
-          for asset in TokenTrackerBar.dmg TokenTracker-win-x64.zip TokenTracker-Setup.exe TokenTracker-linux-x86_64.AppImage; do
+          for asset in TokenTrackerBar.dmg TokenTracker-win-x64.zip TokenTracker-Setup.exe TokenTracker-linux-x86_64.AppImage TokenTracker-linux-x86_64.deb TokenTracker-linux-x86_64.rpm; do
             if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fxq "$asset"; then
               echo "::error::Draft $tag is missing required asset: $asset"
               exit 1
             fi
           done
 
+      # Checksums are produced HERE, between "all assets landed" and the un-draft, so
+      # a release is never public -- and never reachable by an updater -- without them.
+      # We hash the DOWNLOADED assets rather than each build job's local copy: that is
+      # what proves the bytes GitHub actually serves, which is the only thing a client
+      # can check. The Windows updater verifies TokenTracker-Setup.exe against this
+      # file before it executes the installer (TokenTrackerWin/UpdateIntegrity.cs).
+      #
+      # SHA256SUMS is a DERIVED seventh asset, deliberately not part of the required
+      # asset list above: that list gates the six artifacts the platform jobs build.
+      - name: Publish SHA256SUMS
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          tag="v$VERSION"
+          workdir="$(mktemp -d)"
+          # OUTSIDE $workdir on purpose: a "> $workdir/SHA256SUMS" redirection is set
+          # up before find lists the directory, so the file would hash itself (empty).
+          sums="$workdir.SHA256SUMS"
+
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --dir "$workdir"
+          # A resumed/re-run publish would otherwise hash the previous SHA256SUMS.
+          rm -f "$workdir/SHA256SUMS"
+
+          # Standard sha256sum format ("<hash>  <name>"), sorted for a stable diff, so
+          # `sha256sum -c SHA256SUMS` works as-is next to the downloaded files.
+          ( cd "$workdir" && find . -maxdepth 1 -type f -printf '%P\n' | sort | xargs -r sha256sum ) > "$sums"
+          if [ ! -s "$sums" ]; then
+            echo "::error::Computed no checksums for $tag."
+            exit 1
+          fi
+          if grep -q ' SHA256SUMS$' "$sums"; then
+            echo "::error::SHA256SUMS listed itself."
+            exit 1
+          fi
+          cat "$sums"
+
+          cp "$sums" "$workdir/SHA256SUMS"
+          gh release upload "$tag" "$workdir/SHA256SUMS" --clobber --repo "$GITHUB_REPOSITORY"
+
+          # `gh release edit --notes` REPLACES the body, and the body here is the
+          # --generate-notes output we must keep. So read it back, drop anything from
+          # our marker on (which makes a re-run idempotent), and append the table.
+          notes="$workdir.notes.md"   # outside $workdir: nothing new may appear there
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json body --jq '.body' \
+            | awk '/^<!-- sha256sums -->$/ { exit } { print }' > "$notes"
+          {
+            echo "<!-- sha256sums -->"
+            echo
+            echo "### SHA-256 checksums"
+            echo
+            echo '```'
+            cat "$sums"
+            echo '```'
+          } >> "$notes"
+          gh release edit "$tag" --notes-file "$notes" --repo "$GITHUB_REPOSITORY"
+
+      - name: Flip the draft live
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          tag="v$VERSION"
           gh release edit "$tag" --draft=false --latest --repo "$GITHUB_REPOSITORY"
 
       - name: Dispatch homebrew tap update

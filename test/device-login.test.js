@@ -35,6 +35,7 @@ test("pollOnce maps approved device token fields from server response", async ()
 
 test("cmdDeviceLogin persists the approved device token used by sync", async () => {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "device-login-"));
+  const configPath = path.join(home, ".tokentracker", "tracker", "config.json");
   const calls = [];
   const originalFetch = global.fetch;
   const originalStdoutWrite = process.stdout.write;
@@ -56,6 +57,16 @@ test("cmdDeviceLogin persists the approved device token used by sync", async () 
         },
       };
     }
+    const currentConfig = JSON.parse(await fs.readFile(configPath, "utf8"));
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        ...currentConfig,
+        anonKey: "current-anon-key",
+        concurrentSetting: "preserved",
+      }),
+      "utf8",
+    );
     return {
       ok: true,
       status: 200,
@@ -73,13 +84,13 @@ test("cmdDeviceLogin persists the approved device token used by sync", async () 
 
   try {
     await cmdDeviceLogin(["--base-url", "https://example.invalid"], { home, sleep: async () => {} });
-    const config = JSON.parse(
-      await fs.readFile(path.join(home, ".tokentracker", "tracker", "config.json"), "utf8"),
-    );
+    const config = JSON.parse(await fs.readFile(configPath, "utf8"));
     assert.equal(config.user_id, "user-1");
     assert.equal(config.deviceToken, "device-token-1");
     assert.equal(config.deviceId, "device-1");
     assert.equal(config.baseUrl, "https://example.invalid");
+    assert.equal(config.anonKey, "current-anon-key");
+    assert.equal(config.concurrentSetting, "preserved");
     assert.equal(calls.length, 2);
     // Machine-anchored device identity: authorize must carry the SAME
     // machineId that was persisted to config.json, so the server can anchor

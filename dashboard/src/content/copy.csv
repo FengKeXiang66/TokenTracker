@@ -8,6 +8,7 @@ login.dismiss,shared,LoginPage,LoginPage,dismiss,"Dismiss",,active
 login.verify_email_success,shared,LoginPage,LoginPage,verify_ok,"Email verified. You can sign in below.",,active
 login.verify_email_pending,shared,LoginPage,LoginPage,verify_pending,"Check your email to verify your account, then sign in.",,active
 login.oauth.continue,shared,LoginPage,LoginPage,oauth_continue,"Continue with {{provider}}",,active
+login.oauth.desktop_start_failed,shared,LoginPage,LoginPage,oauth_desktop_start_failed,"Could not start desktop sign-in. Please try again.",,active
 login.divider,shared,LoginPage,LoginPage,divider,"Or",,active
 login.tab.sign_in,shared,LoginPage,LoginPage,tab_sign_in,"Sign in",,active
 login.tab.sign_up,shared,LoginPage,LoginPage,tab_sign_up,"Create account",,active
@@ -40,6 +41,7 @@ shared.unit.percent,shared,*,*,unit_percent,"%",,active
 shared.unit.thousand_abbrev,shared,*,*,unit_thousand_abbrev,"K",,active
 shared.unit.million_abbrev,shared,*,*,unit_million_abbrev,"M",,active
 shared.unit.billion_abbrev,shared,*,*,unit_billion_abbrev,"B",,active
+shared.unit.trillion_abbrev,shared,*,*,unit_trillion_abbrev,"T",,active
 shared.data_source,shared,*,*,label,"Data source: {{source}}",,active
 shared.error.prefix,shared,*,*,label,"Error: {{error}}",,active
 shared.status.unsynced,shared,*,*,status,"—",,active
@@ -458,10 +460,17 @@ nav.settings,shared,*,Sidebar,nav_settings,"Settings",,active
 header.auth.open_settings,shared,*,InsforgeUserHeaderControls,open_settings,"Open settings",,active
 settings.page.title,ui,SettingsPage,SettingsPage,title,"Settings",,active
 settings.page.subtitle,ui,SettingsPage,SettingsPage,subtitle,"Manage your account, appearance, and display preferences.",,active
+settings.nav.group.personal,ui,SettingsPage,SettingsPage,nav_group_personal,"Personal",,active
+settings.nav.group.app,ui,SettingsPage,SettingsPage,nav_group_app,"App",,active
+settings.nav.group.developer,ui,SettingsPage,SettingsPage,nav_group_developer,"Developer",,active
 settings.section.appearance,ui,SettingsPage,SettingsPage,sec_appearance,"Appearance",,active
+settings.section.appearance.description,ui,SettingsPage,SettingsPage,sec_appearance_description,"Theme, language, currency, and number formatting.",,active
 settings.section.account,ui,SettingsPage,SettingsPage,sec_account,"Account",,active
-settings.section.limits,ui,SettingsPage,SettingsPage,sec_limits,"Limits Display",,active
+settings.section.account.description,ui,SettingsPage,SettingsPage,sec_account_description,"Cloud sync, public profile, and account details.",,active
+settings.section.limits,ui,SettingsPage,SettingsPage,sec_limits,"Usage & Limits",,active
+settings.section.limits.description,ui,SettingsPage,SettingsPage,sec_limits_description,"Choose how usage is shown and configure limit providers.",,active
 settings.section.network,ui,SettingsPage,NetworkSection,sec_network,"Network",,active
+settings.section.network.description,ui,SettingsPage,NetworkSection,sec_network_description,"Control the proxy used for cloud sync and diagnostics.",,active
 settings.network.mode.label,ui,SettingsPage,NetworkSection,mode_label,"Outbound proxy",,active
 settings.network.mode.hint,ui,SettingsPage,NetworkSection,mode_hint,"Choose how Token Tracker reaches the internet for cloud sync. App updates always follow the system proxy.",,active
 settings.network.mode.system,ui,SettingsPage,NetworkSection,mode_system,"System",,active
@@ -514,6 +523,7 @@ settings.labs.sessions.label,ui,SettingsPage,LabsSection,sessions_label,"Session
 settings.labs.sessions.hint,ui,SettingsPage,LabsSection,sessions_hint,"Analyze metadata-only edit coverage, first-pass delivery, and cost per edit across Claude and Codex.",,active
 settings.labs.sessions.aria,ui,SettingsPage,LabsSection,sessions_aria,"Toggle session efficiency analysis",,active
 settings.section.labs,ui,SettingsPage,LabsSection,sec_labs,"Labs",,active
+settings.section.labs.description,ui,SettingsPage,LabsSection,sec_labs_description,"Try experimental insights before they become standard features.",,active
 qpd.card.title,ui,DashboardView,QualityPerDollarCard,title,"Quality & Avg Cost/PR",,active
 qpd.card.badge,ui,DashboardView,QualityPerDollarCard,badge,"BETA",,active
 qpd.card.subtitle,ui,DashboardView,QualityPerDollarCard,subtitle,"Avg token cost per delivery, from merged PRs and AI-attributed commits.",,active
@@ -537,9 +547,13 @@ settings.appearance.theme.system,ui,SettingsPage,SettingsPage,theme_system,"Syst
 settings.appearance.currency.label,ui,SettingsPage,SettingsPage,currency_label,"Currency",,active
 settings.appearance.currency.hint,ui,SettingsPage,SettingsPage,currency_hint,"Select the display currency for usage costs.",,active
 settings.appearance.token_format.label,ui,SettingsPage,SettingsPage,token_format_label,"Token numbers",,active
-settings.appearance.token_format.hint,ui,SettingsPage,SettingsPage,token_format_hint,"Apply K/M/B or full numbers everywhere. Hover compact values to see the exact number.",,active
+settings.appearance.token_format.hint,ui,SettingsPage,SettingsPage,token_format_hint,"Apply compact or full numbers everywhere. Hover compact values to see the exact number.",,active
 settings.appearance.token_format.compact,ui,SettingsPage,SettingsPage,token_format_compact,"Compact",,active
 settings.appearance.token_format.full,ui,SettingsPage,SettingsPage,token_format_full,"Full",,active
+settings.appearance.token_unit.label,ui,SettingsPage,SettingsPage,token_unit_label,"Number units",,active
+settings.appearance.token_unit.hint,ui,SettingsPage,SettingsPage,token_unit_hint,"Compact numbers use K/M/B or Wan/Yi units. Full numbers ignore units.",,active
+settings.appearance.token_unit.english,ui,SettingsPage,SettingsPage,token_unit_english,"K/M/B",,active
+settings.appearance.token_unit.chinese,ui,SettingsPage,SettingsPage,token_unit_chinese,"Wan/Yi",,active
 settings.appearance.currency.opt.usd,ui,SettingsPage,SettingsPage,currency_opt_usd,"USD ($)",,active
 settings.appearance.currency.opt.eur,ui,SettingsPage,SettingsPage,currency_opt_eur,"EUR (€)",,active
 settings.appearance.currency.opt.gbp,ui,SettingsPage,SettingsPage,currency_opt_gbp,"GBP (£)",,active
@@ -596,7 +610,8 @@ leaderboard.summary.view_profile,ui,LeaderboardPage,LeaderboardMeChip,summary_vi
 settings.account.signOut,ui,SettingsPage,SettingsPage,sign_out,"Sign out",,active
 settings.account.signIn,ui,SettingsPage,SettingsPage,sign_in,"Sign in",,active
 settings.account.signedOutHint,ui,SettingsPage,SettingsPage,signed_out_hint,"Sign in to manage cloud sync and leaderboard preferences.",,active
-settings.section.menubar,ui,SettingsPage,SettingsPage,sec_menubar,"Menu Bar App",,active
+settings.section.menubar,ui,SettingsPage,SettingsPage,sec_menubar,"App & Updates",,active
+settings.section.menubar.description,ui,SettingsPage,SettingsPage,sec_menubar_description,"Manage background sync, startup behavior, and app updates.",,active
 settings.menubar.showStats,ui,SettingsPage,SettingsPage,mb_show_stats,"Show stats in menu bar",,active
 settings.menubar.showStatsHint,ui,SettingsPage,SettingsPage,mb_show_stats_hint,"Display today's token count and cost beside the menu bar icon.",,active
 pet.menubar.title,ui,PetPage,PetPage,pet_menubar_title,"Run in the menu bar",,active
@@ -726,8 +741,13 @@ usage.overview.all_models_note,ui,DashboardPage,UsageOverview,all_models_note,"M
 usage.overview.all_tools_card_aria,ui,DashboardPage,UsageOverview,all_tools_card_aria,"All tools: {{tokens}} tokens, {{cost}}, {{count}} models. Show combined model ranking",,active
 usage.overview.cache_hit_rate_label,ui,DashboardPage,UsageOverview,cache_hit_rate_label,"Cache hit rate",,active
 usage.overview.cache_hit_rate_detail,ui,DashboardPage,UsageOverview,cache_hit_rate_detail,"{{reused}} reused / {{input}} input",,active
-usage.overview.antigravity_notice_title,ui,DashboardPage,UsageOverview,antigravity_notice_title,"Estimated tokens",,active
-usage.overview.antigravity_notice_body,ui,DashboardPage,UsageOverview,antigravity_notice_body,"Antigravity transcripts don't record real usage numbers. These counts are estimated from text length (~4 chars/token) and don't reflect Gemini's prompt-cache discount, so treat them as an upper bound, not a billing figure.",,active
+usage.overview.antigravity_notice_title,ui,DashboardPage,UsageOverview,antigravity_notice_title,"Token details",,active
+usage.overview.antigravity_notice_body,ui,DashboardPage,UsageOverview,antigravity_notice_body,"Exact token usage and prompt-cache hits are parsed from Antigravity session metadata when available. Fallback transcripts without metadata are estimated from text length (~4 chars/token).",,active
+usage.overview.devin_notice_title,ui,DashboardPage,UsageOverview,devin_notice_title,"Cost not estimated",,active
+usage.overview.devin_notice_body,ui,DashboardPage,UsageOverview,devin_notice_body,"Devin reports real local token counts, but swe-2, swe-2-high and compactor have no pricing data in this build, so they are excluded from dollar estimates. A $0 figure does not mean the usage was free.",,active
+usage.overview.trae_notice_title,ui,DashboardPage,UsageOverview,trae_notice_title,"TRAE cost is partial",,active
+usage.overview.trae_notice_body,ui,DashboardPage,UsageOverview,trae_notice_body,"In multi-step turns, TRAE splits cached input for the final step, not the earlier ones. Input without a cache split counts toward token totals but not toward cost. Costs use model prices, not billed amounts.",,active
+usage.overview.week_cross_month_hint,ui,DashboardPage,UsageOverview,week_cross_month_hint,"This week spans two calendar months, so its total is not directly comparable with a single month's usage",,active
 limits.panel.title,ui,LimitsPage,UsageLimitsPanel,title,"Usage Limits",,active
 limits.panel.mode_separator,ui,LimitsPage,UsageLimitsPanel,title_separator," · ",,active
 limits.label.cursor_plan,ui,LimitsPage,UsageLimitsPanel,cursor_plan,"Plan",,active
@@ -770,8 +790,13 @@ limits.provider.copilot,ui,LimitsPage,UsageLimitsPanel,provider_copilot,"GitHub 
 limits.provider.antigravity,ui,LimitsPage,UsageLimitsPanel,provider_antigravity,"Antigravity",,active
 limits.provider.zcode,ui,LimitsPage,UsageLimitsPanel,provider_zcode,"ZCode",,active
 provider.display.omp,ui,*,ProviderDisplay,omp,"oh-my-pi",,active
+provider.display.omo,ui,*,ProviderDisplay,omo,"OmO",,active
+provider.display.minimax_code,ui,*,ProviderDisplay,minimax_code,"MiniMax Code",,active
+provider.display.command_code,ui,*,ProviderDisplay,command_code,"Command Code",,active
 provider.display.deepseek_harness,ui,*,ProviderDisplay,deepseek_harness,"DeepSeek Harness",,active
+provider.display.trae,ui,*,ProviderDisplay,trae,"TRAE",,active
 provider.display.trae_work_cn,ui,*,ProviderDisplay,trae_work_cn,"TRAE Work CN",,active
+provider.display.cline,ui,*,ProviderDisplay,cline,"Cline",,active
 limits.label.zcode_glm52,ui,LimitsPage,UsageLimitsPanel,zcode_glm52,"GLM-5.2",,active
 limits.label.zcode_glm5t,ui,LimitsPage,UsageLimitsPanel,zcode_glm5t,"GLM-5-Turbo",,active
 limits.label.zcode_5h,ui,LimitsPage,UsageLimitsPanel,zcode_5h,"5h",,active
@@ -798,8 +823,8 @@ limits.label.antigravity_gemini_weekly,ui,LimitsPage,UsageLimitsPanel,antigravit
 limits.label.antigravity_gemini_5h,ui,LimitsPage,UsageLimitsPanel,antigravity_gemini_5h,"Gm 5h",,active
 limits.label.antigravity_live,ui,LimitsPage,UsageLimitsPanel,antigravity_live,"live",,active
 limits.label.antigravity_cached,ui,LimitsPage,UsageLimitsPanel,antigravity_cached,"cached",,active
-limits.tooltip.antigravity_live,ui,LimitsPage,UsageLimitsPanel,antigravity_live_tooltip,"Real-time limits retrieved directly from the running Antigravity process.",,active
-limits.tooltip.antigravity_cached,ui,LimitsPage,UsageLimitsPanel,antigravity_cached_tooltip,"Cached limits. Run Antigravity IDE/CLI to refresh.",,active
+limits.tooltip.antigravity_live,ui,LimitsPage,UsageLimitsPanel,antigravity_live_tooltip,"Real-time limits retrieved from your Antigravity Google account.",,active
+limits.tooltip.antigravity_cached,ui,LimitsPage,UsageLimitsPanel,antigravity_cached_tooltip,"Cached limits. Refreshes from your Antigravity login; the app does not need to be open.",,active
 limits.tooltip.qoder_cached,ui,LimitsPage,UsageLimitsPanel,qoder_cached_tooltip,"Cached limits. Run Qoder to refresh.",,active
 limits.bar.sub_one_percent,ui,LimitsPage,UsageLimitsPanel,bar_sub_one_percent,"<1",,active
 limits.status.not_connected,ui,LimitsPage,UsageLimitsPanel,status_not_connected,"Not connected",,active
@@ -1200,10 +1225,17 @@ skills.toast.bulk_removed,ui,SkillsPage,SkillsPage,toast_bulk_removed,"Removed {
 skills.toast.synced_one,ui,SkillsPage,SkillsPage,toast_synced_one,"Synced {{name}} to {{agent}}.",,active
 skills.toast.unsynced_one,ui,SkillsPage,SkillsPage,toast_unsynced_one,"Unsynced {{name}} from {{agent}}.",,active
 skills.toast.updated,ui,SkillsPage,SkillsPage,toast_updated,"Updated {{name}}.",,active
+skills.toast.updated_many,ui,SkillsPage,SkillsPage,toast_updated_many,"Updated {{count}} skills.",,active
+skills.toast.updated_partial,ui,SkillsPage,SkillsPage,toast_updated_partial,"Updated {{count}} of {{total}} skills. {{failed}} failed.",,active
+skills.toast.updated_none,ui,SkillsPage,SkillsPage,toast_updated_none,"All skills are already up to date.",,active
 skills.confirm.bulk_remove_title,ui,SkillsPage,SkillsPage,confirm_bulk_remove_title,"Remove {{count}} skills?",,active
 skills.confirm.bulk_remove_desc,ui,SkillsPage,SkillsPage,confirm_bulk_remove_desc,"This unsyncs each skill from every agent and deletes its local copy.",,active
+skills.confirm.update_all_title,ui,SkillsPage,SkillsPage,confirm_update_all_title,"Update {{count}} skills?",,active
+skills.confirm.update_all_desc,ui,SkillsPage,SkillsPage,confirm_update_all_desc,"Each skill is re-downloaded from its source repository, replacing the local copy.",,active
 skills.update.available,ui,SkillsPage,SkillDetailPanel,update_available,"A newer version is available upstream.",,active
 skills.update.action,ui,SkillsPage,SkillDetailPanel,update_action,"Update",,active
+skills.update.all_action,ui,SkillsPage,SkillsPage,update_all_action,"Update all ({{count}})",,active
+skills.update.rate_limited,ui,SkillsPage,SkillsPage,update_rate_limited,"GitHub rate limit reached after {{count}} updates. Try again in an hour.",,active
 skills.usage.section_title,ui,SkillsPage,SkillDetailPanel,usage_section_title,"Activity",,active
 skills.usage.invocations,ui,SkillsPage,SkillDetailPanel,usage_invocations,"Invocations",,active
 skills.usage.cost,ui,SkillsPage,SkillDetailPanel,usage_cost,"Est. cost",,active
@@ -1421,6 +1453,8 @@ sessions.badge.first_pass,ui,SessionsPage,SessionsPage,badge_first_pass,"First-p
 sessions.badge.reported_cost,ui,SessionsPage,SessionsPage,badge_reported_cost,"Reported cost",,active
 sessions.badge.reported_usage,ui,SessionsPage,SessionsPage,badge_reported_usage,"Reported usage",,active
 sessions.badge.partial_usage,ui,SessionsPage,SessionsPage,badge_partial_usage,"Partial usage",,active
+sessions.badge.partial_cost,ui,SessionsPage,SessionsPage,badge_partial_cost,"Partial cost","Tokens are fully observed but at least one model in the session has no public rate.",active
+sessions.cost.partial_title,ui,SessionsPage,SessionsPage,cost_partial_title,"Lower bound - some models in this session have no public rate, so their tokens cost $0 here.","Tooltip on the greater-or-equal cost marker.",active
 sessions.grok.token_breakdown,ui,SessionsPage,SessionsPage,grok_token_breakdown,"Input {{input}} · Cache read {{cacheRead}} · Cache write {{cacheWrite}} · Output {{output}} · Reasoning {{reasoning}}",,active
 sessions.grok.runtime_breakdown,ui,SessionsPage,SessionsPage,grok_runtime_breakdown,"Model calls {{calls}} · API {{seconds}}s · Tools {{tools}} · Errors {{errors}}",,active
 sessions.grok.context_breakdown,ui,SessionsPage,SessionsPage,grok_context_breakdown,"Context {{used}} / {{window}} ({{percent}}%)",,active
@@ -1578,3 +1612,69 @@ limits.codingPlan.setupHint.step3,ui,LimitsPage,UsageLimitsPanel,coding_plan_hin
 limits.codingPlan.setupHint.note_app,ui,LimitsPage,UsageLimitsPanel,coding_plan_hint_note_app,"Refresh after signing in — no app restart needed.",,active
 limits.codingPlan.setupHint.copy,ui,LimitsPage,UsageLimitsPanel,coding_plan_hint_copy,"Copy",,active
 limits.codingPlan.setupHint.copied,ui,LimitsPage,UsageLimitsPanel,coding_plan_hint_copied,"Copied",,active
+limits.provider.ark_agent_plan,ui,LimitsPage,UsageLimitsPanel,provider_ark_agent_plan,"Ark Agent Plan",,active
+limits.label.ark_agent_plan_5h,ui,LimitsPage,UsageLimitsPanel,ark_agent_plan_5h,"5h",,active
+limits.label.ark_agent_plan_weekly,ui,LimitsPage,UsageLimitsPanel,ark_agent_plan_weekly,"Weekly",,active
+limits.label.ark_agent_plan_monthly,ui,LimitsPage,UsageLimitsPanel,ark_agent_plan_monthly,"Monthly",,active
+limits.agentPlan.setupHint.title,ui,LimitsPage,UsageLimitsPanel,agent_plan_hint_title,"Connect Ark Agent Plan",,active
+limits.agentPlan.setupHint.subtitle,ui,LimitsPage,UsageLimitsPanel,agent_plan_hint_subtitle,"Quota is read from the official Ark CLI (arkcli) on this machine.",,active
+limits.agentPlan.setupHint.step1,ui,LimitsPage,UsageLimitsPanel,agent_plan_hint_step1,"Install the Ark CLI from npm.",,active
+limits.agentPlan.setupHint.cta,ui,LimitsPage,UsageLimitsPanel,agent_plan_hint_cta,"View install guide",,active
+limits.agentPlan.setupHint.step2,ui,LimitsPage,UsageLimitsPanel,agent_plan_hint_step2,"Sign in with your Volcengine account (browser SSO recommended).",,active
+limits.agentPlan.setupHint.step2_remote,ui,LimitsPage,UsageLimitsPanel,agent_plan_hint_step2_remote,"Headless / remote terminals: arkcli auth login --no-browser",,active
+limits.agentPlan.setupHint.step3,ui,LimitsPage,UsageLimitsPanel,agent_plan_hint_step3,"Run these, then refresh this page:",,active
+limits.agentPlan.setupHint.note_app,ui,LimitsPage,UsageLimitsPanel,agent_plan_hint_note_app,"Refresh after signing in — no app restart needed.",,active
+limits.agentPlan.setupHint.copy,ui,LimitsPage,UsageLimitsPanel,agent_plan_hint_copy,"Copy",,active
+limits.agentPlan.setupHint.copied,ui,LimitsPage,UsageLimitsPanel,agent_plan_hint_copied,"Copied",,active
+limits.tooltip.ark_cached,ui,LimitsPage,UsageLimitsPanel,tooltip_ark_cached,"Cached limits. Run arkcli to refresh.",,active
+limits.agentPlan.setupHint.snippet_install,ui,LimitsPage,UsageLimitsPanel,agent_plan_hint_snippet_install,"npm install -g @volcengine/ark-cli",,active
+limits.agentPlan.setupHint.snippet_login,ui,LimitsPage,UsageLimitsPanel,agent_plan_hint_snippet_login,"arkcli auth login volc-sso   # browser SSO (recommended)",,active
+limits.agentPlan.setupHint.snippet_status,ui,LimitsPage,UsageLimitsPanel,agent_plan_hint_snippet_status,"arkcli auth status           # verify the session",,active
+limits.provider.command_code,ui,LimitsPage,UsageLimitsPanel,provider_command_code,"Command Code",,active
+limits.label.command_code_5h,ui,LimitsPage,UsageLimitsPanel,command_code_5h,"5h",,active
+limits.label.command_code_weekly,ui,LimitsPage,UsageLimitsPanel,command_code_weekly,"Weekly",,active
+limits.commandCode.setupHint.title,ui,LimitsPage,UsageLimitsPanel,command_code_hint_title,"Connect Command Code",,active
+limits.commandCode.setupHint.subtitle,ui,LimitsPage,UsageLimitsPanel,command_code_hint_subtitle,"Reads your subscription usage from the official Command Code API with the same login as the cmd CLI.",,active
+limits.commandCode.setupHint.step1,ui,LimitsPage,UsageLimitsPanel,command_code_hint_step1,"Option 1 — sign in with the Command Code CLI (recommended): run the login command below. TokenTracker reuses that login with no restart.",,active
+limits.commandCode.setupHint.step2,ui,LimitsPage,UsageLimitsPanel,command_code_hint_step2,"Option 2 — use an API key instead: run this command, paste your key (input stays invisible), then restart TokenTracker:",,active
+limits.commandCode.setupHint.copy,ui,LimitsPage,UsageLimitsPanel,command_code_hint_copy,"Copy",,active
+limits.commandCode.setupHint.copied,ui,LimitsPage,UsageLimitsPanel,command_code_hint_copied,"Copied",,active
+limits.commandCode.setupHint.note_app,ui,LimitsPage,UsageLimitsPanel,command_code_hint_note_app,"macOS app: use the launchctl setenv line, then reopen the app.",,active
+limits.commandCode.setupHint.snippet_login,ui,LimitsPage,UsageLimitsPanel,command_code_hint_snippet_login,"cmd login",,active
+limits.commandCode.setupHint.snippet_read,ui,LimitsPage,UsageLimitsPanel,command_code_hint_snippet_read,"read -r -s COMMAND_CODE_API_KEY",,active
+limits.commandCode.setupHint.snippet_export,ui,LimitsPage,UsageLimitsPanel,command_code_hint_snippet_export,"export COMMAND_CODE_API_KEY",,active
+limits.commandCode.setupHint.snippet_setenv,ui,LimitsPage,UsageLimitsPanel,command_code_hint_snippet_setenv,"launchctl setenv COMMAND_CODE_API_KEY ""$COMMAND_CODE_API_KEY""",,active
+limits.commandCode.setupHint.snippet_login_windows,ui,LimitsPage,UsageLimitsPanel,command_code_hint_snippet_login_windows,"cmdc auth login",,active
+limits.commandCode.setupHint.snippet_env_windows,ui,LimitsPage,UsageLimitsPanel,command_code_hint_snippet_env_windows,"$token = Read-Host -AsSecureString\n$env:COMMAND_CODE_API_KEY = [System.Net.NetworkCredential]::new('', $token).Password\n[Environment]::SetEnvironmentVariable('COMMAND_CODE_API_KEY', $env:COMMAND_CODE_API_KEY, 'User')",,active
+limits.commandCode.setupHint.note_windows,ui,LimitsPage,UsageLimitsPanel,command_code_hint_note_windows,"Windows: run in PowerShell, then restart TokenTracker.",,active
+limits.commandCode.setupHint.note_linux,ui,LimitsPage,UsageLimitsPanel,command_code_hint_note_linux,"Linux: start TokenTracker from this terminal to inherit the environment variable.",,active
+landing.discovery.tracked_usage,landing,LandingPage,index.html,tracked_usage,"Token Tracker tracks input, output, cached, and cache-creation tokens per model, project, and time window. It also detects usage limits for 17 providers, including Claude, Codex, Cursor, Gemini, Antigravity, Qoder, Qoder CN, Command Code, and Devin.",Build-time static discovery copy,active
+landing.discovery.limits_summary,landing,LandingPage,index.html,limits_summary,"live quota and subscription status for 17 providers, with last-good caching for local providers such as Antigravity and Qoder.",Build-time static discovery copy,active
+landing.discovery.faq_usage,landing,LandingPage,index.html,faq_usage,"Input, output, cached, and cache-creation tokens per model, project, and time window. It also surfaces usage limits for 17 providers, including Claude, Codex, Cursor, Gemini, Antigravity, Qoder, Qoder CN, Command Code, and Devin.",Build-time static discovery copy,active
+limits.provider.devin,ui,LimitsPage,UsageLimitsPanel,provider_devin,"Devin",,active
+limits.label.devin_daily,ui,LimitsPage,UsageLimitsPanel,devin_daily,"Daily",,active
+limits.label.devin_weekly,ui,LimitsPage,UsageLimitsPanel,devin_weekly,"Weekly",,active
+limits.devin.setupHint.title,ui,LimitsPage,UsageLimitsPanel,devin_hint_title,"Connect Devin",,active
+limits.devin.setupHint.subtitle,ui,LimitsPage,UsageLimitsPanel,devin_hint_subtitle,"Reads your Devin subscription quota with the Devin CLI's saved sign-in on this machine.",,active
+limits.devin.setupHint.step1,ui,LimitsPage,UsageLimitsPanel,devin_hint_step1,"Install the Devin CLI and sign in with the command below — TokenTracker picks it up with no restart.",,active
+limits.devin.setupHint.note,ui,LimitsPage,UsageLimitsPanel,devin_hint_note,"Refresh this page after signing in. TokenTracker sends the saved session token only to Devin's official quota endpoint.",,active
+limits.devin.setupHint.snippet_login,ui,LimitsPage,UsageLimitsPanel,devin_hint_snippet_login,"devin auth login",,active
+quota.title,ui,QuotaWidget,QuotaWidget,title,"Limits",,active
+quota.remaining,ui,QuotaWidget,QuotaWidget,remaining,"Remaining",,active
+quota.stale,ui,QuotaWidget,QuotaWidget,stale,"Update delayed",,active
+quota.drag,ui,QuotaWidget,QuotaWidget,drag,"Drag to move",,active
+quota.choose,ui,QuotaWidget,QuotaWidget,choose,"Choose limits",,active
+quota.collapse,ui,QuotaWidget,QuotaWidget,collapse,"Collapse",,active
+quota.expand,ui,QuotaWidget,QuotaWidget,expand,"Expand limits",,active
+quota.empty,ui,QuotaWidget,QuotaWidget,empty,"Connect a provider in the dashboard",,active
+quota.loading,ui,QuotaWidget,QuotaWidget,loading,"Loading limits…",,active
+quota.awaiting,ui,QuotaWidget,QuotaWidget,awaiting,"Waiting for updated limits",,active
+quota.resets,ui,QuotaWidget,QuotaWidget,resets,"Resets {{time}}",,active
+quota.no_reset,ui,QuotaWidget,QuotaWidget,no_reset,"Reset time unavailable",,active
+quota.unavailable,ui,QuotaWidget,QuotaWidget,unavailable,"Selected limits are unavailable",,active
+quota.dashboard,ui,QuotaWidget,QuotaWidget,dashboard,"Open dashboard",,active
+quota.pick_two,ui,QuotaWidget,QuotaWidget,pick_two,"Choose up to two windows",,active
+quota.percent,ui,QuotaWidget,QuotaWidget,percent,"%",,active
+quota.reset_in,ui,QuotaWidget,QuotaWidget,reset_in,"Resets in {{time}}",,active
+quota.close,ui,QuotaWidget,QuotaWidget,close,"Close widget",,active
+quota.close_hint,ui,QuotaWidget,QuotaWidget,close_hint,"Close widget; reopen from the tray menu",,active

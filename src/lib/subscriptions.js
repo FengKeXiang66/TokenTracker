@@ -19,6 +19,9 @@ const CLAUDE_CODE_CREDENTIALS_FILE = ".credentials.json";
 // Platforms where Claude Code stores credentials in the plain JSON file above
 // rather than the macOS Keychain.
 const CLAUDE_CODE_CREDENTIALS_FILE_PLATFORMS = new Set(["linux", "win32"]);
+// Refresh slightly before wall-clock expiry so Limits does not spend a request
+// that Anthropic answers with 429 for a real-but-expired Claude Code token.
+const CLAUDE_TOKEN_EXPIRY_SKEW_MS = 60_000;
 
 function usesClaudeCodeCredentialsFile(platform) {
   return CLAUDE_CODE_CREDENTIALS_FILE_PLATFORMS.has(platform);
@@ -164,14 +167,23 @@ async function detectOpencodeChatgptSubscription({ home, env }) {
   };
 }
 
-function probeMacosKeychainGenericPassword({ service, securityRunner, timeoutMs } = {}) {
+// Match Claude Code 2.1.267's account derivation. A service-only lookup may
+// select credentials from an older installation before the current account.
+function resolveClaudeKeychainAccount({ env = process.env, userInfo = os.userInfo } = {}) {
+  let account;
+  try { account = env.USER || userInfo().username; } catch (_error) { return "claude-code-user"; }
+  return typeof account === "string" && /^[a-zA-Z0-9._-]+$/.test(account)
+    ? account : "claude-code-user";
+}
+
+function probeMacosKeychainGenericPassword({ service, securityRunner, timeoutMs, env } = {}) {
   const svc = normalizeString(service);
   if (!svc) return false;
 
   const runner = typeof securityRunner === "function" ? securityRunner : cp.spawnSync;
   if (runner === cp.spawnSync && !fs.existsSync(MACOS_SECURITY_BIN)) return false;
 
-  const result = runner(MACOS_SECURITY_BIN, ["find-generic-password", "-s", svc], {
+  const result = runner(MACOS_SECURITY_BIN, ["find-generic-password", "-s", svc, "-a", resolveClaudeKeychainAccount({ env })], {
     stdio: "ignore",
     timeout: Number.isFinite(timeoutMs) ? timeoutMs : 2000,
   });
@@ -180,14 +192,14 @@ function probeMacosKeychainGenericPassword({ service, securityRunner, timeoutMs 
   return result.status === 0;
 }
 
-function readMacosKeychainPassword({ service, securityRunner, timeoutMs } = {}) {
+function readMacosKeychainPassword({ service, securityRunner, timeoutMs, env } = {}) {
   const svc = normalizeString(service);
   if (!svc) return null;
 
   const runner = typeof securityRunner === "function" ? securityRunner : cp.spawnSync;
   if (runner === cp.spawnSync && !fs.existsSync(MACOS_SECURITY_BIN)) return null;
 
-  const result = runner(MACOS_SECURITY_BIN, ["find-generic-password", "-s", svc, "-w"], {
+  const result = runner(MACOS_SECURITY_BIN, ["find-generic-password", "-s", svc, "-a", resolveClaudeKeychainAccount({ env }), "-w"], {
     stdio: ["ignore", "pipe", "ignore"],
     timeout: Number.isFinite(timeoutMs) ? timeoutMs : 2000,
     encoding: "utf8",
@@ -217,12 +229,13 @@ function readClaudeCodeCredentialsFile({ home, fsReader } = {}) {
   }
 }
 
-function detectClaudeCodeCredentialsPresence({ platform = process.platform, securityRunner, home, fsReader } = {}) {
+function detectClaudeCodeCredentialsPresence({ platform = process.platform, securityRunner, home, fsReader, env } = {}) {
   if (platform === "darwin") {
     for (const service of CLAUDE_CODE_KEYCHAIN_SERVICES) {
       const present = probeMacosKeychainGenericPassword({
         service,
         securityRunner,
+        env,
       });
       if (!present) continue;
 
@@ -260,6 +273,31 @@ function detectClaudeCodeCredentialsPresence({ platform = process.platform, secu
   return null;
 }
 
+function parseClaudeOauthExpiryMs(value) {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) return null;
+    if (value <= 0) return 0;
+    return value < 1e12 ? value * 1000 : value;
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (/^-?\d+(\.\d+)?$/.test(trimmed)) return parseClaudeOauthExpiryMs(Number(trimmed));
+    const ms = Date.parse(trimmed);
+    return Number.isFinite(ms) ? ms : null;
+  }
+  return null;
+}
+
+function extractClaudeCodeOauth(payload, nowMs = Date.now()) {
+  const oauth = payload?.claudeAiOauth;
+  const accessToken = normalizeString(oauth?.accessToken);
+  if (!accessToken) return null;
+  const expiresAtMs = parseClaudeOauthExpiryMs(oauth?.expiresAt);
+  if (expiresAtMs != null && expiresAtMs <= nowMs + CLAUDE_TOKEN_EXPIRY_SKEW_MS) return null;
+  return { accessToken, expiresAtMs };
+}
+
 function extractClaudeKeychainSubscription(payload) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
 
@@ -273,11 +311,11 @@ function extractClaudeKeychainSubscription(payload) {
   return { subscriptionType, rateLimitTier };
 }
 
-function detectClaudeCodeSubscriptionDetails({ platform = process.platform, securityRunner, home, fsReader } = {}) {
+function detectClaudeCodeSubscriptionDetails({ platform = process.platform, securityRunner, home, fsReader, env } = {}) {
   const rawPayloads = [];
   if (platform === "darwin") {
     for (const service of CLAUDE_CODE_KEYCHAIN_SERVICES) {
-      const raw = readMacosKeychainPassword({ service, securityRunner });
+      const raw = readMacosKeychainPassword({ service, securityRunner, env });
       if (raw) rawPayloads.push(raw);
     }
   } else if (usesClaudeCodeCredentialsFile(platform)) {
@@ -327,14 +365,14 @@ async function collectLocalSubscriptions({
   if (opencode) out.push(opencode);
 
   if (probeKeychainDetails) {
-    const claude = detectClaudeCodeSubscriptionDetails({ platform, securityRunner, home });
+    const claude = detectClaudeCodeSubscriptionDetails({ platform, securityRunner, home, env });
     if (claude) out.push(claude);
     else if (probeKeychain) {
-      const present = detectClaudeCodeCredentialsPresence({ platform, securityRunner, home });
+      const present = detectClaudeCodeCredentialsPresence({ platform, securityRunner, home, env });
       if (present) out.push(present);
     }
   } else if (probeKeychain) {
-    const claude = detectClaudeCodeCredentialsPresence({ platform, securityRunner, home });
+    const claude = detectClaudeCodeCredentialsPresence({ platform, securityRunner, home, env });
     if (claude) out.push(claude);
   }
 
@@ -364,14 +402,25 @@ async function detectOpenclawSessionIntegration({ home, env }) {
   };
 }
 
-function readClaudeCodeAccessToken({ platform = process.platform, securityRunner, home, fsReader } = {}) {
+// Returns the live OAuth token plus its expiry stamp. The expiry doubles as a
+// rotation marker for the 429 cool-down: it changes on every refresh and, unlike
+// the token itself, is not a secret, so nothing derived from a credential has to
+// be written to disk.
+function readClaudeCodeOauthToken({
+  platform = process.platform,
+  securityRunner,
+  home,
+  fsReader,
+  env,
+  nowMs = Date.now(),
+} = {}) {
   if (platform === "darwin") {
     for (const service of CLAUDE_CODE_KEYCHAIN_SERVICES) {
       try {
-        const raw = readMacosKeychainPassword({ service, securityRunner });
+        const raw = readMacosKeychainPassword({ service, securityRunner, env });
         if (!raw) continue;
-        const payload = JSON.parse(raw);
-        return normalizeString(payload?.claudeAiOauth?.accessToken);
+        const oauth = extractClaudeCodeOauth(JSON.parse(raw), nowMs);
+        if (oauth) return oauth;
       } catch (_e) {
         continue;
       }
@@ -386,11 +435,14 @@ function readClaudeCodeAccessToken({ platform = process.platform, securityRunner
   const raw = readClaudeCodeCredentialsFile({ home, fsReader });
   if (!raw) return null;
   try {
-    const payload = JSON.parse(raw);
-    return normalizeString(payload?.claudeAiOauth?.accessToken);
+    return extractClaudeCodeOauth(JSON.parse(raw), nowMs);
   } catch (_e) {
     return null;
   }
+}
+
+function readClaudeCodeAccessToken(options = {}) {
+  return readClaudeCodeOauthToken(options)?.accessToken ?? null;
 }
 
 async function readCodexAccessToken({ home, env } = {}) {
@@ -445,10 +497,12 @@ async function readCodexAuthBundle({ home, env } = {}) {
 }
 
 module.exports = {
+  resolveClaudeKeychainAccount,
   collectLocalSubscriptions,
   detectClaudeCodeCredentialsPresence,
   detectClaudeCodeSubscriptionDetails,
   readClaudeCodeAccessToken,
+  readClaudeCodeOauthToken,
   readCodexAccessToken,
   readCodexAuthBundle,
 };

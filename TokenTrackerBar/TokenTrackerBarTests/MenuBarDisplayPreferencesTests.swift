@@ -153,6 +153,37 @@ final class MenuBarDisplayPreferencesTests: XCTestCase {
         XCTAssertFalse(ids.contains(MenuBarDisplayMetric.codex7d.rawValue))
     }
 
+    func testDevinMetricsAppearOnlyForPresentWindows() throws {
+        let limits = try decodeResponse(overrides: [
+            "devin": [
+                "configured": true,
+                "primary_window": ["used_percent": 40, "reset_at": "2026-09-13T08:00:00Z", "limit_window_seconds": 86_400],
+                "secondary_window": ["used_percent": 90, "reset_at": "2026-09-20T08:00:00Z", "limit_window_seconds": 604_800],
+            ],
+        ])
+
+        let ids = MenuBarDisplayPreferences.availableItemIDs(for: limits)
+
+        XCTAssertTrue(ids.contains(MenuBarDisplayMetric.devinDaily.rawValue))
+        XCTAssertTrue(ids.contains(MenuBarDisplayMetric.devinWeekly.rawValue))
+    }
+
+    func testDevinDailyMetricHiddenWhenDailyWindowAbsent() throws {
+        // A weekly-only plan reports primary_window: null — the menu-bar slot
+        // for a missing window must not be selectable.
+        let limits = try decodeResponse(overrides: [
+            "devin": [
+                "configured": true,
+                "secondary_window": ["used_percent": 90, "reset_at": "2026-09-20T08:00:00Z"],
+            ],
+        ])
+
+        let ids = MenuBarDisplayPreferences.availableItemIDs(for: limits)
+
+        XCTAssertFalse(ids.contains(MenuBarDisplayMetric.devinDaily.rawValue))
+        XCTAssertTrue(ids.contains(MenuBarDisplayMetric.devinWeekly.rawValue))
+    }
+
     /// Every limit metric's providerKey must be a known LimitsSettingsStore
     /// provider id, or visibility filtering silently never matches it.
     func testProviderKeysMatchLimitsSettingsStoreProviders() {

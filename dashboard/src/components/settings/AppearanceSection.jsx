@@ -9,7 +9,7 @@ import { CURRENCY_USD, getSupportedCurrencies } from "../../lib/currency";
 import { copy } from "../../lib/copy";
 import { Select } from "../../ui/components";
 import { SectionCard, SegmentedControl, SettingsRow } from "./Controls.jsx";
-import { TOKEN_FORMAT_MODES } from "../../lib/token-format.js";
+import { TOKEN_FORMAT_MODES, TOKEN_UNIT_SYSTEMS } from "../../lib/token-format.js";
 
 function buildThemeOptions() {
   return [
@@ -110,7 +110,12 @@ export function AppearanceSection() {
   const { theme, setTheme } = useTheme();
   const { locale, setLocale } = useLocale();
   const { currency, rate, rateSource, rateFetchedAt, setCurrency } = useCurrency();
-  const { mode: tokenFormatMode, setMode: setTokenFormatMode } = useTokenFormat();
+  const {
+    mode: tokenFormatMode,
+    setMode: setTokenFormatMode,
+    unitSystem: tokenUnitSystem,
+    setUnitSystem: setTokenUnitSystem,
+  } = useTokenFormat();
 
   return (
     <SectionCard title={copy("settings.section.appearance")}>
@@ -153,6 +158,27 @@ export function AppearanceSection() {
             ]}
             value={tokenFormatMode}
             onChange={setTokenFormatMode}
+          />
+        }
+      />
+      <SettingsRow
+        label={copy("settings.appearance.token_unit.label")}
+        hint={copy("settings.appearance.token_unit.hint")}
+        control={
+          <SegmentedControl
+            disabled={tokenFormatMode !== TOKEN_FORMAT_MODES.COMPACT}
+            options={[
+              {
+                value: TOKEN_UNIT_SYSTEMS.ENGLISH,
+                label: copy("settings.appearance.token_unit.english"),
+              },
+              {
+                value: TOKEN_UNIT_SYSTEMS.CHINESE,
+                label: copy("settings.appearance.token_unit.chinese"),
+              },
+            ]}
+            value={tokenUnitSystem}
+            onChange={setTokenUnitSystem}
           />
         }
       />

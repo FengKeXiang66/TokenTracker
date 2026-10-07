@@ -140,9 +140,11 @@ export const PROVIDER_LIMIT_SPECS = {
     },
   },
   zcode: {
+    /** Limit rows for ZCode: fixed coding-plan windows, or one row per labelled start-plan bucket. */
     windows(data) {
       // Coding plans expose 5h / weekly / tools windows (ZCode 3.3.x).
-      // Start plans keep the per-model GLM-5.2 / GLM-5-Turbo balances.
+      // Start plans list one row per balance bucket; the label comes from the API
+      // (model name, plus the promotion name for one-time grants), so `label` is set.
       if (data.plan_kind === "coding-plan") {
         return [
           { key: "5h", labelKey: "limits.label.zcode_5h", window: data.primary_window },
@@ -150,6 +152,11 @@ export const PROVIDER_LIMIT_SPECS = {
           { key: "tools", labelKey: "limits.label.zcode_tools", window: data.tertiary_window },
         ];
       }
+      const labeled = Array.isArray(data.buckets) ? data.buckets.filter((b) => b?.label && b.window) : [];
+      if (labeled.length) {
+        return labeled.map((b, i) => ({ key: `bucket-${b.entitlement_id || i}`, label: b.label, window: b.window }));
+      }
+      // Payloads from older servers carry no bucket labels.
       return [
         { key: "glm52", labelKey: "limits.label.zcode_glm52", window: data.primary_window },
         { key: "glm5t", labelKey: "limits.label.zcode_glm5t", window: data.secondary_window },
@@ -207,6 +214,40 @@ export const PROVIDER_LIMIT_SPECS = {
       ];
     },
   },
+  commandCode: {
+    // CommandCode subscription: 5h + weekly rolling windows over included
+    // monthly credits. Server-defined caps (client-trusted used% only), so no
+    // windowSeconds-based pacing projection — mirrors opencodeGo.
+    windows(data) {
+      return [
+        { key: "5h", labelKey: "limits.label.command_code_5h", window: data.primary_window },
+        { key: "weekly", labelKey: "limits.label.command_code_weekly", window: data.secondary_window },
+      ];
+    },
+  },
+  agentPlan: {
+    // Volcano Ark Agent Plan quota refreshes on three windows: a rolling
+    // 5-hour (5h), a weekly, and a monthly one. Percentages come straight
+    // from arkcli's usage plan payload; no client-side pacing data.
+    windows(data) {
+      return [
+        { key: "5h", labelKey: "limits.label.ark_agent_plan_5h", window: data.primary_window },
+        { key: "weekly", labelKey: "limits.label.ark_agent_plan_weekly", window: data.secondary_window },
+        { key: "monthly", labelKey: "limits.label.ark_agent_plan_monthly", window: data.tertiary_window },
+      ];
+    },
+  },
+  devin: {
+    // Devin subscription quota: fixed daily + weekly windows straight from the
+    // official GetPlanStatus RPC. The server supplies each window's reset time
+    // and length (86400/604800), so pacing uses `limit_window_seconds`.
+    windows(data) {
+      return [
+        { key: "daily", labelKey: "limits.label.devin_daily", window: data.primary_window, windowSecondsField: "limit_window_seconds" },
+        { key: "weekly", labelKey: "limits.label.devin_weekly", window: data.secondary_window, windowSecondsField: "limit_window_seconds" },
+      ];
+    },
+  },
 };
 
 /** Static copy() anchors for validate:copy — labels resolve at runtime via spec.labelKey. */
@@ -256,8 +297,15 @@ export function usageLimitsLabelCopyAnchor() {
     copy("limits.label.qoder_ultimate"),
     copy("limits.label.qoder_cn_credits"),
     copy("limits.label.qoder_cn_ultimate"),
+    copy("limits.label.command_code_5h"),
+    copy("limits.label.command_code_weekly"),
     copy("limits.label.ark_coding_plan_5h"),
     copy("limits.label.ark_coding_plan_weekly"),
     copy("limits.label.ark_coding_plan_monthly"),
+    copy("limits.label.ark_agent_plan_5h"),
+    copy("limits.label.ark_agent_plan_weekly"),
+    copy("limits.label.ark_agent_plan_monthly"),
+    copy("limits.label.devin_daily"),
+    copy("limits.label.devin_weekly"),
   ];
 }

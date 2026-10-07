@@ -17,11 +17,13 @@ export function formatCompactNumber(
     thousandSuffix = "K",
     millionSuffix = "M",
     billionSuffix = "B",
+    trillionSuffix = "T",
     decimals = 1,
   }: {
     thousandSuffix?: string;
     millionSuffix?: string;
     billionSuffix?: string;
+    trillionSuffix?: string;
     decimals?: number;
   } = {},
 ) {
@@ -48,8 +50,12 @@ export function formatCompactNumber(
     return `${sign}${normalized.toString()}${suffix}`;
   };
 
+  if (abs >= 1e12) {
+    return formatWithSuffix(abs / 1e12, trillionSuffix);
+  }
+
   if (abs >= 1000000000) {
-    return formatWithSuffix(abs / 1000000000, billionSuffix);
+    return formatWithCarry(abs / 1000000000, billionSuffix, trillionSuffix);
   }
 
   if (abs >= 1000000) {
@@ -62,6 +68,47 @@ export function formatCompactNumber(
     return formatWithSuffix(roundedK / 1000, millionSuffix);
   }
   return formatWithSuffix(roundedK, thousandSuffix);
+}
+
+// Chinese Wan/Yi numeral scale: 1e4 (万), 1e8 (亿), 1e12 (万亿). Below one
+// wan the exact digits are more readable than a rounded unit.
+export function formatChineseNumber(
+  value: any,
+  { decimals = 1 }: { decimals?: number } = {},
+) {
+  const n = Number(String(value));
+  if (!Number.isFinite(n)) return "-";
+  const sign = n < 0 ? "-" : "";
+  const abs = Math.abs(n);
+  const safeDecimals = Math.max(0, Math.min(6, Math.floor(decimals)));
+
+  if (abs < 10000) return `${sign}${String(abs)}`;
+
+  const formatWithSuffix = (val: number, suffix: string) => {
+    const fixed = val.toFixed(safeDecimals);
+    const normalized = Number(fixed).toString();
+    return `${sign}${normalized}${suffix}`;
+  };
+
+  if (abs >= 1e12) {
+    return formatWithSuffix(abs / 1e12, "万亿");
+  }
+
+  if (abs >= 1e8) {
+    const yiValue = abs / 1e8;
+    const roundedYi = Number(yiValue.toFixed(safeDecimals));
+    if (roundedYi >= 10000) {
+      return formatWithSuffix(roundedYi / 10000, "万亿");
+    }
+    return `${sign}${roundedYi.toString()}亿`;
+  }
+
+  const wanValue = abs / 10000;
+  const roundedWan = Number(wanValue.toFixed(safeDecimals));
+  if (roundedWan >= 10000) {
+    return formatWithSuffix(roundedWan / 10000, "亿");
+  }
+  return formatWithSuffix(roundedWan, "万");
 }
 
 export function toFiniteNumber(value: any) {

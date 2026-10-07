@@ -85,6 +85,14 @@ export function useUsageModelBreakdown({
     deviceId,
     timeZone,
     tzOffsetMinutes,
+    // Keep auth and scope gates in the request identity so an old provider
+    // response cannot repopulate the card after a view transition.
+    guestAllowed,
+    mockEnabled,
+    cacheAllowed,
+    accountViewResolving,
+    tokenReady,
+    isLocalMode,
   ]);
 
   // Wipe state when the scope flips so the prior buckets don't render

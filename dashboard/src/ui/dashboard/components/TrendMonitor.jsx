@@ -25,7 +25,7 @@ function interpolateQuantile(sortedValues, ratio) {
   return sortedValues[lower] + (sortedValues[upper] - sortedValues[lower]) * weight;
 }
 
-export function getTrendMonitorScale(values) {
+export function getTrendMonitorScale(values, { clipOutliers = true } = {}) {
   const finiteValues = Array.isArray(values)
     ? values.filter((value) => Number.isFinite(value) && value > 0).sort((a, b) => a - b)
     : [];
@@ -41,7 +41,7 @@ export function getTrendMonitorScale(values) {
   const rawMax = finiteValues.at(-1) ?? 0;
   let effectiveMax = rawMax;
 
-  if (finiteValues.length >= 4) {
+  if (clipOutliers && finiteValues.length >= 4) {
     const q1 = interpolateQuantile(finiteValues, 0.25);
     const q3 = interpolateQuantile(finiteValues, 0.75);
     const iqr = Math.max(q3 - q1, 0);
@@ -125,22 +125,46 @@ export function getModelColor(modelName) {
   return STACK_COLORS[index];
 }
 
+/**
+ * Collapse model keys that differ only by whitespace or letter case.
+ *
+ * Usage APIs preserve the model spelling emitted by each tool. A single trend
+ * bucket can therefore contain both `GPT-5.5` and `gpt-5.5`; treating object
+ * keys as case-sensitive makes the tooltip render two segments for one model.
+ * Keep the most-used spelling for display while summing every variant into one
+ * stable segment.
+ */
+export function mergeModelSegments(models) {
+  if (!models || typeof models !== "object") return [];
+  const byKey = new Map();
+  for (const [rawName, rawValue] of Object.entries(models)) {
+    const value = Number(rawValue);
+    if (!Number.isFinite(value) || value <= 0) continue;
+    const name = String(rawName).trim() || "unknown";
+    const key = name.toLowerCase();
+    const current = byKey.get(key);
+    if (!current) {
+      byKey.set(key, { name, value, displayWeight: value });
+      continue;
+    }
+    current.value += value;
+    if (value > current.displayWeight) {
+      current.name = name;
+      current.displayWeight = value;
+    }
+  }
+  return Array.from(byKey.values())
+    .map(({ name, value }) => ({ type: "model", name, value }))
+    .sort((a, b) => b.value - a.value);
+}
+
 function getBarSegments(row) {
   if (!row) return [];
   const segments = [];
 
   // 1. 如果有 models，且 models 相加大于 0，则按模型拆分
   if (row.models && typeof row.models === "object") {
-    for (const [modelName, val] of Object.entries(row.models)) {
-      const numVal = Number(val);
-      if (Number.isFinite(numVal) && numVal > 0) {
-        segments.push({
-          type: "model",
-          name: modelName,
-          value: numVal,
-        });
-      }
-    }
+    segments.push(...mergeModelSegments(row.models));
   }
 
   // 2. 如果没有 models，或者 models 分量之和为 0，我们尝试按 Token 类型拆分
@@ -410,10 +434,10 @@ export function TrendMonitor({
     return {
       rawValues: raw,
       seriesValues: padded,
-      scale: getTrendMonitorScale(padded),
+      scale: getTrendMonitorScale(padded, { clipOutliers: period !== "total" }),
       interpolatedValues: computeInterpolatedSeries(raw),
     };
-  }, [series]);
+  }, [series, period]);
 
   const { currency, rate } = useCurrency();
   const { formatTokens, formatTokensTooltip } = useTokenFormat();

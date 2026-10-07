@@ -130,6 +130,15 @@ export function useUsageData({
     deviceId,
     timeZone,
     tzOffsetMinutes,
+    // These gates change which source is allowed to render. Invalidate an
+    // in-flight response when auth/mock/scope resolution changes so a late
+    // local response cannot leak into a guest or cloud view.
+    guestAllowed,
+    mockEnabled,
+    cacheAllowed,
+    accountViewResolving,
+    tokenReady,
+    isLocalMode,
   ]);
 
   const refresh = useCallback(async () => {

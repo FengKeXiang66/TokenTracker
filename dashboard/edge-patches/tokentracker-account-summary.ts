@@ -31,7 +31,7 @@
  */
 import { createClient } from "npm:@insforge/sdk";
 
-const SOURCES_WITH_AUTHORITATIVE_COST = new Set(["grok"]);
+const SOURCES_WITH_AUTHORITATIVE_COST = new Set(["grok", "cline"]);
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -170,12 +170,23 @@ const MODEL_PRICING: Record<string, { input: number; output: number; cache_read:
   "gpt-5.4-pro": { input: 30, output: 180, cache_read: 3 },
   "gpt-5.5": { input: 5, output: 30, cache_read: 0.5 },
   // GPT-5.6 family (public 2026-07-09), developers.openai.com/api/docs/pricing.
-  // Three durable capability tiers: sol (flagship) / terra (balanced default) /
+  // Three durable capability tiers: sol (flagship and public alias) / terra (balanced) /
   // luna (lightweight). Codex reports the tier in the model id (gpt-5.6-sol,
   // + reasoning-effort variants like gpt-5.6-solhigh). Not yet in LiteLLM.
-  "gpt-5.6-sol": { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 },
+  "gpt-5.6-sol": { input: 4, output: 20, cache_read: 0.4, cache_write: 5 },
   "gpt-5.6-terra": { input: 2, output: 12, cache_read: 0.2, cache_write: 2.5 },
   "gpt-5.6-luna": { input: 0.2, output: 1.2, cache_read: 0.02, cache_write: 0.25 },
+  // GPT-6 Astra Standard USD/MTok, verified 2026-09-07:
+  // https://developers.openai.com/api/docs/models/gpt-6-astra
+  // Cloud buckets do not retain per-request context/service tier. Use the
+  // standard short-context estimate; never infer long context from totals.
+  "gpt-6-astra": { input: 10, output: 50, cache_read: 1, cache_write: 12.5 },
+  // GPT-6 Sol Standard USD/MTok, verified 2026-09-24:
+  // https://developers.openai.com/api/docs/models/gpt-6-sol
+  "gpt-6-sol": { input: 2, output: 10, cache_read: 0.2, cache_write: 2.5 },
+  // GPT-6.1 Sol Standard pricing (issue #737), verified 2026-10-02.
+  // https://developers.openai.com/api/docs/models/gpt-6.1-sol
+  "gpt-6.1-sol": { input: 2, output: 10, cache_read: 0.1, cache_write: 2.5 },
   "gpt-5-mini": { input: 0.25, output: 2, cache_read: 0.025 },
   "o3": { input: 2, output: 8, cache_read: 0.5 },
   // ── Google Gemini ──
@@ -208,6 +219,10 @@ const MODEL_PRICING: Record<string, { input: number; output: number; cache_read:
   //    matcher requires the user-supplied model name to CONTAIN the LiteLLM
   //    key, so the bare `glm-5.1` / `glm-4.6` strings reported by Claude
   //    Code-compatible GLM endpoints never match. Curate them here. ──
+  // GLM-5.3: flagship keeps the 5.2 list rate; Flash is a distinct cheap SKU
+  // (LiteLLM `zai/glm-5.3-flash`: $0.15/$0.50/$0.03 per MTok in/out/cache-read).
+  "glm-5.3": { input: 1.4, output: 4.4, cache_read: 0.26 },
+  "glm-5.3-flash": { input: 0.15, output: 0.5, cache_read: 0.03 },
   "glm-5.2": { input: 1.4, output: 4.4, cache_read: 0.26 },
   "glm-5.1": { input: 1.4, output: 4.4, cache_read: 0.26 },
   "glm-5": { input: 1.0, output: 3.2, cache_read: 0.2 },
@@ -228,6 +243,11 @@ const MODEL_PRICING: Record<string, { input: number; output: number; cache_read:
   "deepseek-v4-flash": { input: 0.44, output: 1.32, cache_read: 0.014, cache_write: 0.44 },
   "deepseek-v4-pro": { input: 1.32, output: 3.96, cache_read: 0.044, cache_write: 1.32 },
   "deepseek-v4-flash-vision-exp": { input: 0.44, output: 1.32, cache_read: 0.014, cache_write: 0.44 },
+  // DeepSeek V4.1 Flash (official id deepseek-flash, released 2026-09-10):
+  // $0.30 / $1.20 / $0.006 cache read per MTok peak; getRowPricing halves it
+  // off-peak. deepseek-v4.1-flash is the OpenRouter / Command Code / WorkBuddy id.
+  "deepseek-v4.1-flash": { input: 0.3, output: 1.2, cache_read: 0.006, cache_write: 0.3 },
+  "deepseek-flash": { input: 0.3, output: 1.2, cache_read: 0.006, cache_write: 0.3 },
   "deepseek-chat": { input: 0.14, output: 0.28, cache_read: 0.0028, cache_write: 0.14 },
   "deepseek-reasoner": { input: 0.14, output: 0.28, cache_read: 0.0028, cache_write: 0.14 },
   // ── xAI Grok (mirrored from src/lib/pricing/curated-overrides.json;
@@ -253,6 +273,11 @@ const MODEL_PRICING: Record<string, { input: number; output: number; cache_read:
   //    converted at ~7.2 RMB/USD. DeepSeek-style cache: cache_write = input. ──
   "hy3-preview-agent": { input: 0.167, output: 0.556, cache_read: 0.056, cache_write: 0.167 },
   "hy3-preview": { input: 0.167, output: 0.556, cache_read: 0.056, cache_write: 0.167 },
+  // Hy4 preview: 6 / 0.3 (cache hit) / 18 RMB per MTok at ~7.2 RMB/USD (#633).
+  // Alibaba Model Studio Singapore reference rates; see curated-overrides.json (#715).
+  "qwen3.8-flash": { input: 0.15, output: 0.47, cache_read: 0.016, cache_write: 0.2 },
+  "hy4-preview": { input: 0.833, output: 2.5, cache_read: 0.042, cache_write: 0.833 },
+  "hy4-preview-agent": { input: 0.833, output: 2.5, cache_read: 0.042, cache_write: 0.833 },
   // ── Misc / Free ──
   "glm-4.7-free": { input: 0, output: 0, cache_read: 0 },
   "nemotron-3-super-free": { input: 0, output: 0, cache_read: 0 },
@@ -289,12 +314,101 @@ const MODEL_PRICING: Record<string, { input: number; output: number; cache_read:
   "step-3.5-flash": { input: 0.1, output: 0.3, cache_read: 0.02, cache_write: 0.1 },
 };
 const ZERO_PRICING = { input: 0, output: 0, cache_read: 0, cache_write: 0 };
+// iFlytek MaaS prices used by the AStudio source: RMB per million tokens,
+// converted at 7.2 RMB/USD and rounded to two decimal places. Models without a cache-hit
+// price use the regular input price; cache writes use the regular input price as well.
+// AStudio homepage: https://agent.xfyun.cn/
+// Official pricing source: https://maas.xfyun.cn/modelSquare
+const IFLYTEK_MAAS_MODEL_PRICING: Record<string, { input: number; output: number; cache_read: number; cache_write?: number }> = {
+  "xopglm53": { input: 1.11, output: 3.89, cache_read: 0.28, cache_write: 1.11 },
+  "xopdeepseekv4pro0813": { input: 1.25, output: 3.75, cache_read: 0.04, cache_write: 1.25 },
+  "xopdeepseekv4flash0731": { input: 0.14, output: 0.28, cache_read: 0.03, cache_write: 0.14 },
+  "xopkimik27code": { input: 0.90, output: 3.75, cache_read: 0.90, cache_write: 0.90 },
+  "xopglm52": { input: 1.11, output: 3.89, cache_read: 0.28, cache_write: 1.11 },
+  "xopdeepseekv4flash": { input: 0.14, output: 0.28, cache_read: 0.03, cache_write: 0.14 },
+  "xopkimik26": { input: 0.90, output: 3.75, cache_read: 0.18, cache_write: 0.90 },
+  "xopdeepseekv4pro": { input: 1.67, output: 3.33, cache_read: 0.14, cache_write: 1.67 },
+  "xopqwen36v35b": { input: 0.15, output: 0.90, cache_read: 0.15, cache_write: 0.15 },
+  "xophunyuan7bmt": { input: 0.07, output: 0.28, cache_read: 0.07, cache_write: 0.07 },
+  "xoppaddleocrv16": { input: 0.00, output: 0.00, cache_read: 0.00, cache_write: 0.00 },
+  "xsparkx2flash": { input: 0.14, output: 0.28, cache_read: 0.14, cache_write: 0.14 },
+  "xopglm51": { input: 1.11, output: 3.89, cache_read: 0.22, cache_write: 1.11 },
+  "xsparkx2": { input: 0.42, output: 0.42, cache_read: 0.42, cache_write: 0.42 },
+  "xop35qwen2b": { input: 0.03, output: 0.06, cache_read: 0.03, cache_write: 0.03 },
+  "xopqwen35397b": { input: 0.17, output: 1.00, cache_read: 0.17, cache_write: 0.17 },
+  "xminimaxm25": { input: 0.29, output: 1.17, cache_read: 0.29, cache_write: 0.29 },
+  "xopglm5": { input: 0.83, output: 3.06, cache_read: 0.17, cache_write: 0.83 },
+  "xopkimik25": { input: 0.56, output: 2.92, cache_read: 0.56, cache_write: 0.56 },
+  "xopdeepseekv32": { input: 0.14, output: 0.21, cache_read: 0.14, cache_write: 0.14 },
+  "xop3qwencodernext": { input: 0.35, output: 1.39, cache_read: 0.35, cache_write: 0.35 },
+  "xopglmv47flash": { input: 0.14, output: 0.21, cache_read: 0.14, cache_write: 0.14 },
+  "xopglm47blth2": { input: 0.56, output: 2.22, cache_read: 0.56, cache_write: 0.56 },
+  "xop3qwen32bvl": { input: 0.28, output: 1.11, cache_read: 0.28, cache_write: 0.28 },
+  "xopdeepseekocr": { input: 0.00, output: 0.00, cache_read: 0.00, cache_write: 0.00 },
+  "xophunyuanocr": { input: 0.00, output: 0.00, cache_read: 0.00, cache_write: 0.00 },
+  "xop3qwen80bnext": { input: 0.08, output: 0.33, cache_read: 0.08, cache_write: 0.08 },
+  "xop3qwen235b2507": { input: 0.17, output: 1.67, cache_read: 0.17, cache_write: 0.17 },
+  "xop3qwen30b2507": { input: 0.06, output: 0.63, cache_read: 0.06, cache_write: 0.06 },
+  "xop3qwen235b": { input: 0.17, output: 1.67, cache_read: 0.17, cache_write: 0.17 },
+  "xop3qwen30b": { input: 0.06, output: 0.63, cache_read: 0.06, cache_write: 0.06 },
+  "xop3qwen32b": { input: 0.17, output: 1.67, cache_read: 0.17, cache_write: 0.17 },
+  "xdeepseekv3": { input: 0.22, output: 0.89, cache_read: 0.22, cache_write: 0.22 },
+  "xdeepseekr1": { input: 0.44, output: 1.78, cache_read: 0.44, cache_write: 0.44 },
+  "xdeepseekr1qwen32b": { input: 0.22, output: 0.67, cache_read: 0.22, cache_write: 0.22 },
+  "xopkimik2blth": { input: 0.56, output: 2.22, cache_read: 0.56, cache_write: 0.56 },
+  "xopkimik2blins": { input: 0.56, output: 2.22, cache_read: 0.56, cache_write: 0.56 },
+  "xop3qwen8breranker": { input: 0.00, output: 0.00, cache_read: 0.00, cache_write: 0.00 },
+  "xop3qwen8bembedding": { input: 0.00, output: 0.00, cache_read: 0.00, cache_write: 0.00 },
+  "xop3qwen0b6": { input: 0.04, output: 0.42, cache_read: 0.04, cache_write: 0.04 },
+  "xop3qwen4b": { input: 0.04, output: 0.42, cache_read: 0.04, cache_write: 0.04 },
+  "xqwen257bchat": { input: 0.07, output: 0.14, cache_read: 0.07, cache_write: 0.07 },
+  "xop3qwen14b": { input: 0.14, output: 1.39, cache_read: 0.14, cache_write: 0.14 },
+  "xop3qwen8b": { input: 0.07, output: 0.69, cache_read: 0.07, cache_write: 0.07 },
+  "xsparkprox": { input: 1.11, output: 5.56, cache_read: 1.11, cache_write: 1.11 },
+  "xspark13b6k": { input: 0.28, output: 0.83, cache_read: 0.28, cache_write: 0.28 },
+  "spark mini": { input: 0.28, output: 1.11, cache_read: 0.28, cache_write: 0.28 },
+  "spark mini instruct": { input: 0.28, output: 1.11, cache_read: 0.28, cache_write: 0.28 },
+  "spark tiny": { input: 0.28, output: 1.11, cache_read: 0.28, cache_write: 0.28 },
+  "internlm2.5_7b_chat": { input: 0.28, output: 1.11, cache_read: 0.28, cache_write: 0.28 },
+  "internlm2.5_1.8b_chat": { input: 0.28, output: 1.11, cache_read: 0.28, cache_write: 0.28 },
+  "qwen_v2.5_7b_base": { input: 0.28, output: 1.11, cache_read: 0.28, cache_write: 0.28 },
+  "xsqwen2d53b": { input: 0.28, output: 1.11, cache_read: 0.28, cache_write: 0.28 },
+  "qwen_v2.5_3b_base": { input: 0.28, output: 1.11, cache_read: 0.28, cache_write: 0.28 },
+  "qwen_v2.5_1.5b_instruct": { input: 0.28, output: 1.11, cache_read: 0.28, cache_write: 0.28 },
+  "qwen_v2.5_1.5b_base": { input: 0.28, output: 1.11, cache_read: 0.28, cache_write: 0.28 },
+  "qwen_v2.5_0.5b_instruct": { input: 0.28, output: 1.11, cache_read: 0.28, cache_write: 0.28 },
+  "qwen_v2.5_0.5b_base": { input: 0.28, output: 1.11, cache_read: 0.28, cache_write: 0.28 },
+  "xsqwenv2s1b5c": { input: 0.14, output: 0.28, cache_read: 0.14, cache_write: 0.14 },
+  "xsqwenv2s0b5c": { input: 0.28, output: 0.56, cache_read: 0.28, cache_write: 0.28 },
+  "xqwen14bchat": { input: 0.28, output: 0.83, cache_read: 0.28, cache_write: 0.28 },
+};
+function normalizeIFlytekMaasModel(model: string) {
+  const lower = model.trim().toLowerCase();
+  if (lower === "xsparkx2agent") return "xsparkx2";
+  return lower;
+}
 
-function getModelPricing(model: string) {
+function getModelPricing(model: string, source = "") {
   if (!model) return ZERO_PRICING;
+  if (source.toLowerCase() === "acode") {
+    const normalized = normalizeIFlytekMaasModel(model);
+    // Undisclosed routing must not inherit generic aliases or fuzzy prices.
+    if (normalized === "auto" || normalized.endsWith("-auto")) return ZERO_PRICING;
+    const iFlytekMaasPricing = IFLYTEK_MAAS_MODEL_PRICING[normalized];
+    if (iFlytekMaasPricing) return iFlytekMaasPricing;
+  }
   const exact = MODEL_PRICING[model];
   if (exact) return exact;
   const lower = model.toLowerCase();
+  if (source === "cline" && lower.endsWith(":free")) return ZERO_PRICING;
+  // Cline's own gateway namespaces (`cline-free/*` free tier, `cline-pass/*`
+  // flat-rate Cline Pass) bill nothing per token, and the model id after the
+  // slash must not inherit a public rate — cline-pass/glm-5.3 is not GLM-5.3
+  // list price. Matched before every model-name matcher, mirroring the
+  // curated-overrides.json `cline-gateway-models` fuzzy entries; a turn that
+  // reports its own positive cost still wins earlier via
+  // SOURCES_WITH_AUTHORITATIVE_COST.
+  if (lower.includes("cline-free/") || lower.includes("cline-pass/")) return ZERO_PRICING;
   if (lower.includes("fable")) return MODEL_PRICING["claude-fable-5"];
   // Opus 5 fast mode bills at 2x the standard Opus tier ($10/$50), so the
   // -fast matcher must precede both the opus-5 and the generic opus fallback.
@@ -303,13 +417,16 @@ function getModelPricing(model: string) {
   if (lower.includes("opus")) return MODEL_PRICING["claude-opus-4-6"];
   if (lower.includes("haiku")) return MODEL_PRICING["claude-haiku-4-5-20251001"];
   if (lower.includes("sonnet")) return MODEL_PRICING["claude-sonnet-4-6"];
+  if (lower.includes("gpt-6-astra")) return MODEL_PRICING["gpt-6-astra"];
+  if (lower.includes("gpt-6-sol")) return MODEL_PRICING["gpt-6-sol"];
+  if (lower.includes("gpt-6.1-sol")) return MODEL_PRICING["gpt-6.1-sol"];
   // gpt-5.6 tiers: sol/terra/luna carry reasoning-effort suffixes (solhigh,
   // etc.), so match by substring. Specific tiers precede the generic gpt-5.6
-  // fallback (which defaults to the balanced terra tier).
+  // fallback (the public gpt-5.6 alias points to the flagship sol tier).
   if (lower.includes("gpt-5.6-sol")) return MODEL_PRICING["gpt-5.6-sol"];
   if (lower.includes("gpt-5.6-terra")) return MODEL_PRICING["gpt-5.6-terra"];
   if (lower.includes("gpt-5.6-luna")) return MODEL_PRICING["gpt-5.6-luna"];
-  if (lower.includes("gpt-5.6")) return MODEL_PRICING["gpt-5.6-terra"];
+  if (lower.includes("gpt-5.6")) return MODEL_PRICING["gpt-5.6-sol"];
   if (lower.includes("gpt-5.4-pro")) return MODEL_PRICING["gpt-5.4-pro"];
   if (lower.includes("gpt-5.4")) return MODEL_PRICING["gpt-5.4"];
   if (lower.includes("gpt-5.5")) return MODEL_PRICING["gpt-5.5"];
@@ -329,6 +446,8 @@ function getModelPricing(model: string) {
   if (lower.includes("minimax-m3")) return MODEL_PRICING["minimax-m3"];
   if (lower.includes("minimax-m2.7-highspeed")) return MODEL_PRICING["MiniMax-M2.7-highspeed"];
   if (lower.includes("minimax-m2.7")) return MODEL_PRICING["MiniMax-M2.7"];
+  if (lower.includes("deepseek-v4.1-flash")) return MODEL_PRICING["deepseek-v4.1-flash"];
+  if (lower.includes("deepseek-flash")) return MODEL_PRICING["deepseek-flash"];
   if (lower.includes("deepseek-v4-flash")) return MODEL_PRICING["deepseek-v4-flash"];
   if (lower.includes("deepseek-v4-pro")) return MODEL_PRICING["deepseek-v4-pro"];
   if (lower.includes("deepseek-reasoner")) return MODEL_PRICING["deepseek-reasoner"];
@@ -369,12 +488,16 @@ function getModelPricing(model: string) {
   if (lower.includes("glm-4.7-flash")) return MODEL_PRICING["glm-4.7-flash"];
   if (lower.includes("glm-4.7")) return MODEL_PRICING["glm-4.7"];
   if (lower.includes("glm-4.6")) return MODEL_PRICING["glm-4.6"];
+  if (lower.includes("glm-5.3-flash")) return MODEL_PRICING["glm-5.3-flash"];
+  if (lower.includes("glm-5.3")) return MODEL_PRICING["glm-5.3"];
   if (lower.includes("glm-5-turbo")) return MODEL_PRICING["glm-5-turbo"];
   if (lower.includes("glm-5.2")) return MODEL_PRICING["glm-5.2"];
   if (lower.includes("glm-5.1")) return MODEL_PRICING["glm-5.1"];
   if (lower.includes("glm-5")) return MODEL_PRICING["glm-5"];
   if (lower.includes("kiro")) return MODEL_PRICING["kiro-cli-agent"];
   if (lower.includes("hy3")) return MODEL_PRICING["hy3-preview-agent"];
+  if (/(?:^|\/)qwen3[.-]8-flash(?:-\d{4}-\d{2}-\d{2})?$/.test(lower.trim())) return MODEL_PRICING["qwen3.8-flash"];
+  if (lower.includes("hy4")) return MODEL_PRICING["hy4-preview"];
   if (lower.includes("composer")) return MODEL_PRICING["composer-1"];
   if (lower.includes("fugu")) return MODEL_PRICING["sakana/fugu-ultra"];
   if (lower.includes("longcat")) return MODEL_PRICING["longcat-2.0"];
@@ -387,10 +510,16 @@ function getModelPricing(model: string) {
   return ZERO_PRICING;
 }
 
-function getRowPricing(row: { model?: string; hour_start?: string; pricing_tier?: string }) {
-  const pricing = getModelPricing(row.model || "");
+function getRowPricing(row: { model?: string; source?: string; hour_start?: string; pricing_tier?: string }) {
+  const pricing = getModelPricing(row.model || "", row.source);
+  if ((row.source || "").toLowerCase() === "acode") return pricing;
   const lower = String(row.model || "").toLowerCase();
-  if (!lower.includes("deepseek-v4-flash") && !lower.includes("deepseek-v4-pro")) return pricing;
+  if (
+    !lower.includes("deepseek-v4-flash") &&
+    !lower.includes("deepseek-v4.1-flash") &&
+    !lower.includes("deepseek-flash") &&
+    !lower.includes("deepseek-v4-pro")
+  ) return pricing;
   let offPeak = row.pricing_tier === "off_peak";
   if (!row.pricing_tier && row.hour_start) {
     const timestamp = Date.parse(row.hour_start);
@@ -442,64 +571,143 @@ interface GroupedRow {
   pricing_tier?: string;
 }
 
-const GROUPED_ROWS_TTL_MS = 30_000;
-const GROUPED_ROWS_STALE_IF_ERROR_MS = 5 * 60_000;
-const groupedRowsCache = new Map<string, { fetchedAt: number; rows: GroupedRow[] }>();
-const groupedRowsInFlight = new Map<string, Promise<GroupedRow[]>>();
+/**
+ * What account_summary_compact() returns. Everything this endpoint actually
+ * emits, and nothing more:
+ *
+ *  - cost_dims:    [source, model, pricing_tier, input, output, cache_read,
+ *                  cache_write, reasoning] summed over the requested [from, to]
+ *                  with the day dimension dropped. Pricing depends only on
+ *                  (source, model, pricing_tier) and computeRowCost is linear in
+ *                  every token column, so folding the days away before pricing is
+ *                  exact. Checked against the per-day path on 12 real heavy
+ *                  accounts: worst relative difference 8.5e-16 (double epsilon),
+ *                  zero differences at the emitted toFixed(6).
+ *  - day_rollup:   [local day, total_tokens, conversations] over the whole
+ *                  rolling window, which is all last_7d / last_30d need.
+ *  - range_totals: token columns + conversation_count + active_days over
+ *                  [from, to].
+ */
+interface CompactSummary {
+  cost_dims: [string | null, string | null, string | null, number | string, number | string, number | string, number | string, number | string][];
+  day_rollup: [string, number | string, number | string][];
+  range_totals: Record<string, number | string>;
+}
+
+interface SummaryWire {
+  source_names: (string | null)[];
+  model_names: (string | null)[];
+  pricing_tiers: (string | null)[];
+  cost_dims: [number, number, number, ...(number | string)[]][];
+  day_start: string | null;
+  day_rollup: [number, number | string, number | string][];
+  range_totals: (number | string)[];
+}
+
+const SUMMARY_TOTAL_KEYS = [
+  "total_tokens", "input_tokens", "output_tokens", "cached_input_tokens",
+  "cache_creation_input_tokens", "reasoning_output_tokens", "conversation_count", "active_days",
+];
+
+function decodeSummaryWire(data: unknown): CompactSummary {
+  const payload = (data ?? {}) as Partial<CompactSummary> | SummaryWire;
+  // The SQL wrapper returns the legacy object when dictionary metadata would
+  // increase transfer size. Positional totals distinguish the smaller format.
+  if (!Array.isArray(payload.range_totals)) {
+    const compact = payload as Partial<CompactSummary>;
+    return {
+      cost_dims: Array.isArray(compact.cost_dims) ? compact.cost_dims : [],
+      day_rollup: Array.isArray(compact.day_rollup) ? compact.day_rollup : [],
+      range_totals: compact.range_totals ?? {},
+    };
+  }
+  const wire = payload as SummaryWire;
+  // Missing trailing slots mean numeric zero. Keep explicit values, including
+  // numeric strings, unchanged before the existing price calculation.
+  const token = (row: SummaryWire["cost_dims"][number], index: number): number | string =>
+    index < row.length ? row[index] : 0;
+  const startMs = Date.parse(`${wire.day_start}T00:00:00Z`);
+  return {
+    cost_dims: wire.cost_dims.map((row): CompactSummary["cost_dims"][number] => [
+      wire.source_names[row[0]], wire.model_names[row[1]], wire.pricing_tiers[row[2]],
+      token(row, 3), token(row, 4), token(row, 5), token(row, 6), token(row, 7),
+    ]),
+    day_rollup: wire.day_rollup.map((row) => [
+      new Date(startMs + row[0] * 86_400_000).toISOString().slice(0, 10), row[1], row[2],
+    ]),
+    range_totals: Object.fromEntries(SUMMARY_TOTAL_KEYS.map((key, index) => [key, wire.range_totals[index]])),
+  };
+}
+
+const COMPACT_TTL_MS = 30_000;
+const COMPACT_STALE_IF_ERROR_MS = 5 * 60_000;
+const compactCache = new Map<string, { fetchedAt: number; value: CompactSummary }>();
+const compactInFlight = new Map<string, Promise<CompactSummary>>();
 
 /**
- * Server-side aggregation. One RPC replaces the old N paginated 1000-row raw
- * fetches: account_usage_grouped() GROUPs BY (tz-local bucket, source, model)
- * in Postgres and returns a single JSONB array. SUM across the user's active
- * devices is byte-identical to the old in-edge aggregation; tz-local bucketing
- * uses `AT TIME ZONE` (same IANA database as the old JS Intl path, incl. DST).
+ * Server-side aggregation, folded down to what this endpoint emits.
+ *
+ * account_summary_compact() runs the very same account_usage_grouped_cached()
+ * scan underneath — same 30s shared Postgres cache, same cross-device dedup —
+ * but does the day/model rollup in Postgres instead of shipping every
+ * (bucket, source, model, pricing_tier) row to the edge to be summed and then
+ * dropped. This endpoint never emitted per-day rows at all: it emits totals, a
+ * day count and two rolling windows. A 30-day window for a heavy account goes
+ * from ~99 KB to ~4.8 KB, and the common `from=today&to=today` poll to ~1.6 KB
+ * (~98% less). Measured p90 also drops from ~7.3s to ~1.1s, because the tail was
+ * large-payload transfer jitter rather than query time.
  */
-async function fetchGroupedRows(
+async function fetchCompactSummary(
   client: ReturnType<typeof createClient>,
   userId: string,
   requestedDeviceId: string | null,
   fromIso: string,
   toIso: string,
-  trunc: "hour" | "day" | "month" | "none",
+  rangeFrom: string,
+  rangeTo: string,
   tz: string | null,
   tzOffsetMinutes: number | null,
-): Promise<GroupedRow[]> {
-  const cacheKey = JSON.stringify([userId, requestedDeviceId, fromIso, toIso, trunc, tz, tzOffsetMinutes]);
-  const cached = groupedRowsCache.get(cacheKey);
-  if (cached && Date.now() - cached.fetchedAt < GROUPED_ROWS_TTL_MS) return cached.rows;
-  const existing = groupedRowsInFlight.get(cacheKey);
+): Promise<CompactSummary> {
+  const cacheKey = JSON.stringify([userId, requestedDeviceId, fromIso, toIso, rangeFrom, rangeTo, tz, tzOffsetMinutes]);
+  const cached = compactCache.get(cacheKey);
+  if (cached && Date.now() - cached.fetchedAt < COMPACT_TTL_MS) return cached.value;
+  const existing = compactInFlight.get(cacheKey);
   if (existing) return existing;
 
   const pending = (async () => {
     try {
-      const { data, error } = await client.database.rpc("account_usage_grouped_cached", {
+      const { data, error } = await client.database.rpc("account_summary_wire", {
         p_user_id: userId,
         p_device_id: requestedDeviceId,
         p_from: fromIso,
         p_to: toIso,
-        p_trunc: trunc,
         p_tz: tz,
         p_offset_min: tzOffsetMinutes,
+        p_range_from: rangeFrom,
+        p_range_to: rangeTo,
       });
       if (error) throw new Error(error.message);
-      const rows = (Array.isArray(data) ? data : []) as GroupedRow[];
-      groupedRowsCache.set(cacheKey, { fetchedAt: Date.now(), rows });
-      if (groupedRowsCache.size > 64) {
-        const oldest = groupedRowsCache.keys().next().value;
-        if (oldest) groupedRowsCache.delete(oldest);
+      const value = decodeSummaryWire(data);
+      compactCache.set(cacheKey, { fetchedAt: Date.now(), value });
+      if (compactCache.size > 64) {
+        const oldest = compactCache.keys().next().value;
+        if (oldest) compactCache.delete(oldest);
       }
-      return rows;
+      return value;
     } catch (error) {
-      const stale = groupedRowsCache.get(cacheKey);
-      if (stale && Date.now() - stale.fetchedAt < GROUPED_ROWS_STALE_IF_ERROR_MS) return stale.rows;
+      const stale = compactCache.get(cacheKey);
+      if (stale && Date.now() - stale.fetchedAt < COMPACT_STALE_IF_ERROR_MS) return stale.value;
       throw error;
     }
-  })().finally(() => groupedRowsInFlight.delete(cacheKey));
-  groupedRowsInFlight.set(cacheKey, pending);
+  })().finally(() => compactInFlight.delete(cacheKey));
+  compactInFlight.set(cacheKey, pending);
   return pending;
 }
 
 function computeRowCost(row: GroupedRow): number {
+  // LM Studio developer-server and LM Link traffic is local inference. Its
+  // logs do not represent Bionic Secure Cloud billing.
+  if (row.source === "lmstudio") return 0;
   // Pi's GitHub Copilot provider is subscription-backed. Keep its token
   // counts, but do not reprice the recorded Claude model as Anthropic API use.
   if (row.source === "pi-github-copilot" || row.source === "pi-copilot") return 0;
@@ -512,17 +720,22 @@ function computeRowCost(row: GroupedRow): number {
   // WorkBuddy's auto-router logs model="auto"; price it as its default Hunyuan
   // model (hy3-preview-agent) so it isn't billed as Cursor's composer-1. Mirrors
   // normalizeWorkbuddyModel in src/lib/pricing/matcher.js.
-  const modelForPricing =
-    row.source === "workbuddy" && (row.model || "").toLowerCase() === "auto"
+  const rawModel = String(row.model || "").trim();
+  const unslothUnpriced =
+    row.source === "unsloth" && /^(local|unpriced)\//i.test(rawModel);
+  const modelForPricing = unslothUnpriced
+    ? "__tokentracker_unpriced_unsloth_model__"
+    : row.source === "workbuddy" && rawModel.toLowerCase() === "auto"
       ? "hy3-preview-agent"
-      : row.model;
+      : rawModel;
   const p = getRowPricing({ ...row, model: modelForPricing });
   // Codex / every-code fold reasoning into output_tokens (OpenAI convention),
   // so charging reasoning_output_tokens again at the output rate double-counts.
   // Must stay in lockstep with src/lib/pricing/index.js:computeRowCost and
   // tokentracker-leaderboard-refresh.ts (both guard on source).
   const reasoningCost =
-    row.source === "codex" || row.source === "every-code"
+    row.source === "codex" || row.source === "acode" || row.source === "every-code" ||
+      row.source === "cline"
       ? 0
       : (Number(row.reasoning_output_tokens) || 0) * (p.output || 0);
   return (
@@ -535,52 +748,31 @@ function computeRowCost(row: GroupedRow): number {
   );
 }
 
-interface DayAgg {
-  day: string;
-  total_tokens: number;
+interface DayRoll {
   billable_total_tokens: number;
-  total_cost_usd: number;
-  input_tokens: number;
-  output_tokens: number;
-  cached_input_tokens: number;
-  cache_creation_input_tokens: number;
-  reasoning_output_tokens: number;
   conversation_count: number;
 }
 
-function aggregateByDay(rows: GroupedRow[]): DayAgg[] {
-  const byDay = new Map<string, DayAgg>();
-  for (const row of rows) {
-    const day = row.bucket;
-    let a = byDay.get(day);
-    if (!a) {
-      a = {
-        day,
-        total_tokens: 0,
-        billable_total_tokens: 0,
-        total_cost_usd: 0,
-        input_tokens: 0,
-        output_tokens: 0,
-        cached_input_tokens: 0,
-        cache_creation_input_tokens: 0,
-        reasoning_output_tokens: 0,
-        conversation_count: 0,
-      };
-      byDay.set(day, a);
-    }
-    const tt = Number(row.total_tokens) || 0;
-    a.total_tokens += tt;
-    a.billable_total_tokens += tt;
-    a.total_cost_usd += computeRowCost(row);
-    a.input_tokens += Number(row.input_tokens) || 0;
-    a.output_tokens += Number(row.output_tokens) || 0;
-    a.cached_input_tokens += Number(row.cached_input_tokens) || 0;
-    a.cache_creation_input_tokens += Number(row.cache_creation_input_tokens) || 0;
-    a.reasoning_output_tokens += Number(row.reasoning_output_tokens) || 0;
-    a.conversation_count += Number(row.conversations) || 0;
-  }
-  return Array.from(byDay.values()).sort((a, b) => a.day.localeCompare(b.day));
+// Prices one already-day-folded cost_dims tuple. computeRowCost only reads
+// source / model / pricing_tier and the five priced token columns, so the
+// remaining GroupedRow fields are filled with the neutral values the per-day
+// rows would have contributed.
+function costOfDim(dim: CompactSummary["cost_dims"][number]): number {
+  return computeRowCost({
+    bucket: "",
+    source: dim[0],
+    model: dim[1],
+    pricing_tier: dim[2] ?? undefined,
+    input_tokens: Number(dim[3]) || 0,
+    output_tokens: Number(dim[4]) || 0,
+    cached_input_tokens: Number(dim[5]) || 0,
+    cache_creation_input_tokens: Number(dim[6]) || 0,
+    reasoning_output_tokens: Number(dim[7]) || 0,
+    total_tokens: 0,
+    conversations: 0,
+  });
 }
+
 
 export default async function (req: Request): Promise<Response> {
   if (req.method === "OPTIONS")
@@ -654,55 +846,52 @@ export default async function (req: Request): Promise<Response> {
   const rollingStart = rollingStartDate.toISOString();
   const rollingEndNext = rollingEndDate;
 
-  let allRows: GroupedRow[];
+  let compact: CompactSummary;
   try {
-    allRows = await fetchGroupedRows(client, userId, requestedDeviceId, rollingStart, rollingEndNext.toISOString(), "day", tz, tzOffsetMinutes);
+    compact = await fetchCompactSummary(client, userId, requestedDeviceId, rollingStart, rollingEndNext.toISOString(), from, to, tz, tzOffsetMinutes);
   } catch (e) {
     return json({ error: (e as Error).message }, 500);
   }
 
-  const allDaily = aggregateByDay(allRows);
-  const daily = allDaily.filter((d) => d.day >= from && d.day <= to);
+  // Postgres already summed [from, to]; only the pricing stays here, because the
+  // model price table lives in this file (and its four siblings) and must not be
+  // duplicated into SQL as a sixth copy.
+  const rt = compact.range_totals;
+  const num = (key: string) => Number(rt[key]) || 0;
+  let totalCost = 0;
+  for (const dim of compact.cost_dims) totalCost += costOfDim(dim);
 
-  const totals = daily.reduce(
-    (acc, r) => {
-      acc.total_tokens += r.total_tokens;
-      acc.billable_total_tokens += r.billable_total_tokens;
-      acc.total_cost_usd += r.total_cost_usd || 0;
-      acc.input_tokens += r.input_tokens;
-      acc.output_tokens += r.output_tokens;
-      acc.cached_input_tokens += r.cached_input_tokens;
-      acc.cache_creation_input_tokens += r.cache_creation_input_tokens;
-      acc.reasoning_output_tokens += r.reasoning_output_tokens;
-      acc.conversation_count += r.conversation_count;
-      return acc;
-    },
-    {
-      total_tokens: 0,
-      billable_total_tokens: 0,
-      total_cost_usd: 0,
-      input_tokens: 0,
-      output_tokens: 0,
-      cached_input_tokens: 0,
-      cache_creation_input_tokens: 0,
-      reasoning_output_tokens: 0,
-      conversation_count: 0,
-    },
-  );
-  const totalCost = totals.total_cost_usd;
+  const totals = {
+    total_tokens: num("total_tokens"),
+    billable_total_tokens: num("total_tokens"),
+    total_cost_usd: totalCost,
+    input_tokens: num("input_tokens"),
+    output_tokens: num("output_tokens"),
+    cached_input_tokens: num("cached_input_tokens"),
+    cache_creation_input_tokens: num("cache_creation_input_tokens"),
+    reasoning_output_tokens: num("reasoning_output_tokens"),
+    conversation_count: num("conversation_count"),
+  };
+
+  const byDay = new Map<string, DayRoll>();
+  for (const [day, tokens, conversations] of compact.day_rollup) {
+    byDay.set(day, {
+      billable_total_tokens: Number(tokens) || 0,
+      conversation_count: Number(conversations) || 0,
+    });
+  }
 
   const collectDays = (n: number) => {
-    const out: DayAgg[] = [];
+    const out: DayRoll[] = [];
     for (let i = n - 1; i >= 0; i--) {
       const d = new Date(todayUtcMidnight);
       d.setUTCDate(d.getUTCDate() - i);
-      const ds = d.toISOString().slice(0, 10);
-      const dd = allDaily.find((x) => x.day === ds);
+      const dd = byDay.get(d.toISOString().slice(0, 10));
       if (dd) out.push(dd);
     }
     return out;
   };
-  const sumDays = (days: DayAgg[]) =>
+  const sumDays = (days: DayRoll[]) =>
     days.reduce(
       (a, r) => {
         a.billable_total_tokens += r.billable_total_tokens;
@@ -724,7 +913,7 @@ export default async function (req: Request): Promise<Response> {
   return json({
     from,
     to,
-    days: daily.length,
+    days: num("active_days"),
     totals: { ...totals, total_cost_usd: totalCost.toFixed(6) },
     rolling: {
       last_7d: {

@@ -24,12 +24,31 @@ const {
   getExecutableName,
   buildExecStatsEntry,
 } = require("./categorizer-utils");
+const {
+  applyCodexModelEvent,
+  createCodexModelAttributionState,
+  currentCodexModel,
+  snapshotCodexModelAttributionState,
+} = require("./codex-model-attribution");
+const { readCodexServiceTier, isPriorityServiceTier } = require("./codex-service-tier");
+const {
+  createUsageRecordState,
+  extractTokenUsageRecord,
+  noteLineAfterUsageRecord,
+  noteTokenCount,
+  noteUsageRecord,
+  snapshotUsageRecordState,
+  takeCompactionOnTokenCount,
+} = require("./codex-usage-record");
 
 const DISCOVERY_FULL_AUDIT_INTERVAL_MS = 60 * 1000;
 const MAX_DISCOVERY_INVENTORIES = 32;
 const DISCOVERY_INVENTORIES = new Map();
 const ZONED_DAY_FORMATTERS = new Map();
 const CODEX_RESUME_INVALIDATED = "TOKENTRACKER_CODEX_RESUME_INVALIDATED";
+// Match src/lib/pricing/index.js. Classify individual requests using raw
+// input (including cache), not the accumulated session or day totals.
+const OPENAI_LONG_CONTEXT_INPUT_THRESHOLD = 272_000;
 
 // ---------------------------------------------------------------------------
 // Timezone helpers
@@ -520,6 +539,17 @@ function finalizeExecRows(map) {
     .sort((a, b) => (b.totals?.total_tokens || 0) - (a.totals?.total_tokens || 0));
 }
 
+function finalizeModelUsageRows(map) {
+  return Array.from(map.values())
+    .map((row) => ({
+      ...row,
+      selected_models: Array.from(row.selected_models).sort(),
+      reroute_reasons: Array.from(row.reroute_reasons).sort(),
+      model_attribution: row.rerouted_usage_events > 0 ? "effective" : "selected",
+    }))
+    .sort((a, b) => b.total_tokens - a.total_tokens || a.model.localeCompare(b.model));
+}
+
 // ---------------------------------------------------------------------------
 // Main parser
 // ---------------------------------------------------------------------------
@@ -537,6 +567,9 @@ async function parseCodexRolloutFile(filePath, {
   captureContentHash = false,
   contentHashState = null,
   sourceHandle = null,
+  collectBreakdowns = true,
+  collectModelUsage = false,
+  onObject = null,
 } = {}) {
   const filePaths = (Array.isArray(filePath) ? filePath : [filePath]).filter(Boolean);
   const primaryFilePath = filePaths[0] || String(filePath || "");
@@ -566,6 +599,14 @@ async function parseCodexRolloutFile(filePath, {
   let sessionId = isResuming ? resumeState.sessionId || null : null;
   let cwd = isResuming ? resumeState.cwd || null : null;
   let model = isResuming ? resumeState.model || null : null;
+  const modelAttributionState = createCodexModelAttributionState(
+    isResuming ? resumeState.modelAttributionState || { model } : {},
+  );
+  // Codex writes thread_settings_applied immediately before the turn_context of
+  // the turn it applies to, and token_count rows carry no turn id, so each one
+  // belongs to the most recent preceding tier record. Sessions that never emit
+  // the event (most CLI sessions) stay null and are billed at Standard.
+  let serviceTier = isResuming ? resumeState.serviceTier || null : null;
   let provider = isResuming ? resumeState.provider || null : null;
   let cliVersion = isResuming ? resumeState.cliVersion || null : null;
   let forkedFromId = isResuming ? resumeState.forkedFromId || null : null;
@@ -607,8 +648,116 @@ async function parseCodexRolloutFile(filePath, {
   const byExecCommand = new Map(); // sanitized executable + subcommand -> stats
   const byExecDuration = new Map(); // duration bucket -> stats
   const byExecOutput = new Map(); // output size bucket -> stats
+  const byModel = new Map(); // effective model -> observed token usage
 
   let turnCount = 0;
+
+  // Compaction records (issue #652, rules in codex-usage-record.js). A resume
+  // state from before #652 with prevTotals has seen a token_count.
+  const usageRecordState = createUsageRecordState(
+    isResuming
+      ? resumeState.usageRecordState || (resumeState.prevTotals ? { sawTokenCount: true } : null)
+      : null,
+  );
+  // Compactions counted in this session, by response_id: the files merged for
+  // a session can repeat a record (an archived copy, a split fragment), and a
+  // resumed parse must not count one from an earlier chunk again.
+  const compactionResponseIds = new Set(
+    isResuming && Array.isArray(resumeState.compactionResponseIds)
+      ? resumeState.compactionResponseIds
+      : [],
+  );
+
+  // Attribution as of now. A compaction record is counted later than it is
+  // read, so it carries the attribution captured when it was read.
+  function currentUsageAttribution() {
+    return {
+      model: currentCodexModel(modelAttributionState) || "unknown",
+      selectedModel: modelAttributionState.selectedModel || null,
+      rerouted: Boolean(modelAttributionState.rerouted),
+      rerouteReason: modelAttributionState.rerouteReason || null,
+      serviceTier,
+    };
+  }
+
+  function recordModelUsage(delta, rawRequestUsage, attribution = currentUsageAttribution()) {
+    if (!collectModelUsage || !delta || delta.total_tokens <= 0) return;
+    const effectiveModel = attribution.model;
+    let row = byModel.get(effectiveModel);
+    if (!row) {
+      row = {
+        model: effectiveModel,
+        ...emptyTotals(),
+        long_context_input_tokens: 0,
+        long_context_cached_input_tokens: 0,
+        long_context_cache_creation_input_tokens: 0,
+        long_context_output_tokens: 0,
+        long_context_reasoning_output_tokens: 0,
+        priority_input_tokens: 0,
+        priority_cached_input_tokens: 0,
+        priority_cache_creation_input_tokens: 0,
+        priority_output_tokens: 0,
+        priority_reasoning_output_tokens: 0,
+        priority_long_context_input_tokens: 0,
+        priority_long_context_cached_input_tokens: 0,
+        priority_long_context_cache_creation_input_tokens: 0,
+        priority_long_context_output_tokens: 0,
+        priority_long_context_reasoning_output_tokens: 0,
+        usage_events: 0,
+        rerouted_usage_events: 0,
+        long_context_usage_events: 0,
+        priority_usage_events: 0,
+        selected_models: new Set(),
+        reroute_reasons: new Set(),
+      };
+      byModel.set(effectiveModel, row);
+    }
+    addInto(row, delta);
+    row.usage_events += 1;
+    if (attribution.selectedModel) {
+      row.selected_models.add(attribution.selectedModel);
+    }
+    if (attribution.rerouted) {
+      row.rerouted_usage_events += 1;
+      if (attribution.rerouteReason) {
+        row.reroute_reasons.add(attribution.rerouteReason);
+      }
+    }
+    // OpenAI applies the long-context tier to the whole request when its raw
+    // (cache-inclusive) input exceeds 272K tokens. Preserve the exact subset
+    // so pricing can be recomputed later without rescanning private logs.
+    const isLongContext =
+      Number(rawRequestUsage?.input_tokens || 0) > OPENAI_LONG_CONTEXT_INPUT_THRESHOLD;
+    if (isLongContext) {
+      row.long_context_usage_events += 1;
+      row.long_context_input_tokens += delta.input_tokens;
+      row.long_context_cached_input_tokens += delta.cached_input_tokens;
+      row.long_context_cache_creation_input_tokens += delta.cache_creation_input_tokens;
+      row.long_context_output_tokens += delta.output_tokens;
+      row.long_context_reasoning_output_tokens += delta.reasoning_output_tokens;
+    }
+    // Astra Fast bills at a flat multiple of whichever context tier the request
+    // was on, so the priority premium multiplies the long-context premium
+    // instead of replacing it. The two subsets alone cannot say how much usage
+    // was on BOTH, so record the intersection explicitly — otherwise a long
+    // Fast request prices at 3x Standard input where it should be 4x.
+    if (isPriorityServiceTier(attribution.serviceTier)) {
+      row.priority_usage_events += 1;
+      row.priority_input_tokens += delta.input_tokens;
+      row.priority_cached_input_tokens += delta.cached_input_tokens;
+      row.priority_cache_creation_input_tokens += delta.cache_creation_input_tokens;
+      row.priority_output_tokens += delta.output_tokens;
+      row.priority_reasoning_output_tokens += delta.reasoning_output_tokens;
+      if (isLongContext) {
+        row.priority_long_context_input_tokens += delta.input_tokens;
+        row.priority_long_context_cached_input_tokens += delta.cached_input_tokens;
+        row.priority_long_context_cache_creation_input_tokens +=
+          delta.cache_creation_input_tokens;
+        row.priority_long_context_output_tokens += delta.output_tokens;
+        row.priority_long_context_reasoning_output_tokens += delta.reasoning_output_tokens;
+      }
+    }
+  }
 
   function ensureTool(name) {
     if (!byTool.has(name)) {
@@ -685,6 +834,14 @@ async function parseCodexRolloutFile(filePath, {
       return;
     }
     turnCount += 1;
+
+    if (!collectBreakdowns) {
+      addInto(totals, delta);
+      pendingToolNames = [];
+      pendingSkills = [];
+      pendingExecDetails = [];
+      return;
+    }
 
     const unique = [...new Set(pendingToolNames.filter(Boolean))];
     const tools = unique.length > 0 ? unique : ["text_response"];
@@ -765,6 +922,14 @@ async function parseCodexRolloutFile(filePath, {
     pendingExecDetails = [];
   }
 
+  function countCompactionRecord(record) {
+    if (compactionResponseIds.has(record.responseId)) return;
+    compactionResponseIds.add(record.responseId);
+    if (!record.inRequestedRange) return;
+    recordModelUsage(record.delta, record.rawUsage, record.attribution);
+    attributeTurn(record.delta);
+  }
+
   function usageEventSignature(lastUsage, totalUsage) {
     return JSON.stringify({ lastUsage, totalUsage });
   }
@@ -822,6 +987,18 @@ async function parseCodexRolloutFile(filePath, {
     contentHasher,
     sourceHandle,
   })) {
+    const modelEvent = applyCodexModelEvent(modelAttributionState, obj);
+    const attributedModel = currentCodexModel(modelAttributionState);
+    model = attributedModel || model;
+    // onObject runs AFTER the attribution state machine, and is handed the
+    // model it just decided. A consumer sharing this pass (the delivery-signal
+    // collector, which attributes edit turns) therefore sees exactly the model
+    // recordModelUsage() bills the turn's tokens to. Letting it re-read
+    // turn_context.payload.model itself would make codex-model-attribution.js
+    // one of two authorities on the same question.
+    if (typeof onObject === "function") onObject(obj, attributedModel);
+    const usageRecord = extractTokenUsageRecord(obj);
+    if (!usageRecord) noteLineAfterUsageRecord(usageRecordState, obj?.type === "compacted");
     const ts = typeof obj?.timestamp === "string" ? obj.timestamp : null;
     if (!ts) continue;
     const inRequestedRange = isTimestampInRequestedDayRange(ts, { from, to, timeZoneContext });
@@ -846,23 +1023,49 @@ async function parseCodexRolloutFile(filePath, {
       }
     }
 
-    if (obj.type === "turn_context") {
-      const p = obj.payload || {};
-      if (typeof p.cwd === "string") cwd = p.cwd;
-      if (typeof p.model === "string") model = p.model;
+    const appliedServiceTier = readCodexServiceTier(obj);
+    if (appliedServiceTier) {
+      serviceTier = appliedServiceTier;
       continue;
     }
 
-    if (obj.type === "response_item" && obj.payload?.type === "function_call") {
+    if (obj.type === "turn_context") {
+      const p = obj.payload || {};
+      if (typeof p.cwd === "string") cwd = p.cwd;
+      continue;
+    }
+
+    if (modelEvent?.type === "model_rerouted") continue;
+
+    if (collectBreakdowns && obj.type === "response_item" && obj.payload?.type === "function_call") {
       pendingToolNames.push(normalizeToolName(obj.payload));
       const skill = extractSkillNameFromFunctionCall(obj.payload, diagnostics);
       if (skill) pendingSkills.push(skill);
       continue;
     }
 
-    if (obj.type === "event_msg" && obj.payload?.type === "exec_command_end") {
+    if (collectBreakdowns && obj.type === "event_msg" && obj.payload?.type === "exec_command_end") {
       const details = getExecKeys(obj.payload);
       if (details) pendingExecDetails.push(details);
+      continue;
+    }
+
+    if (usageRecord) {
+      const delta = normalizeUsage(usageRecord.usage);
+      noteUsageRecord(
+        usageRecordState,
+        // Without a response_id a compaction cannot be deduplicated.
+        delta.total_tokens > 0 && usageRecord.responseId
+          ? {
+              responseId: usageRecord.responseId,
+              timestamp: usageRecord.timestamp,
+              inRequestedRange,
+              rawUsage: usageRecord.usage,
+              delta,
+              attribution: currentUsageAttribution(),
+            }
+          : null,
+      );
       continue;
     }
 
@@ -871,8 +1074,18 @@ async function parseCodexRolloutFile(filePath, {
       const info = tokenCount.info;
       const lastUsage = info?.last_token_usage;
       const totalUsage = info?.total_token_usage;
+      let compaction = null;
+      if (info && typeof info === "object") {
+        noteTokenCount(usageRecordState);
+        compaction = takeCompactionOnTokenCount(
+          usageRecordState,
+          usageDeltaState.lastTotal,
+          totalUsage,
+        );
+      }
       const rawDelta = consumeUsageDelta(usageDeltaState, lastUsage, totalUsage);
       const delta = rawDelta ? normalizeUsage(rawDelta) : null;
+      if (compaction) countCompactionRecord(compaction);
       const isNewResumeEvent = noteTokenEvent(ts, lastUsage, totalUsage);
       if (inRequestedRange) {
         const eventSessionId = sessionId || rolloutSessionIdFromPath(primaryFilePath) || primaryFilePath;
@@ -881,6 +1094,7 @@ async function parseCodexRolloutFile(filePath, {
           attributeTurn(null);
         } else {
           if (seenTokenEvents && delta?.total_tokens > 0) seenTokenEvents.add(eventKey);
+          recordModelUsage(delta, lastUsage || rawDelta);
           attributeTurn(delta);
         }
       } else {
@@ -895,7 +1109,7 @@ async function parseCodexRolloutFile(filePath, {
   const result = {
     sessionId: sessionId || rolloutSessionIdFromPath(primaryFilePath) || primaryFilePath,
     cwd,
-    model: model || provider,
+    model: currentCodexModel(modelAttributionState) || model || provider,
     provider,
     version: cliVersion,
     forkedFromId,
@@ -906,6 +1120,7 @@ async function parseCodexRolloutFile(filePath, {
     filePath: primaryFilePath,
     turnCount,
     totals,
+    modelUsage: finalizeModelUsageRows(byModel),
     toolBreakdown: {
       tool_rows: finalizeToolRows(byTool),
     },
@@ -926,6 +1141,8 @@ async function parseCodexRolloutFile(filePath, {
       sessionId,
       cwd,
       model,
+      modelAttributionState: snapshotCodexModelAttributionState(modelAttributionState),
+      serviceTier,
       provider,
       cliVersion,
       forkedFromId,
@@ -941,6 +1158,8 @@ async function parseCodexRolloutFile(filePath, {
       pendingExecDetails,
       lastTokenTimestamp,
       lastTimestampEventSignatures: Array.from(materializeLastTimestampSignatures()),
+      usageRecordState: snapshotUsageRecordState(usageRecordState),
+      compactionResponseIds: Array.from(compactionResponseIds),
     };
     result.endOffset = readProgress.endOffset;
     result.appendable = Boolean(contentHasher) && (

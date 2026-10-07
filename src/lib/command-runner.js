@@ -226,6 +226,8 @@ function commonGlobalBinDirectories({ home = os.homedir(), platform = process.pl
   return [
     "/opt/homebrew/bin",
     "/usr/local/bin",
+    path.join(home, ".local", "bin"),
+    path.join(home, ".bun", "bin"),
     path.join(home, ".npm-global", "bin"),
     // volta keeps shims for every global install here
     path.join(home, ".volta", "bin"),
@@ -276,6 +278,16 @@ async function resolveBinaryPath(binary, { commandRunner, home, platform = proce
   return statBinaryInDirs(binary, searchDirs, platform);
 }
 
+// Resolving an npm CLI's absolute path does not resolve its /usr/bin/env node
+// shebang. Finder-launched apps have a minimal PATH even when the CLI lives
+// beside a working nvm/fnm/Homebrew Node. Scope this environment to the child;
+// preserve the install's own runtime and use our running Node as a fallback.
+function resolvedCliEnvironment(binaryPath, { env = process.env, platform = process.platform } = {}) {
+  if (platform === "win32") return { ...env };
+  const dirs = [path.dirname(binaryPath), ...(env.PATH || "/usr/bin:/bin").split(path.delimiter), path.dirname(process.execPath)];
+  return { ...env, PATH: [...new Set(dirs.filter(Boolean))].join(path.delimiter) };
+}
+
 module.exports = {
   runCommand,
   whichBinary,
@@ -283,4 +295,5 @@ module.exports = {
   commonGlobalBinDirectories,
   statBinaryInDirs,
   resolveBinaryPath,
+  resolvedCliEnvironment,
 };

@@ -54,8 +54,12 @@ final class DesktopPetWindowController: NSObject, NSWindowDelegate {
 
     private let viewModel: DashboardViewModel
     private var panel: NSPanel?
+    private var downMonitor: Any?
     private var dragMonitor: Any?
     private var upMonitor: Any?
+    /// Mouse and window origin captured on mouse-down, so a drag can be replayed
+    /// as an absolute offset instead of accumulating per-event deltas.
+    private var dragAnchor: (mouse: NSPoint, window: NSPoint)?
     /// nil → freely placed; otherwise the edge the pet is tucked against.
     private var hiddenEdge: Edge?
     private var isRevealed = false
@@ -169,7 +173,12 @@ final class DesktopPetWindowController: NSObject, NSWindowDelegate {
         // and stay out of Cmd-Tab cycling. Never activate the app on click.
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
-        panel.isMovableByWindowBackground = true
+        // The pet moves itself (see installDragMonitors). AppKit's own background
+        // dragging is off because it never fires here: the SwiftUI hosting view
+        // consumes the mouse-down before AppKit can claim it, which on macOS 27
+        // left the pet completely immovable (#634). Leaving both enabled would
+        // double every drag on the systems where AppKit still cooperates.
+        panel.isMovableByWindowBackground = false
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.acceptsMouseMovedEvents = true
@@ -259,10 +268,23 @@ final class DesktopPetWindowController: NSObject, NSWindowDelegate {
     // MARK: - Drag cursor + edge tucking
 
     private func installDragMonitors(_ panel: NSPanel) {
+        // Anchor the drag. Dragging is done by hand rather than by AppKit's
+        // `isMovableByWindowBackground`, which SwiftUI's hosting view stops from
+        // ever triggering (#634 — the pet could not be moved at all on macOS 27).
+        downMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown]) { [weak self, weak panel] event in
+            guard let panel, event.window === panel else { return event }
+            let origin = panel.frame.origin
+            let mouse = NSEvent.mouseLocation
+            Task { @MainActor [weak self] in
+                self?.dragAnchor = (mouse: mouse, window: origin)
+            }
+            return event
+        }
         // Closed-hand "grab" cursor while dragging the pet; restore the open hand on drop.
         dragMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDragged]) { [weak self, weak panel] event in
             if event.window === panel {
                 let deltaX = event.deltaX
+                let mouse = NSEvent.mouseLocation
                 Task { @MainActor [weak self] in
                     guard let self else { return }
                     self.didDrag = true
@@ -273,6 +295,7 @@ final class DesktopPetWindowController: NSObject, NSWindowDelegate {
                         self.uiState.dragDirection = .right
                     }
                     NSCursor.closedHand.set()
+                    self.moveDuringDrag(to: mouse)
                 }
             }
             return event
@@ -288,10 +311,28 @@ final class DesktopPetWindowController: NSObject, NSWindowDelegate {
                     }
                     self.uiState.isDragging = false
                     self.didDrag = false
+                    self.dragAnchor = nil
                 }
             }
             return event
         }
+    }
+
+    /// Moves the panel to follow the cursor, keeping the grab point under it.
+    /// A drag that starts on an edge-tucked pet pulls it back out first, so the
+    /// pet does not snap back to the edge mid-drag.
+    private func moveDuringDrag(to mouse: NSPoint) {
+        guard let panel, let anchor = dragAnchor else { return }
+        if hiddenEdge != nil {
+            hiddenEdge = nil
+            isRevealed = false
+            uiState.isTucked = false
+            uiState.isSnapped = false
+        }
+        panel.setFrameOrigin(NSPoint(
+            x: anchor.window.x + (mouse.x - anchor.mouse.x),
+            y: anchor.window.y + (mouse.y - anchor.mouse.y)
+        ))
     }
 
     /// On drop, tuck the pet away if it landed against the left/right edge.
@@ -463,6 +504,7 @@ final class DesktopPetWindowController: NSObject, NSWindowDelegate {
 
     deinit {
         lookTimer?.invalidate()
+        if let downMonitor { NSEvent.removeMonitor(downMonitor) }
         if let dragMonitor { NSEvent.removeMonitor(dragMonitor) }
         if let upMonitor { NSEvent.removeMonitor(upMonitor) }
     }
@@ -616,7 +658,12 @@ final class PetCatalog: ObservableObject {
     static let shared = PetCatalog()
     private static let builtins: [PetCharacter] = [.clawd, .bot, .sprout, .byte, .ember]
     private static let hiddenBuiltinsFilename = ".hidden-builtins.json"
-    private struct Metadata { let displayName: String; let spriteVersionNumber: Int; let atlasURL: URL }
+    private struct Metadata {
+        let displayName: String
+        let spriteVersionNumber: Int
+        let atlasURL: URL
+        let atlasCacheKey: String
+    }
 
     @Published private(set) var characters: [PetCharacter] = builtins
     private var metadata: [String: Metadata] = [:]
@@ -668,11 +715,15 @@ final class PetCatalog: ObservableObject {
                       let displayName = object["displayName"] as? String,
                       !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
                 let version = (object["spriteVersionNumber"] as? NSNumber)?.intValue == 2 ? 2 : 1
+                let attributes = try? FileManager.default.attributesOfItem(atPath: atlasURL.path)
+                let modified = (attributes?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+                let size = (attributes?[.size] as? NSNumber)?.int64Value ?? 0
                 seen.insert(character.rawValue)
                 discovered.append((character, Metadata(
                     displayName: displayName,
                     spriteVersionNumber: version,
-                    atlasURL: atlasURL
+                    atlasURL: atlasURL,
+                    atlasCacheKey: "\(character.rawValue)-\(modified)-\(size)"
                 )))
             }
         }
@@ -699,13 +750,7 @@ final class PetCatalog: ObservableObject {
             ?? Bundle.main.url(forResource: name, withExtension: "png")
     }
     func atlasCacheKey(for character: PetCharacter) -> String {
-        guard let url = metadata[character.rawValue]?.atlasURL,
-              let attributes = try? FileManager.default.attributesOfItem(atPath: url.path) else {
-            return character.rawValue
-        }
-        let modified = (attributes[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
-        let size = (attributes[.size] as? NSNumber)?.int64Value ?? 0
-        return "\(character.rawValue)-\(modified)-\(size)"
+        metadata[character.rawValue]?.atlasCacheKey ?? character.rawValue
     }
 }
 

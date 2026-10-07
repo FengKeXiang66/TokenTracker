@@ -1,8 +1,21 @@
 import { render } from "@testing-library/react";
+import { createElement } from "react";
 import { describe, expect, it } from "vitest";
 import { ProviderIcon } from "./ProviderIcon.jsx";
 
 describe("ProviderIcon", () => {
+  it("renders LM Studio and Unsloth without generic placeholders", () => {
+    const lm = render(
+      createElement(ProviderIcon, { provider: "lmstudio", size: 20 }),
+    ).container;
+    expect(lm.querySelector('img[src="/brand-logos/lmstudio.svg"]')).not.toBeNull();
+
+    const unsloth = render(
+      createElement(ProviderIcon, { provider: "unsloth", size: 20 }),
+    ).container;
+    expect(unsloth.querySelector('img[src="/brand-logos/unsloth.svg"]')).not.toBeNull();
+  });
+
   it("renders the official AnythingLLM mark with explicit light and dark treatment", () => {
     const { container } = render(
       <ProviderIcon provider="anythingllm" size={20} className="shrink-0" />,
@@ -39,6 +52,27 @@ describe("ProviderIcon", () => {
     expect(icon).toHaveAttribute("height", "18");
     expect(icon?.querySelector("path")).not.toBeNull();
     expect(icon?.querySelector("circle")).toBeNull();
+  });
+
+  it("renders MiniMax Code with the MiniMax brand mark", () => {
+    const { container } = render(<ProviderIcon provider="minimax-code" size={18} />);
+    const icon = container.querySelector("svg");
+
+    expect(icon).toHaveAttribute("width", "18");
+    expect(icon?.querySelector("path")).not.toBeNull();
+    expect(icon?.querySelector("circle")).toBeNull();
+  });
+
+  it("renders AStudio with its theme-aware brand assets", () => {
+    const { container } = render(<ProviderIcon provider="acode" size={18} />);
+    const lightIcon = container.querySelector('img[src="/brand-logos/acode.png"]');
+    const darkIcon = container.querySelector('img[src="/brand-logos/acode-dark.png"]');
+
+    expect(lightIcon).toHaveAttribute("width", "18");
+    expect(lightIcon).toHaveClass("block", "dark:hidden");
+    expect(darkIcon).toHaveAttribute("height", "18");
+    expect(darkIcon).toHaveClass("hidden", "dark:block");
+    expect(container.querySelector("svg")).toBeNull();
   });
 
   it("renders the multi-color oh-my-pi brand logo", () => {
@@ -90,6 +124,19 @@ describe("ProviderIcon", () => {
     }
   });
 
+  it.each(["trae", "TRAE"])("renders the international TRAE mark for %s", (provider) => {
+    const { container } = render(<ProviderIcon provider={provider} size={20} className="shrink-0" />);
+    const icon = container.querySelector('img[src="/brand-logos/trae.svg"]');
+
+    expect(icon).toHaveAttribute("width", "20");
+    expect(icon).toHaveAttribute("height", "20");
+    expect(icon).toHaveClass("shrink-0");
+    expect(icon).toHaveAttribute("src", "/brand-logos/trae.svg");
+    expect(icon).toHaveAttribute("aria-hidden", "true");
+    expect(container.querySelector('svg[data-brand="trae-cn"]')).toBeNull();
+    expect(container.querySelector(".text-oai-gray-400")).toBeNull();
+  });
+
   it("renders the compact TRAE CN mark instead of the unknown-provider placeholder", () => {
     const { container } = render(<ProviderIcon provider="trae-cn" size={20} />);
     const icon = container.querySelector('svg[data-brand="trae-cn"]');
@@ -131,4 +178,19 @@ describe("ProviderIcon", () => {
       expect(icon, `${provider} maps to pi.svg`).not.toBeNull();
       expect(icon, `${provider} switches luminance`).toHaveClass("brightness-0", "dark:brightness-100");
     }
+  });
+
+  it("renders the Command Code mark from the official brand asset", () => {
+    const { container } = render(
+      <ProviderIcon provider="COMMAND-CODE" size={16} />,
+    );
+    const icon = container.querySelector(
+      'img[src="/brand-logos/commandcode.svg"]',
+    );
+
+    expect(icon).not.toBeNull();
+    expect(icon).toHaveAttribute("width", "16");
+    expect(icon).toHaveAttribute("height", "16");
+    expect(container.querySelector(".text-oai-gray-400")).toBeNull();
+    expect(container.querySelector("circle")).toBeNull();
   });

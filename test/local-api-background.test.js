@@ -83,7 +83,12 @@ async function runLocalSync(body, options = {}) {
   const savedUserProfile = process.env.USERPROFILE;
   process.env.HOME = tmpHome;
   process.env.USERPROFILE = tmpHome;
-  const { mod, restore } = loadLocalApiWithSpawn(createSuccessfulSpawn(calls));
+  if (ownsTmpHome) {
+    const trackerDir = path.join(tmpHome, ".tokentracker", "tracker");
+    fs.mkdirSync(trackerDir, { recursive: true });
+    fs.writeFileSync(path.join(trackerDir, "cloud-sync-pref.json"), JSON.stringify({ enabled: true }));
+  }
+  const { mod, restore } = loadLocalApiWithSpawn(options.spawnFactory ? options.spawnFactory(calls) : createSuccessfulSpawn(calls));
 
   try {
     const handler = mod.createLocalApiHandler({
@@ -156,7 +161,7 @@ function installDeviceTokenFetch(fetchCalls) {
 }
 
 test("local-api forwards strict boolean auto background sync", async () => {
-  const call = await runLocalSync({ auto: true, background: true });
+  const call = await runLocalSync({ auto: true, background: true, nativeOnlyWsl: true });
   const args = call.args;
   assert.deepEqual(args.slice(-4), [
     path.join(process.cwd(), "bin/tracker.js"),
@@ -164,6 +169,7 @@ test("local-api forwards strict boolean auto background sync", async () => {
     "--auto",
     "--background",
   ]);
+  assert.equal(call.options.env.TOKENTRACKER_WSL_MODE, "native-only");
 });
 
 test("local-api treats lightweight true as background alias", async () => {
@@ -216,6 +222,33 @@ test("local-api background and lightweight require boolean true", async () => {
       "--auto",
       "--wait-for-lock",
     ]);
+  }
+});
+
+test("local-api only propagates native-only WSL for strict boolean background requests", async () => {
+  const previousWslMode = process.env.TOKENTRACKER_WSL_MODE;
+  delete process.env.TOKENTRACKER_WSL_MODE;
+
+  try {
+    const cases = [
+      {
+        body: { auto: true, background: true, nativeOnlyWsl: true },
+        expected: "native-only",
+      },
+      { body: { auto: true, background: true, nativeOnlyWsl: false }, expected: undefined },
+      { body: { auto: true, background: true, nativeOnlyWsl: "true" }, expected: undefined },
+      { body: { auto: true, background: false, nativeOnlyWsl: true }, expected: undefined },
+      { body: { auto: true, nativeOnlyWsl: true }, expected: undefined },
+      { body: { nativeOnlyWsl: true }, expected: undefined },
+    ];
+
+    for (const { body, expected } of cases) {
+      const call = await runLocalSync(body);
+      assert.equal(call.options.env.TOKENTRACKER_WSL_MODE, expected, JSON.stringify(body));
+    }
+  } finally {
+    if (previousWslMode === undefined) delete process.env.TOKENTRACKER_WSL_MODE;
+    else process.env.TOKENTRACKER_WSL_MODE = previousWslMode;
   }
 });
 
@@ -396,5 +429,80 @@ test("local-api manual and drain sync still issue relayed cloud device tokens", 
     if (savedBaseUrl === undefined) delete process.env.TOKENTRACKER_INSFORGE_BASE_URL;
     else process.env.TOKENTRACKER_INSFORGE_BASE_URL = savedBaseUrl;
     global.fetch = savedFetch;
+  }
+});
+
+// Exercise the native payload through the real local route and CLI child. The
+// child gets only fixture paths, and its backend is a loopback capture server.
+test("native background payload reaches ingest with the runtime anon key", async () => {
+  const http = require("node:http");
+  const realSpawn = require("node:child_process").spawn;
+  const { DEFAULT_ANON_KEY } = require("../src/lib/runtime-config");
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-native-publish-"));
+  const trackerDir = path.join(tmpHome, ".tokentracker", "tracker");
+  const requests = [];
+  const backend = http.createServer((req, res) => {
+    let body = "";
+    req.on("data", (chunk) => { body += chunk; });
+    req.on("end", () => {
+      requests.push({ url: req.url, headers: req.headers, body: JSON.parse(body || "{}") });
+      res.writeHead(req.url === "/functions/tokentracker-ingest" ? 200 : 404,
+        { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ inserted: 1, skipped: 0 }));
+    });
+  });
+  await new Promise((resolve) => backend.listen(0, "127.0.0.1", resolve));
+  try {
+    fs.mkdirSync(trackerDir, { recursive: true });
+    fs.writeFileSync(path.join(trackerDir, "cloud-sync-pref.json"), JSON.stringify({ enabled: true }));
+    fs.writeFileSync(path.join(trackerDir, "config.json"), JSON.stringify({
+      baseUrl: `http://127.0.0.1:${backend.address().port}`,
+      deviceToken: "fixture-device-token",
+    }));
+    const sessions = path.join(tmpHome, ".codex", "sessions", "2026", "09", "07");
+    fs.mkdirSync(sessions, { recursive: true });
+    const usage = { input_tokens: 64, cached_input_tokens: 0, output_tokens: 0,
+      reasoning_output_tokens: 0, total_tokens: 64 };
+    fs.writeFileSync(path.join(sessions, "rollout-2026-09-07T00-00-00-019f16bd-1007-7000-8000-aaaaaaaaaaaa.jsonl"),
+      JSON.stringify({ type: "event_msg", timestamp: "2026-09-07T00:00:00.000Z",
+        payload: { type: "token_count", info: { last_token_usage: usage, total_token_usage: usage } } }) + "\n");
+    const call = await runLocalSync({
+      auto: true, background: true, allLocalSources: true, publishAccount: true, nativeOnlyWsl: true,
+    }, {
+      tmpHome,
+      queuePath: path.join(trackerDir, "queue.jsonl"),
+      includeDeviceToken: false,
+      spawnFactory: (calls) => (cmd, args, options) => {
+        calls.push({ cmd, args, options });
+        return realSpawn(cmd, args, {
+          ...options,
+          env: {
+            // Keep Windows process startup variables, but no inherited provider
+            // paths, credentials, or cloud endpoint overrides.
+            SystemRoot: process.env.SystemRoot || "",
+            PATH: path.dirname(process.execPath),
+            HOME: tmpHome, USERPROFILE: tmpHome,
+            APPDATA: path.join(tmpHome, "AppData", "Roaming"),
+            LOCALAPPDATA: path.join(tmpHome, "AppData", "Local"),
+            XDG_DATA_HOME: path.join(tmpHome, ".local", "share"),
+            TOKENTRACKER_WSL_MODE: options.env.TOKENTRACKER_WSL_MODE,
+            TOKENTRACKER_AUTO_RETRY_NO_SPAWN: "1",
+          },
+        });
+      },
+    });
+    assert.equal(call.options.env.TOKENTRACKER_WSL_MODE, "native-only");
+    assert.ok(requests.every((request) => [
+      "/functions/tokentracker-ingest", "/functions/tokentracker-telemetry",
+    ].includes(request.url)));
+    const ingests = requests.filter((request) => request.url === "/functions/tokentracker-ingest");
+    assert.equal(ingests.length, 1);
+    assert.equal(ingests[0].headers.apikey, DEFAULT_ANON_KEY);
+    assert.equal(ingests[0].headers.authorization, "Bearer fixture-device-token");
+    const queueState = JSON.parse(fs.readFileSync(path.join(trackerDir, "queue.state.json"), "utf8"));
+    assert.ok(queueState.offset > 0, "successful ingest acknowledges the local queue");
+  } finally {
+    await new Promise((resolve) => backend.close(resolve));
+    fs.rmSync(tmpHome, { recursive: true, force: true });
   }
 });

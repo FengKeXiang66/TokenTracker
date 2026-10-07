@@ -17,6 +17,9 @@ const COPY_REQUIRED_KEYS = [
   "landing.meta.og_image",
   "landing.meta.og_url",
   "landing.meta.twitter_card",
+  "landing.discovery.tracked_usage",
+  "landing.discovery.limits_summary",
+  "landing.discovery.faq_usage",
   "share.meta.title",
   "share.meta.description",
   "share.meta.og_site_name",
@@ -159,6 +162,9 @@ function buildMeta(prefix = "landing") {
     ogImage: read("og_image"),
     ogUrl: read("og_url"),
     twitterCard: read("twitter_card"),
+    discoveryTrackedUsage: map.get("landing.discovery.tracked_usage") || "",
+    discoveryLimitsSummary: map.get("landing.discovery.limits_summary") || "",
+    discoveryFaqUsage: map.get("landing.discovery.faq_usage") || "",
   };
 }
 
@@ -183,12 +189,20 @@ function injectRichMeta(html, prefix) {
     __TOKENTRACKER_TWITTER_TITLE__: meta.title,
     __TOKENTRACKER_TWITTER_DESCRIPTION__: meta.description,
     __TOKENTRACKER_TWITTER_IMAGE__: meta.ogImage,
+    __TOKENTRACKER_DISCOVERY_LIMITS_SUMMARY__: meta.discoveryLimitsSummary,
+    __TOKENTRACKER_DISCOVERY_FAQ_USAGE__: meta.discoveryFaqUsage,
   };
 
   let output = html;
   for (const [token, value] of Object.entries(replacements)) {
     output = output.replaceAll(token, escapeHtml(value));
   }
+  // This placeholder is inside a JSON-LD string, where HTML entities would
+  // change the value. Escape JSON syntax and prevent a closing script tag.
+  output = output.replaceAll(
+    "__TOKENTRACKER_DISCOVERY_TRACKED_USAGE__",
+    JSON.stringify(meta.discoveryTrackedUsage).slice(1, -1).replaceAll("<", "\\u003c"),
+  );
   return output;
 }
 
@@ -1268,6 +1282,7 @@ export default defineConfig(({ mode }) => {
   };
   if (process.env.TOKENTRACKER_BUILD_PET === "1") {
     rollupInput.pet = path.resolve(ROOT_DIR, "pet.html");
+    rollupInput.quota = path.resolve(ROOT_DIR, "quota.html");
   }
 
   return {

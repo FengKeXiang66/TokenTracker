@@ -2,13 +2,17 @@
 
 // Ark Coding Plan (火山方舟 Coding Plan) quota monitoring.
 //
-// Coding Plan is a subscription-style quota product (Lite/Pro) that refreshes
-// on three windows — 5-hour (session), weekly and monthly — and is shared by
-// every compatible coding tool (Claude Code, Codex CLI, OpenCode, TRAE, ...).
-// TokenTracker already counts those tools' token consumption from their local
-// files, so this module deliberately adds NO consumption source. It only
-// surfaces the subscription quota percentage, which is otherwise only visible
-// in the Volcano console web page.
+// Coding Plan (Lite/Pro) and Agent Plan (Small/Medium/Large/Max) are
+// two parallel subscription products that each refresh on three windows —
+// 5-hour (session for Coding Plan, 5h for Agent Plan), weekly and monthly —
+// and are shared by compatible coding tools (Claude Code, Codex CLI,
+// OpenCode, TRAE, ...). Official docs present them as parallel, not
+// successor/replacement. TokenTracker already counts those tools' token
+// consumption from their local files, so this module deliberately adds
+// NO consumption source. It only surfaces the subscription quota
+// percentage, which is otherwise only visible in the Volcano console web
+// page. Agent Plan is handled by a separate provider module
+// `ark-agent-plan-limits.js` (dual Provider, issue #555).
 //
 // The quota is read through the user's own `arkcli` binary
 // (`arkcli usage plan --format json`), which is already installed and logged
@@ -21,7 +25,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { runCommand, resolveBinaryPath, statBinaryInDirs, commonGlobalBinDirectories } = require("./command-runner");
+const { runCommand, resolveBinaryPath, statBinaryInDirs, commonGlobalBinDirectories, resolvedCliEnvironment } = require("./command-runner");
 
 const ARK_LIMITS_CACHE_FILE = "ark-coding-plan-limits-cache.json";
 const ARK_LIMITS_CACHE_UNKNOWN_RESET_TTL_MS = 12 * 60 * 60 * 1000;
@@ -43,13 +47,22 @@ const ARK_PROVIDER_TIMEOUT_MS = 15_000;
 // Same shape as codexResetCreditListTimeoutMs's guard in usage-limits.js.
 const ARK_PROVIDER_BUDGET_GUARD_MS = 1_500;
 
-// arkcli period label -> canonical window slot. `session` is the 5-hour
-// rolling window; `weekly` and `monthly` refresh on calendar boundaries.
+// arkcli period label -> canonical window slot.
+// Coding Plan uses `session` for the 5-hour rolling window; Agent Plan
+// uses `5h`. `weekly` and `monthly` are shared. `daily` (Agent Plan
+// visual quota) is intentionally not surfaced — it is a separate
+// per-day visual bucket that does not fit the three-window panel.
 const ARK_PERIOD_WINDOW = {
   session: "primary_window",
+  "5h": "primary_window",
   weekly: "secondary_window",
   monthly: "tertiary_window",
 };
+
+// Coding Plan personal product. Team products (coding-plan-team) are
+// seat-scoped and not surfaced in this personal-quota panel.
+const ARK_PERSONAL_PRODUCTS = ["coding-plan"];
+const ARK_PRODUCT_PRIORITY = ["coding-plan"];
 
 function clampPercent(value) {
   return Math.max(0, Math.min(100, value));
@@ -73,22 +86,33 @@ function normalizeResetAt(value) {
 // "Ark Coding Plan Coding Plan Lite".
 function planLabelForTier(tier) {
   const normalized = String(tier || "").trim().toLowerCase();
-  if (normalized === "pro") return "Pro";
-  if (normalized === "lite") return "Lite";
+  const mapping = {
+    pro: "Pro",
+    lite: "Lite",
+    small: "Small",
+    medium: "Medium",
+    large: "Large",
+    max: "Max",
+  };
+  if (mapping[normalized]) return mapping[normalized];
   return tier && String(tier).trim() ? String(tier).trim() : null;
 }
 
 /**
  * Normalize the JSON payload returned by `arkcli plans get --format json`.
- * The tier ("lite" / "pro") lives on the plans payload, not on the usage
- * payload, so it is resolved here and merged into the plan label.
+ * The tier ("lite" / "pro" for Coding Plan) lives on the plans payload,
+ * not on the usage payload, so it is resolved here and merged into the
+ * plan label.
  * Returns null when there is no Coding Plan entry.
  */
 function normalizeArkPlansResponse(body) {
   if (!body || typeof body !== "object") return null;
   const plans = Array.isArray(body.plans) ? body.plans : [];
-  const plan = plans.find((entry) => entry?.key === "coding-plan");
-  return plan?.tier ? String(plan.tier) : null;
+  for (const key of ARK_PRODUCT_PRIORITY) {
+    const plan = plans.find((entry) => entry?.key === key);
+    if (plan?.tier) return String(plan.tier);
+  }
+  return null;
 }
 
 function arkProfileIdentity(body) {
@@ -114,26 +138,56 @@ function arkProfileIdentity(body) {
   return identity || null;
 }
 
+function resolveArkProductItem(items) {
+  for (const product of ARK_PRODUCT_PRIORITY) {
+    const item = items.find((entry) => entry?.product === product && entry?.subscribed === true);
+    if (item) return item;
+  }
+  return null;
+}
+
+function percentFromPeriod(period) {
+  // null / undefined / blank percent must fall through to the used/total
+  // fallback: Number(null) and Number("") both coerce to 0, which would
+  // otherwise report a fake fresh 0% window instead of deriving real usage
+  // (Agent Plan's 5h period can omit percent entirely, #555).
+  const rawPercent = period?.percent;
+  if (rawPercent !== null && rawPercent !== undefined && String(rawPercent).trim() !== "") {
+    const direct = Number(rawPercent);
+    if (Number.isFinite(direct)) return direct;
+  }
+  const used = Number(period?.used);
+  const total = Number(period?.total);
+  if (Number.isFinite(used) && Number.isFinite(total) && total > 0) {
+    return (used / total) * 100;
+  }
+  return NaN;
+}
+
 /**
  * Normalize the JSON payload returned by `arkcli usage plan --format json`.
  * Returns `null` when the account has no active Coding Plan subscription
  * (caller reports `configured: false`). Throws when the payload shape is
  * unusable so the caller can fall back to the disk cache.
+ * Only `coding-plan` (Lite/Pro, session label) is handled here;
+ * Agent Plan is handled by `ark-agent-plan-limits.js`.
  */
 function normalizeArkCodingPlanResponse(body) {
   if (!body || typeof body !== "object") {
     throw new Error("Ark Coding Plan response is not an object.");
   }
   const items = Array.isArray(body.items) ? body.items : [];
-  const item = items.find((entry) => entry?.product === "coding-plan");
-  if (!item || item.subscribed !== true) return null;
+  const item = resolveArkProductItem(items);
+  if (!item) return null;
 
   const windows = {};
   const periods = Array.isArray(item.periods) ? item.periods : [];
   for (const period of periods) {
+    // Agent Plan `daily` is a visual-only quota not shown in the 3-window panel.
+    if (period?.label === "daily") continue;
     const slot = ARK_PERIOD_WINDOW[period?.label];
     if (!slot) continue;
-    const percent = Number(period.percent);
+    const percent = percentFromPeriod(period);
     if (!Number.isFinite(percent)) continue;
     windows[slot] = {
       used_percent: clampPercent(percent),
@@ -149,6 +203,7 @@ function normalizeArkCodingPlanResponse(body) {
     configured: true,
     error: null,
     plan_label: planLabelForTier(item.tier),
+    product: item.product || null,
     primary_window: windows.primary_window || null,
     secondary_window: windows.secondary_window || null,
     tertiary_window: windows.tertiary_window || null,
@@ -194,6 +249,7 @@ function readArkCodingPlanLimitsCache({ home = os.homedir(), nowMs = Date.now(),
       configured: true,
       error: null,
       plan_label: typeof parsed?.plan_label === "string" ? parsed.plan_label : null,
+      product: typeof parsed?.product === "string" ? parsed.product : null,
       primary_window: bounded[0],
       secondary_window: bounded[1],
       tertiary_window: bounded[2],
@@ -212,6 +268,7 @@ function writeArkCodingPlanLimitsCache(limits, { home = os.homedir(), nowMs = Da
   const cachePath = arkCodingPlanCachePath({ home });
   const payload = {
     plan_label: limits.plan_label || null,
+    product: limits.product || null,
     profile_identity: limits.profile_identity || null,
     primary_window: limits.primary_window || null,
     secondary_window: limits.secondary_window || null,
@@ -325,6 +382,7 @@ async function fetchArkCodingPlanLimits({
   if (!arkcliPath) return { configured: false };
 
   const commandOptions = {
+    env: resolvedCliEnvironment(arkcliPath, { platform }),
     signal,
     killProcessGroup: true,
     platform,
@@ -384,12 +442,19 @@ async function fetchArkCodingPlanLimits({
   };
 
   if (result?.error || result?.status !== 0) {
-    const detail = result?.error?.message
+    const isExit127 = result?.status === 127;
+    const baseDetail = result?.error?.message
       || (result?.status !== 0 && result?.status !== null
         ? `arkcli exited with code ${result.status}`
         : "arkcli usage plan failed");
+    // Exit 127 can mean a missing interpreter as well as an outdated CLI.
+    // Preserve stderr so users can distinguish runtime and command failures.
+    const detail = isExit127
+      ? "arkcli exited with code 127 — check its runtime/PATH or update arkcli: npm i -g @volcengine/ark-cli"
+      : baseDetail;
     const stderr = trimStderr(result?.stderr);
-    return failWithCache(stderr ? `${detail}: ${stderr}` : detail);
+    const message = stderr ? `${detail}: ${stderr}` : detail;
+    return failWithCache(message);
   }
 
   let body;
@@ -406,17 +471,22 @@ async function fetchArkCodingPlanLimits({
     return failWithCache(error?.message || "Ark Coding Plan response could not be parsed.");
   }
   if (!limits) {
-    // Only a response that explicitly carries the coding-plan entry with
+    // Only a response that explicitly carries an Ark product entry with
     // `subscribed: false` confirms the plan was retired — drop the cache
     // then, or a later transient CLI failure would resurrect the retired
-    // plan's numbers through failWithCache. A payload with *no*
-    // coding-plan entry at all (`{}`, `{"items":[]}` — not logged in,
-    // backend degraded, product key renamed) is ambiguous and must NOT
-    // destroy the cache: transient signals never drive persistent state.
+    // plan's numbers through failWithCache. A payload with *no* Ark entry
+    // at all (`{}`, `{"items":[]}` — not logged in, backend degraded,
+    // product key renamed) is ambiguous and must NOT destroy the cache:
+    // transient signals never drive persistent state.
+    // Only coding-plan is considered here; agent-plan is handled by the
+    // parallel provider `ark-agent-plan-limits.js`.
     const entry = Array.isArray(body?.items)
-      ? body.items.find((candidate) => candidate?.product === "coding-plan")
+      ? body.items.find(
+        (candidate) =>
+          ARK_PERSONAL_PRODUCTS.includes(candidate?.product) && candidate?.subscribed === false,
+      )
       : null;
-    if (entry && entry.subscribed === false) {
+    if (entry) {
       try {
         fs.unlinkSync(arkCodingPlanCachePath({ home }));
       } catch (_error) {}
@@ -452,6 +522,8 @@ async function fetchArkCodingPlanLimits({
 
 module.exports = {
   ARK_PERIOD_WINDOW,
+  ARK_PERSONAL_PRODUCTS,
+  ARK_PRODUCT_PRIORITY,
   normalizeArkPlansResponse,
   arkProfileIdentity,
   normalizeArkCodingPlanResponse,
@@ -459,4 +531,7 @@ module.exports = {
   writeArkCodingPlanLimitsCache,
   hasArkCliInstallEvidence,
   fetchArkCodingPlanLimits,
+  // exposed for testing
+  resolveArkProductItem,
+  percentFromPeriod,
 };

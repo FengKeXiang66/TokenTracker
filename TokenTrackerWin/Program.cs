@@ -8,6 +8,8 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        InstallExceptionGuards();
+
         // Windows launches us with the full tokentracker://… URL as an argument when a
         // deep link fires (OAuth callback). Extract it if present.
         var deepLink = FindDeepLink(args);
@@ -37,7 +39,35 @@ internal static class Program
         // dispatcher context. We never call its Run(); the WinForms message pump below
         // drives the shared STA thread (and the WPF Dispatcher rides on it). Explicit
         // shutdown mode so WPF doesn't tear itself down when the window is hidden.
-        _ = new System.Windows.Application { ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown };
+        var wpfApp = new System.Windows.Application { ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown };
+        TrayApplicationContext? trayContext = null;
+        wpfApp.DispatcherUnhandledException += (_, e) =>
+        {
+            var shuttingDown = wpfApp.Dispatcher.HasShutdownStarted || wpfApp.Dispatcher.HasShutdownFinished;
+            var recovery = DispatcherExceptionPolicy.Classify(e.Exception, shuttingDown);
+            if (recovery == DispatcherExceptionPolicy.RecoveryKind.IgnoreAfterShutdown
+                || recovery == DispatcherExceptionPolicy.RecoveryKind.IgnoreCancellation)
+            {
+                Diag.Log("program", $"WPF dispatcher exception absorbed during window teardown: {e.Exception}");
+                // These callbacks have no useful work left after cancellation or
+                // dispatcher teardown, so allowing WPF to continue is intentional.
+                e.Handled = true;
+                return;
+            }
+
+            if (recovery == DispatcherExceptionPolicy.RecoveryKind.RecreateDashboardWebView
+                && trayContext?.RecoverDashboardWebView(e.Exception) == true)
+            {
+                Diag.Log("program", $"WPF dispatcher exception recovered by recreating WebView2: {e.Exception}");
+                e.Handled = true;
+                return;
+            }
+
+            // Do not turn an unknown dispatcher failure into a silently-running
+            // but corrupted tray process. Leaving Handled=false preserves WPF's
+            // normal shutdown path after the diagnostic has been recorded.
+            Diag.Log("program", $"WPF dispatcher exception unhandled: {e.Exception}");
+        };
 
         ApplicationConfiguration.Initialize();
         // Show the desktop pet on a normal launch (manual run or post-install), but stay
@@ -46,6 +76,7 @@ internal static class Program
         // last exit). The dashboard no longer auto-opens — the pet is the visible presence.
         var showPetOnLaunch = deepLink is null && !launchedAtStartup;
         var ctx = new TrayApplicationContext(showPetOnLaunch);
+        trayContext = ctx;
 
         // Listen for deep links forwarded by secondary launches.
         using var listenerCts = new CancellationTokenSource();
@@ -58,6 +89,21 @@ internal static class Program
 
         listenerCts.Cancel();
         GC.KeepAlive(mutex);
+    }
+
+    private static void InstallExceptionGuards()
+    {
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            Diag.Log("program", $"unhandled exception terminating={e.IsTerminating}: {e.ExceptionObject}");
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+        {
+            Diag.Log("program", $"unobserved task exception: {e.Exception}");
+            e.SetObserved();
+        };
+        System.Windows.Forms.Application.SetUnhandledExceptionMode(
+            System.Windows.Forms.UnhandledExceptionMode.CatchException);
+        System.Windows.Forms.Application.ThreadException += (_, e) =>
+            Diag.Log("program", $"WinForms UI exception: {e}");
     }
 
     private static string? FindDeepLink(string[] args)

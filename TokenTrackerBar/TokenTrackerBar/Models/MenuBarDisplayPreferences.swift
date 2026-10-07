@@ -37,8 +37,12 @@ enum MenuBarDisplayMetric: String, CaseIterable {
     case opencodeGo5h
     case opencodeGoWeekly
     case opencodeGoMonthly
+    case commandCode5h
+    case commandCodeWeekly
     case qoderQuota
     case qoderUltimate
+    case devinDaily
+    case devinWeekly
 
     var menuLabel: String {
         switch self {
@@ -80,8 +84,12 @@ enum MenuBarDisplayMetric: String, CaseIterable {
         case .opencodeGo5h: return "OG 5h"
         case .opencodeGoWeekly: return "OG Wk"
         case .opencodeGoMonthly: return "OG Mo"
+        case .commandCode5h: return "CC 5h"
+        case .commandCodeWeekly: return "CC Wk"
         case .qoderQuota: return "Qd Cred"
         case .qoderUltimate: return "Qd Ult"
+        case .devinDaily: return "Dv Day"
+        case .devinWeekly: return "Dv Wk"
         }
     }
 
@@ -123,8 +131,12 @@ enum MenuBarDisplayMetric: String, CaseIterable {
         case .opencodeGo5h: return "OpenCode Go 5h Limit"
         case .opencodeGoWeekly: return "OpenCode Go Weekly Limit"
         case .opencodeGoMonthly: return "OpenCode Go Monthly Limit"
+        case .commandCode5h: return "Command Code 5h Limit"
+        case .commandCodeWeekly: return "Command Code Weekly Limit"
         case .qoderQuota: return "Qoder Credits Limit"
         case .qoderUltimate: return "Qoder Ultimate Free Calls"
+        case .devinDaily: return "Devin Daily Limit"
+        case .devinWeekly: return "Devin Weekly Limit"
         }
     }
 
@@ -144,7 +156,9 @@ enum MenuBarDisplayMetric: String, CaseIterable {
              .antigravityClaudeWeekly, .antigravityClaude5h, .antigravityGeminiWeekly, .antigravityGemini5h,
              .zcodeGlm52, .zcodeGlm5Turbo,
              .opencodeGo5h, .opencodeGoWeekly, .opencodeGoMonthly,
-             .qoderQuota, .qoderUltimate:
+             .commandCode5h, .commandCodeWeekly,
+             .qoderQuota, .qoderUltimate,
+             .devinDaily, .devinWeekly:
             return "limits"
         }
     }
@@ -167,7 +181,9 @@ enum MenuBarDisplayMetric: String, CaseIterable {
         case .antigravityClaudeWeekly, .antigravityClaude5h, .antigravityGeminiWeekly, .antigravityGemini5h: return "antigravity"
         case .zcodeGlm52, .zcodeGlm5Turbo: return "zcode"
         case .opencodeGo5h, .opencodeGoWeekly, .opencodeGoMonthly: return "opencodeGo"
+        case .commandCode5h, .commandCodeWeekly: return "commandCode"
         case .qoderQuota, .qoderUltimate: return "qoder"
+        case .devinDaily, .devinWeekly: return "devin"
         }
     }
 }
@@ -197,7 +213,9 @@ private extension UsageLimitsResponse {
         case "antigravity": return antigravity.configured && antigravity.error == nil
         case "zcode": return (zcode?.configured == true) && (zcode?.error == nil)
         case "opencodeGo": return (opencodeGo?.configured == true) && (opencodeGo?.error == nil)
+        case "commandCode": return (commandCode?.configured == true) && (commandCode?.error == nil)
         case "qoder": return (qoder?.configured == true) && (qoder?.error == nil)
+        case "devin": return (devin?.configured == true) && (devin?.error == nil)
         default: return false
         }
     }
@@ -237,8 +255,12 @@ private extension UsageLimitsResponse {
         case .opencodeGo5h: return opencodeGo?.primaryWindow != nil
         case .opencodeGoWeekly: return opencodeGo?.secondaryWindow != nil
         case .opencodeGoMonthly: return opencodeGo?.tertiaryWindow != nil
+        case .commandCode5h: return commandCode?.primaryWindow != nil
+        case .commandCodeWeekly: return commandCode?.secondaryWindow != nil
         case .qoderQuota: return qoder?.primaryWindow != nil
         case .qoderUltimate: return qoder?.secondaryWindow != nil
+        case .devinDaily: return devin?.primaryWindow != nil
+        case .devinWeekly: return devin?.secondaryWindow != nil
         }
     }
 }
@@ -347,7 +369,9 @@ enum MenuBarDisplayPreferences {
                  .antigravityGeminiWeekly, .antigravityGemini5h,
                  .zcodeGlm52, .zcodeGlm5Turbo,
                  .opencodeGo5h, .opencodeGoWeekly, .opencodeGoMonthly,
-                 .qoderQuota, .qoderUltimate:
+                 .commandCode5h, .commandCodeWeekly,
+                 .qoderQuota, .qoderUltimate,
+                 .devinDaily, .devinWeekly:
                 break
             }
         }

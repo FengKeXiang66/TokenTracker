@@ -45,8 +45,13 @@ test("macOS background sync sends auto background while Sync Now drains", () => 
   );
   assert.match(
     apiClient,
-    /func fetchSummaryWithSource\([\s\S]*X-TokenTracker-Account-View[\s\S]*latestAccountSummaryReadCompletedAt = completedAt/,
+    /func fetchSummaryWithSource\([\s\S]*latestAccountSummaryReadCompletedAt = completedAt/,
     "Every summary response should return its own authority and track account-cache completion.",
+  );
+  assert.match(
+    apiClient,
+    /private func fetchWithSource<T: Decodable>\([\s\S]*X-TokenTracker-Account-View[\s\S]*X-TokenTracker-Account-Fallback/,
+    "The shared sourced fetch must read both account-view headers.",
   );
   assert.match(
     viewModel,

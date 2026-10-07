@@ -2,8 +2,8 @@ import AppKit
 import SwiftUI
 
 /// Renders Codex-compatible 8×9 (V1) and 8×11 (V2) companion atlases.
-/// Frames are cropped once and cached; the transparent desktop window only swaps the
-/// resulting NSImage, avoiding per-frame decoding or layout work.
+/// Frames are copied into cell-sized bitmaps once and cached; the transparent desktop
+/// window only swaps the resulting NSImage, avoiding full-atlas decodes per frame.
 struct PetAtlasSpriteView: View {
     let character: PetCharacter
     let state: ClawdCompanionView.ClawdState
@@ -85,47 +85,57 @@ private final class PetAtlasFrameCache {
     static let shared = PetAtlasFrameCache()
 
     private let lock = NSLock()
-    private var atlases: [String: CGImage] = [:]
+    private var cacheKey: String?
+    private var atlas: CGImage?
     private var frames: [String: NSImage] = [:]
     private let cellWidth = 192
     private let cellHeight = 208
 
     func frame(character: PetCharacter, row: Int, column: Int) -> NSImage? {
-        let key = "\(character.atlasCacheKey)-\(row)-\(column)"
+        let cacheKey = character.atlasCacheKey
+        let frameKey = "\(row)-\(column)"
         lock.lock()
-        if let cached = frames[key] {
-            lock.unlock()
-            return cached
+        defer { lock.unlock() }
+
+        if self.cacheKey != cacheKey {
+            self.cacheKey = cacheKey
+            atlas = nil
+            frames.removeAll(keepingCapacity: true)
         }
-        guard let atlas = atlas(for: character) else {
-            lock.unlock()
-            return nil
-        }
+        if let cached = frames[frameKey] { return cached }
+        guard let atlas = atlas(for: character) else { return nil }
         let rect = CGRect(
             x: column * cellWidth,
             y: row * cellHeight,
             width: cellWidth,
             height: cellHeight
         )
-        guard let cropped = atlas.cropping(to: rect) else {
-            lock.unlock()
-            return nil
-        }
-        let image = NSImage(cgImage: cropped, size: NSSize(width: cellWidth, height: cellHeight))
-        frames[key] = image
-        lock.unlock()
+        guard let cropped = atlas.cropping(to: rect),
+              let context = CGContext(
+                data: nil,
+                width: cellWidth,
+                height: cellHeight,
+                bitsPerComponent: 8,
+                bytesPerRow: cellWidth * 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+              ) else { return nil }
+        context.interpolationQuality = .none
+        context.draw(cropped, in: CGRect(x: 0, y: 0, width: cellWidth, height: cellHeight))
+        guard let copied = context.makeImage() else { return nil }
+        let image = NSImage(cgImage: copied, size: NSSize(width: cellWidth, height: cellHeight))
+        frames[frameKey] = image
         return image
     }
 
     private func atlas(for character: PetCharacter) -> CGImage? {
-        let cacheKey = character.atlasCacheKey
-        if let cached = atlases[cacheKey] { return cached }
-        let url = character.atlasURL
-        guard let url, let image = NSImage(contentsOf: url),
+        if let atlas { return atlas }
+        guard let url = character.atlasURL,
+              let image = NSImage(contentsOf: url),
               let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
             return nil
         }
-        atlases[cacheKey] = cgImage
+        atlas = cgImage
         return cgImage
     }
 }

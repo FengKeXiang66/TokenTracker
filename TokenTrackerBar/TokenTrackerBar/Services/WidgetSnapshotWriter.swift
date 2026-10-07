@@ -440,6 +440,34 @@ enum WidgetSnapshotWriter {
             }
         }
 
+        // Command Code
+        if let commandCode = limits.commandCode, commandCode.configured {
+            if let w = commandCode.primaryWindow {
+                out.append(LimitProvider(source: "commandCode", label: "Command Code",
+                                         fraction: w.usedPercent / 100.0,
+                                         resetsAt: parseISO(w.resetAt)))
+            }
+            if let w = commandCode.secondaryWindow {
+                out.append(LimitProvider(source: "commandCode", label: "Command Code · Weekly",
+                                         fraction: w.usedPercent / 100.0,
+                                         resetsAt: parseISO(w.resetAt)))
+            }
+        }
+
+        // Devin
+        if let devin = limits.devin, devin.configured {
+            if let w = devin.primaryWindow {
+                out.append(LimitProvider(source: "devin", label: "Devin · Daily",
+                                         fraction: w.usedPercent / 100.0,
+                                         resetsAt: parseISO(w.resetAt)))
+            }
+            if let w = devin.secondaryWindow {
+                out.append(LimitProvider(source: "devin", label: "Devin · Weekly",
+                                         fraction: w.usedPercent / 100.0,
+                                         resetsAt: parseISO(w.resetAt)))
+            }
+        }
+
         // GitHub Copilot
         if let copilot = limits.copilot, copilot.configured {
             if let w = copilot.primaryWindow {

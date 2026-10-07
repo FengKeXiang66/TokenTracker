@@ -52,6 +52,9 @@ jobs:
           VITE_INSFORGE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3OC0xMjM0LTU2NzgtOTBhYi1jZGVmMTIzNDU2NzgiLCJlbWFpbCI6ImFub25AaW5zZm9yZ2UuY29tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNDU5NDd9.T0auta_IrVIh0uXW1bob5QSnzvsnJmN28r5XkSGEuQY
         run: npm run dashboard:build
 
+      - name: Test skill management interactions
+        run: npm --prefix dashboard test -- src/pages/SkillsPage.test.jsx
+
       - name: Test dashboard limits preferences
         run: npm --prefix dashboard test -- src/hooks/use-limits-display-prefs.test.js
 
@@ -82,9 +85,10 @@ jobs:
           persist-credentials: false
 
       # webkit2gtk + friends are needed to COMPILE the tauri crate, even though
-      # nothing here launches a webview. Bundling the AppImage is deliberately
-      # left to the release workflow: it needs the ~100MB embedded Node runtime
-      # and appimagetool, which would slow every PR down for no extra signal.
+      # nothing here launches a webview. Bundling the release packages
+      # (AppImage, .deb, .rpm) is deliberately left to the release workflow:
+      # they need the ~100MB embedded Node runtime plus appimagetool and the
+      # rpm tooling, which would slow every PR down for no extra signal.
       - name: Install Tauri build dependencies
         run: |
           set -euo pipefail

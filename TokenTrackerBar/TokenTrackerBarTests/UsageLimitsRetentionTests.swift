@@ -1,9 +1,34 @@
+import CFNetwork
 import XCTest
 
 /// Covers the "retain last usage limits record" feature: the
 /// `hasAnyProviderWithoutError` predicate and the `displayRecord` retention
 /// rule used by DashboardViewModel after a successful limits fetch.
 final class UsageLimitsRetentionTests: XCTestCase {
+    func testLocalAPISessionDisablesResponseCaching() {
+        let session = URLSession(configuration: LocalAPIConfiguration.makeSessionConfiguration())
+        defer { session.invalidateAndCancel() }
+        XCTAssertEqual(session.configuration.requestCachePolicy, .reloadIgnoringLocalCacheData)
+        XCTAssertNil(session.configuration.urlCache)
+        XCTAssertEqual(session.configuration.timeoutIntervalForRequest, 10)
+        XCTAssertEqual(session.configuration.timeoutIntervalForResource, 30)
+    }
+
+    /// A system proxy that does not bypass localhost otherwise swallows every
+    /// loopback request and the app reports the local server as unreachable.
+    func testLocalAPISessionBypassesSystemProxies() {
+        let proxies = LocalAPIConfiguration.makeSessionConfiguration().connectionProxyDictionary
+        XCTAssertNotNil(proxies)
+        for key in [
+            kCFNetworkProxiesHTTPEnable,
+            kCFNetworkProxiesHTTPSEnable,
+            kCFNetworkProxiesSOCKSEnable,
+            kCFNetworkProxiesProxyAutoConfigEnable,
+        ] {
+            XCTAssertEqual(proxies?[key as AnyHashable] as? Int, 0, "\(key) should be disabled")
+        }
+    }
+
     func testLastGoodCacheRoundTripsAcrossAppRestarts() throws {
         let suiteName = "UsageLimitsRetentionTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
@@ -29,6 +54,22 @@ final class UsageLimitsRetentionTests: XCTestCase {
         XCTAssertNil(UsageLimitsCache.load(defaults: defaults))
     }
 
+    func testFutureDatedLastGoodCacheIsIgnoredAfterClockRollback() throws {
+        let suiteName = "UsageLimitsRetentionTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let futureResponse = try decodeResponse(overrides: [
+            "fetched_at": "2026-11-01T00:59:36.105Z",
+            "codex": ["configured": true],
+        ])
+        let now = try XCTUnwrap(
+            ISO8601DateFormatter().date(from: "2026-09-07T00:00:00Z")
+        )
+
+        UsageLimitsCache.save(futureResponse, defaults: defaults)
+
+        XCTAssertNil(UsageLimitsCache.load(defaults: defaults, now: now))
+    }
 
     // MARK: - hasAnyProviderWithoutError
 
@@ -86,6 +127,14 @@ final class UsageLimitsRetentionTests: XCTestCase {
         ])
 
         XCTAssertFalse(response.hasAnyProviderWithoutError)
+    }
+
+    func testDevinCountsWhenUsable() throws {
+        let response = try decodeResponse(overrides: [
+            "devin": ["configured": true],
+        ])
+
+        XCTAssertTrue(response.hasAnyProviderWithoutError)
     }
 
     // MARK: - displayRecord retention rule
@@ -303,6 +352,55 @@ final class UsageLimitsRetentionTests: XCTestCase {
         let resetCredits = try XCTUnwrap(response.codex.resetCredits)
         XCTAssertEqual(resetCredits.credits.count, 1)
         XCTAssertEqual(resetCredits.credits[0].expiresAt, "2026-07-12T02:13:21.590541Z")
+    }
+
+    // MARK: - Devin opt-in publication
+
+    func testDevinSelectionOffRewritesRetainedRowsToUnconfigured() throws {
+        let withDevin = try decodeResponse(overrides: [
+            "devin": [
+                "configured": true,
+                "plan_label": "Pro",
+                "primary_window": ["used_percent": 40, "reset_at": "2026-06-11T08:00:00Z"],
+            ],
+        ])
+
+        let adjusted = withDevin.applyingDevinSelection(false)
+
+        XCTAssertEqual(adjusted.devin, .unconfigured)
+        XCTAssertFalse(adjusted.devin?.configured ?? true)
+        XCTAssertNil(adjusted.devin?.primaryWindow)
+        XCTAssertTrue(adjusted.hasAnyProviderWithoutError == false)
+    }
+
+    func testDevinSelectionOnKeepsFetchedRows() throws {
+        let withDevin = try decodeResponse(overrides: [
+            "devin": [
+                "configured": true,
+                "primary_window": ["used_percent": 40],
+            ],
+        ])
+
+        XCTAssertEqual(withDevin.applyingDevinSelection(true), withDevin)
+    }
+
+    func testDevinSelectionOffIsIdentityWhenNothingToStrip() throws {
+        let withoutDevin = try decodeResponse()
+
+        XCTAssertEqual(withoutDevin.applyingDevinSelection(false), withoutDevin)
+    }
+
+    func testDevinReadingsDisappearFromResetDetectionWhenOff() throws {
+        let withDevin = try decodeResponse(overrides: [
+            "devin": [
+                "configured": true,
+                "primary_window": ["used_percent": 90, "reset_at": "2026-06-11T08:00:00Z"],
+            ],
+        ])
+
+        XCTAssertTrue(withDevin.limitWindowReadings().contains { $0.provider == "devin" })
+        let adjusted = withDevin.applyingDevinSelection(false)
+        XCTAssertFalse(adjusted.limitWindowReadings().contains { $0.provider == "devin" })
     }
 
     // MARK: - Fixtures

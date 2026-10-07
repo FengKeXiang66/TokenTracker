@@ -227,6 +227,30 @@ test("atlas row timings match between PetAtlasAnimated.jsx and PetAtlasSpriteVie
   }
 });
 
+test("macOS caches materialized atlas cells instead of lazy full-atlas crops", () => {
+  assert.match(atlasSwiftSource, /let context = CGContext\(/);
+  assert.match(atlasSwiftSource, /context\.draw\(cropped,/);
+  assert.match(atlasSwiftSource, /let copied = context\.makeImage\(\)/);
+  assert.match(atlasSwiftSource, /NSImage\(cgImage: copied,/);
+  assert.doesNotMatch(
+    atlasSwiftSource,
+    /NSImage\(cgImage: cropped,/,
+    "caching a cropped WebP proxy makes ImageIO retain one full atlas decode per frame",
+  );
+  assert.match(atlasSwiftSource, /if self\.cacheKey != cacheKey/);
+  assert.match(atlasSwiftSource, /frames\.removeAll\(keepingCapacity: true\)/);
+
+  const cacheKeyFunction = macControllerSource.match(
+    /func atlasCacheKey\(for character: PetCharacter\) -> String \{[\s\S]*?\n    \}/,
+  )?.[0];
+  assert.ok(cacheKeyFunction, "PetCatalog.atlasCacheKey must stay source-inspectable");
+  assert.doesNotMatch(
+    cacheKeyFunction,
+    /attributesOfItem/,
+    "animation frames must not stat the imported atlas on every cache lookup",
+  );
+});
+
 test("V2 look directions use the same 16-cell row mapping on web, macOS, and Windows", () => {
   assert.match(atlasJsSource, /9 \+ Math\.floor\(lookIndex \/ 8\)/);
   assert.match(atlasJsSource, /lookIndex % 8/);

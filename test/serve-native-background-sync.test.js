@@ -73,3 +73,16 @@ test("macOS and non-native serve do not start a duplicate fallback timer", () =>
   assert.equal(startNativeBackgroundSync({ appShell: "", setIntervalFn }), null);
   assert.equal(setIntervalFn.mock.callCount(), 0);
 });
+
+test("Windows host-owned server skips the duplicate fallback timer", () => {
+  const setIntervalFn = test.mock.fn();
+  assert.equal(
+    startNativeBackgroundSync({
+      appShell: "windows",
+      nativeSyncOwner: "windows-host",
+      setIntervalFn,
+    }),
+    null,
+  );
+  assert.equal(setIntervalFn.mock.callCount(), 0);
+});

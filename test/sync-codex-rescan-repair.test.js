@@ -91,11 +91,14 @@ async function withTempSyncEnv(fn) {
     // writes into the developer's real ~/.tokentracker.
     USERPROFILE: process.env.USERPROFILE,
     CODEX_HOME: process.env.CODEX_HOME,
+    CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR,
     CODE_HOME: process.env.CODE_HOME,
     GEMINI_HOME: process.env.GEMINI_HOME,
     OPENCODE_HOME: process.env.OPENCODE_HOME,
     DSH_HOME: process.env.DSH_HOME,
     TOKENTRACKER_DSH_HOME: process.env.TOKENTRACKER_DSH_HOME,
+    TOKENTRACKER_TRAE_HOME: process.env.TOKENTRACKER_TRAE_HOME,
+    TOKENTRACKER_TRAE_DB: process.env.TOKENTRACKER_TRAE_DB,
     TOKENTRACKER_DEVICE_TOKEN: process.env.TOKENTRACKER_DEVICE_TOKEN,
     TOKENTRACKER_AUTO_RETRY_NO_SPAWN: process.env.TOKENTRACKER_AUTO_RETRY_NO_SPAWN,
   };
@@ -103,9 +106,12 @@ async function withTempSyncEnv(fn) {
     process.env.HOME = home;
     process.env.USERPROFILE = home;
     process.env.CODEX_HOME = path.join(home, ".codex");
+    delete process.env.CLAUDE_CONFIG_DIR;
     process.env.CODE_HOME = path.join(home, ".code");
     process.env.GEMINI_HOME = path.join(home, ".gemini");
     process.env.OPENCODE_HOME = path.join(home, ".opencode");
+    process.env.TOKENTRACKER_TRAE_HOME = path.join(home, ".trae");
+    delete process.env.TOKENTRACKER_TRAE_DB;
     process.env.TOKENTRACKER_DEVICE_TOKEN = "test-device-token";
     process.env.TOKENTRACKER_AUTO_RETRY_NO_SPAWN = "1";
     delete process.env.DSH_HOME;
@@ -121,6 +127,43 @@ async function withTempSyncEnv(fn) {
 }
 
 describe("repairCodexRescanInflation (#187) — atomic guarded rebuild", () => {
+  it("keeps per-model queue totals stable across three consecutive full-source syncs", async () => {
+    await withTempSyncEnv(async (home) => {
+      const sessionsDir = path.join(home, ".codex", "sessions", "2026", "09", "05");
+      await fs.mkdir(sessionsDir, { recursive: true });
+      const count = 100;
+      for (let index = 0; index < count; index += 1) {
+        const id = `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
+        const filePath = path.join(sessionsDir, `rollout-2026-09-05T00-00-00-${id}.jsonl`);
+        const lines = [
+          JSON.stringify({ type: "session_meta", timestamp: "2026-09-05T00:00:00Z", payload: { id } }),
+          turnContextLine({ model: "gpt-5.6-sol" }),
+          tokenCountLine({ ts: "2026-09-05T00:01:00Z", last: U1, total: U1 }),
+          turnContextLine({ model: "gpt-5.6-terra" }),
+          tokenCountLine({ ts: "2026-09-05T00:02:00Z", last: U2, total: T2 }),
+        ];
+        await fs.writeFile(filePath, `${lines.join("\n")}\n`);
+      }
+      const queuePath = path.join(home, ".tokentracker", "tracker", "queue.jsonl");
+      await cmdSync(["--auto", "--background", "--all-local-sources"]);
+      const first = await fs.readFile(queuePath, "utf8");
+      const latest = new Map(first.trim().split("\n").map((line) => {
+        const row = JSON.parse(line);
+        return [`${row.source}|${row.model}|${row.hour_start}`, row];
+      }));
+      const modelTotals = {};
+      for (const row of latest.values()) {
+        if (row.source !== "codex") continue;
+        modelTotals[row.model] = (modelTotals[row.model] || 0) + row.total_tokens;
+      }
+      assert.deepEqual(modelTotals, { "gpt-5.6-sol": count * 100, "gpt-5.6-terra": count * 150 });
+      for (let pass = 0; pass < 2; pass += 1) {
+        await cmdSync(["--auto", "--background", "--all-local-sources"]);
+        assert.equal(await fs.readFile(queuePath, "utf8"), first, "unchanged sync must not append or reattribute usage");
+      }
+    });
+  });
+
   it("does not treat project.queue.jsonl as cloud upload backlog", async () => {
     await withTempSyncEnv(async (home) => {
       const trackerDir = path.join(home, ".tokentracker", "tracker");

@@ -151,7 +151,7 @@ fn a_portless_pattern_would_not_match_the_dashboard() {
 }
 
 #[test]
-fn bundle_produces_exactly_one_appimage_and_no_other_target() {
+fn bundle_produces_the_three_supported_linux_targets() {
     let raw = std::fs::read_to_string(src_tauri_dir().join("tauri.conf.json"))
         .expect("tauri.conf.json should be readable");
     let config: serde_json::Value = serde_json::from_str(&raw).expect("tauri.conf.json is JSON");
@@ -161,10 +161,15 @@ fn bundle_produces_exactly_one_appimage_and_no_other_target() {
         bundle["active"], true,
         "bundling must be enabled or the release produces no artifact at all"
     );
+    // Every target here becomes a release asset that the `publish` job's
+    // required-asset check must also list, so this stays an explicit set rather
+    // than "whatever tauri defaults to".
     assert_eq!(
         bundle["targets"],
-        serde_json::json!(["appimage"]),
-        "Linux ships a single AppImage; adding targets here multiplies release assets"
+        serde_json::json!(["appimage", "deb", "rpm"]),
+        "Linux ships an AppImage plus native packages for apt and dnf; \
+         changing this set means updating the release workflow's build, \
+         payload verification and publish asset list together"
     );
 
     // The embedded runtime is layered in via tauri.bundle.conf.json instead,

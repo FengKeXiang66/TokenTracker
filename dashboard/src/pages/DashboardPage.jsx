@@ -55,6 +55,11 @@ import { formatDeviceLabel } from "../lib/device-label.js";
 import { CLOUD_USAGE_SYNCED_EVENT, getCurrentDeviceId } from "../lib/cloud-sync-prefs";
 import { ShareModal } from "../ui/share/ShareModal";
 import { useShareCardData } from "../ui/share/use-share-card-data";
+import { runSingleFlight } from "../lib/single-flight";
+import {
+  LOCAL_DASHBOARD_REFRESH_OPTIONS,
+  refreshDashboardAggregates,
+} from "../lib/dashboard-refresh";
 
 const PERIODS = ["day", "week", "month", "total", "custom"];
 const DETAILS_DATE_KEYS = new Set(["day", "hour", "month"]);
@@ -517,6 +522,10 @@ export function DashboardPage({
     accountAccessToken,
     accountRevision,
     accountViewResolving,
+    // Keep the daily breakdown aligned with the selected device used by the
+    // main usage/detail cards. Without this, choosing a device only filtered
+    // some cards while the daily table continued to show account-wide rows.
+    deviceId: selectedDevice,
   });
 
   const {
@@ -872,17 +881,53 @@ export function DashboardPage({
     }
   }, [selectedPeriod, customFrom, prevPeriod]);
 
+  // Refreshes can originate from the manual button, a visibility event, and
+  // the local queue watcher at nearly the same time.  Keep one in-flight
+  // aggregate per dashboard context so those triggers do not fan out into
+  // six duplicate endpoint requests (and invalidate each other's responses).
+  const usageStatsFlightRef = useRef(null);
+  const refreshContextKey = useMemo(
+    () => [
+      baseUrl || "",
+      cacheKey || "",
+      accountView ? "cloud" : "local",
+      accountRevision ?? "",
+      period || "",
+      from || "",
+      to || "",
+      todayKey || "",
+      selectedDevice || "all",
+      timeZone || "",
+      tzOffsetMinutes ?? "",
+    ].join("\u001f"),
+    [
+      accountRevision,
+      accountView,
+      baseUrl,
+      cacheKey,
+      from,
+      period,
+      selectedDevice,
+      timeZone,
+      todayKey,
+      to,
+      tzOffsetMinutes,
+    ],
+  );
+
   const refreshUsageStats = useCallback(async () => {
-    if (accountView) invalidateAccountResponseCache();
-    if (!accountView) invalidateSessionInsightsCache();
-    await Promise.all([
-      refreshUsage(),
-      refreshHeatmap(),
-      refreshTrend(),
-      refreshModelBreakdown(),
-      refreshProjectUsage(),
-      refreshDailyBreakdown(),
-    ]);
+    return runSingleFlight(usageStatsFlightRef, refreshContextKey, async () => {
+      if (accountView) invalidateAccountResponseCache();
+      if (!accountView) invalidateSessionInsightsCache();
+      await Promise.all([
+        refreshUsage(),
+        refreshHeatmap(),
+        refreshTrend(),
+        refreshModelBreakdown(),
+        refreshProjectUsage(),
+        refreshDailyBreakdown(),
+      ]);
+    });
   }, [
     accountView,
     refreshDailyBreakdown,
@@ -891,17 +936,18 @@ export function DashboardPage({
     refreshProjectUsage,
     refreshTrend,
     refreshUsage,
+    refreshContextKey,
   ]);
 
+  const refreshAllFlightRef = useRef(null);
   const refreshAll = useCallback(async () => {
-    await Promise.all([
-      refreshUsageStats(),
-      refreshUsageLimits(),
-    ]);
-  }, [
-    refreshUsageStats,
-    refreshUsageLimits,
-  ]);
+    return runSingleFlight(refreshAllFlightRef, refreshContextKey, async () => {
+      await refreshDashboardAggregates({
+        refreshUsageStats,
+        refreshUsageLimits,
+      });
+    });
+  }, [refreshContextKey, refreshUsageLimits, refreshUsageStats]);
 
   // Hold the latest aggregate refresher in a ref so the mount / auto-refresh
   // effects below can call it WITHOUT listing it as a dependency.
@@ -963,7 +1009,7 @@ export function DashboardPage({
     setManualSyncLoading(true);
     try {
       if (isLocalMode) {
-        await triggerLocalSync();
+        await triggerLocalSync(LOCAL_DASHBOARD_REFRESH_OPTIONS);
       }
       await refreshAll();
     } catch (error) {

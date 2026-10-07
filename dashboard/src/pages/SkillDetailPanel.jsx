@@ -229,7 +229,7 @@ function SkillDetailPanelInner({
               <button
                 type="button"
                 onClick={() => onUpdate?.(skill)}
-                disabled={updating}
+                disabled={updating || Boolean(busyKey)}
                 className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md bg-sky-600 px-2.5 text-xs font-semibold text-white transition hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-400/40 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-sky-500 dark:hover:bg-sky-400"
               >
                 {updating ? (
@@ -337,7 +337,7 @@ function SkillDetailPanelInner({
                     <Checkbox.Root
                       id={rowId}
                       checked={checked}
-                      disabled={busy}
+                      disabled={Boolean(busyKey)}
                       onCheckedChange={(next) =>
                         onToggleTarget?.(skill, target.id, Boolean(next))
                       }
@@ -373,7 +373,7 @@ function SkillDetailPanelInner({
           <button
             type="button"
             onClick={() => onRemove?.(skill)}
-            disabled={removing}
+            disabled={Boolean(busyKey)}
             className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-red-200/70 bg-white px-3 py-2 text-sm font-medium text-red-600 transition hover:border-red-300 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-400/30 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900/60 dark:bg-oai-gray-950 dark:text-red-300 dark:hover:border-red-800 dark:hover:bg-red-950/30"
           >
             {removing ? (

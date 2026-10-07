@@ -2,7 +2,10 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LIMIT_PROVIDER_IDS } from "../lib/limits-providers.js";
 import {
+  isDevinProviderSelected,
+  isLimitsPrefsStorageKey,
   LIMIT_DISPLAY_MODES,
+  LIMITS_PREFS_CHANGED_EVENT,
   useLimitsDisplayPrefs,
 } from "./use-limits-display-prefs.js";
 
@@ -12,8 +15,12 @@ const VISIBILITY_KEY = "tt.limits.providerVisibility";
 const SHOW_SUBSCRIPTIONS_KEY = "tt.limits.showSubscriptions";
 const UPDATED_AT_KEY = "tt.limits.updatedAt";
 
+// Devin is the opt-in provider: it defaults OFF because its selection is also
+// the consent flag the local API requires before reading CLI credentials.
 function defaultVisibility() {
-  return Object.fromEntries(LIMIT_PROVIDER_IDS.map((id) => [id, true]));
+  return Object.fromEntries(
+    LIMIT_PROVIDER_IDS.map((id) => [id, id !== "devin"]),
+  );
 }
 
 function defaultSnapshot(updatedAt = null) {
@@ -110,12 +117,15 @@ describe("useLimitsDisplayPrefs", () => {
   it("matches the provider list used for visibility/order keys", () => {
     expect([...LIMIT_PROVIDER_IDS].sort()).toEqual(
       [
+        "agentPlan",
         "antigravity",
         "claude",
         "codex",
         "codingPlan",
+        "commandCode",
         "copilot",
         "cursor",
+        "devin",
         "gemini",
         "grok",
         "kimi",
@@ -801,5 +811,74 @@ describe("useLimitsDisplayPrefs", () => {
       );
     });
     expect(result.current.displayMode).toBe(LIMIT_DISPLAY_MODES.USED);
+  });
+});
+
+describe("Devin opt-in selection", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    window.history.pushState({}, "", "/");
+    delete window.webkit;
+  });
+
+  afterEach(() => {
+    window.history.pushState({}, "", "/");
+    delete window.webkit;
+  });
+
+  it("defaults Devin off while every other provider stays on", () => {
+    const { result } = renderHook(() => useLimitsDisplayPrefs());
+    expect(result.current.visibility.devin).toBe(false);
+    for (const id of LIMIT_PROVIDER_IDS) {
+      if (id === "devin") continue;
+      expect(result.current.visibility[id]).toBe(true, `${id} must stay on`);
+    }
+    expect(isDevinProviderSelected()).toBe(false);
+  });
+
+  it("treats a stored devin:true as the explicit selection and keeps it across normalize", () => {
+    setStoredSnapshot({ providerVisibility: { devin: true } });
+    const { result } = renderHook(() => useLimitsDisplayPrefs());
+    expect(result.current.visibility.devin).toBe(true);
+    expect(isDevinProviderSelected()).toBe(true);
+  });
+
+  it("treats default-filled devin values as not selected", () => {
+    // A snapshot persisted before the selection mattered — devin present but
+    // non-boolean, or a claude-only map — must not read as consent.
+    for (const stored of [{ devin: "true" }, { claude: true }]) {
+      window.localStorage.clear();
+      setStoredSnapshot({ providerVisibility: stored });
+      expect(isDevinProviderSelected()).toBe(false);
+    }
+  });
+
+  it("reset leaves Devin off", () => {
+    setStoredSnapshot({ providerVisibility: { devin: true } });
+    const { result } = renderHook(() => useLimitsDisplayPrefs());
+    expect(isDevinProviderSelected()).toBe(true);
+
+    act(() => {
+      result.current.reset();
+    });
+
+    expect(result.current.visibility.devin).toBe(false);
+    expect(isDevinProviderSelected()).toBe(false);
+  });
+
+  it("dispatches the prefs-changed event so same-window consumers re-read the selection", () => {
+    const { result } = renderHook(() => useLimitsDisplayPrefs());
+    const seen = [];
+    window.addEventListener(LIMITS_PREFS_CHANGED_EVENT, () => seen.push(1));
+
+    act(() => {
+      result.current.toggle("devin");
+    });
+
+    expect(seen.length).toBeGreaterThan(0);
+    expect(isDevinProviderSelected()).toBe(true);
+    expect(isLimitsPrefsStorageKey(VISIBILITY_KEY)).toBe(true);
+    expect(isLimitsPrefsStorageKey("unrelated")).toBe(false);
+    expect(isLimitsPrefsStorageKey(null)).toBe(true);
   });
 });

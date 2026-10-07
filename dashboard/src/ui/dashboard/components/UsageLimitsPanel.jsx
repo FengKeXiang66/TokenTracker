@@ -18,6 +18,23 @@ import { cycleView, countdownText, remainingLabel } from "../../../lib/subscript
 
 const LIMITS_PROVIDER_ICON_CLASS = "shrink-0 text-oai-black dark:text-oai-white";
 
+function commandCodeSetupPlatform() {
+  const ua = typeof navigator === "undefined" ? "" : navigator.userAgent || "";
+  return /Windows/i.test(ua) ? "windows" : /Linux/i.test(ua) ? "linux" : "macos";
+}
+
+function commandCodeLoginSnippet() {
+  return commandCodeSetupPlatform() === "windows"
+    ? copy("limits.commandCode.setupHint.snippet_login_windows")
+    : copy("limits.commandCode.setupHint.snippet_login");
+}
+
+// `devin auth login` is registry-owned (limits.devin.setupHint.snippet_login)
+// so the setup guide and the reauth tooltip share one source of truth.
+function devinLoginSnippet() {
+  return copy("limits.devin.setupHint.snippet_login");
+}
+
 function formatReset(isoOrUnix) {
   const ts = resetToMs(isoOrUnix);
   if (!Number.isFinite(ts)) return null;
@@ -90,12 +107,13 @@ function buildQuotaDetail(window) {
 }
 
 /** Pace + projection for one window spec, in the active display mode. */
-function paceForSpec(spec, mode) {
+function paceForSpec(spec, mode, now) {
   return computePace({
     usedPercent: readWindowPct(spec.window, spec.pctField),
     windowSeconds: resolveWindowSeconds(spec, spec.window),
     resetMs: resetToMs(readWindowReset(spec.window, spec.resetField)),
     mode,
+    now,
   });
 }
 
@@ -276,10 +294,14 @@ const STATUS_BADGE_TONES = {
 };
 
 // CLI to run when a provider's stored OAuth token has expired
-// (`auth_action_required: "reauth"` on the provider payload).
+// (`auth_action_required: "reauth"` on the provider payload). Claude and Codex
+// reauth with the bare binary; Command Code reauths with `cmd login`, which is
+// registry-owned (limits.commandCode.setupHint.snippet_login) so the tooltip
+// and the setup guide stay in sync.
 const REAUTH_CLI_COMMANDS = {
   claude: "claude",
   codex: "codex",
+  antigravity: "agy",
 };
 
 function StatusBadge({ label, age = null, tone = "live", tooltip = null }) {
@@ -586,7 +608,7 @@ function renderConfiguredProvider(id, data, title, mode, expanded, onToggle, bad
   const rows = spec
     .windows(data)
     .filter((s) => s.window)
-    .map((s) => ({ spec: s, pace: paceForSpec(s, mode) }));
+    .map((s) => ({ spec: s, pace: paceForSpec(s, mode, now) }));
   const extra = renderProviderExtra(spec.extra, data);
   return (
     <ToolGroup
@@ -644,7 +666,10 @@ function renderProviderGroup(id, data, mode, expanded, onToggle, subscription = 
       <>
         <StatusLine>{copy("limits.status.not_connected")}</StatusLine>
         {id === "opencodeGo" ? <OpenCodeGoSetupHint /> : null}
+        {id === "commandCode" ? <CommandCodeSetupHint /> : null}
         {id === "codingPlan" ? <ArkCodingPlanSetupHint /> : null}
+        {id === "agentPlan" ? <ArkAgentPlanSetupHint /> : null}
+        {id === "devin" ? <DevinSetupHint /> : null}
       </>,
       expanded,
       onToggle,
@@ -673,7 +698,10 @@ function renderProviderGroup(id, data, mode, expanded, onToggle, subscription = 
           ? renderProviderExtra(PROVIDER_LIMIT_SPECS.kiro.extra, data)
           : null}
         {id === "opencodeGo" ? <OpenCodeGoSetupHint /> : null}
+        {id === "commandCode" ? <CommandCodeSetupHint /> : null}
         {id === "codingPlan" ? <ArkCodingPlanSetupHint /> : null}
+        {id === "agentPlan" ? <ArkAgentPlanSetupHint /> : null}
+        {id === "devin" ? <DevinSetupHint /> : null}
       </>,
       expanded,
       onToggle,
@@ -686,7 +714,26 @@ function renderProviderGroup(id, data, mode, expanded, onToggle, subscription = 
   const baseName = limitProviderName(id);
   const title = data.plan_label ? `${baseName} ${data.plan_label}` : baseName;
   let badge = null;
-  if (id === "antigravity") {
+  // Reauth is more actionable than a cached/live freshness badge: the bars
+  // will not move again until the user signs in, even if a disk snapshot
+  // is still visible.
+  if (data.auth_action_required === "reauth") {
+    const command =
+      id === "commandCode"
+        ? commandCodeLoginSnippet()
+        : id === "devin"
+          ? devinLoginSnippet()
+          : REAUTH_CLI_COMMANDS[id];
+    badge = (
+      <StatusBadge
+        label={copy("limits.reauth.badge")}
+        age={ago(data.cached_at)}
+        tone="stale"
+        tooltip={command ? copy("limits.reauth.tooltip", { command }) : null}
+      />
+    );
+  }
+  if (!badge && id === "antigravity") {
     if (data.cached) {
       const suffix = ago(data.cached_at);
       badge = <StatusBadge label={copy("limits.label.antigravity_cached")} age={suffix} tone="cached" tooltip={copy("limits.tooltip.antigravity_cached")} />;
@@ -694,7 +741,7 @@ function renderProviderGroup(id, data, mode, expanded, onToggle, subscription = 
       badge = <StatusBadge label={copy("limits.label.antigravity_live")} tone="live" tooltip={copy("limits.tooltip.antigravity_live")} />;
     }
   }
-  if ((id === "qoder" || id === "qoderCn" || id === "codingPlan") && data.cached) {
+  if (!badge && (id === "qoder" || id === "qoderCn") && data.cached) {
     badge = (
       <StatusBadge
         label={copy("limits.label.antigravity_cached")}
@@ -704,17 +751,15 @@ function renderProviderGroup(id, data, mode, expanded, onToggle, subscription = 
       />
     );
   }
-  // An expired sign-in means every live fetch fails the same way and the bars
-  // silently freeze on the cached snapshot (issue 330) — more actionable than
-  // the generic stale badge below, so it takes precedence.
-  if (!badge && data.auth_action_required === "reauth") {
-    const command = REAUTH_CLI_COMMANDS[id];
+  // Ark plans are refreshed by the local arkcli binary, not by launching an
+  // app — a Qoder-specific tooltip would send users to the wrong tool.
+  if (!badge && (id === "codingPlan" || id === "agentPlan") && data.cached) {
     badge = (
       <StatusBadge
-        label={copy("limits.reauth.badge")}
+        label={copy("limits.label.antigravity_cached")}
         age={ago(data.cached_at)}
-        tone="stale"
-        tooltip={command ? copy("limits.reauth.tooltip", { command }) : null}
+        tone="cached"
+        tooltip={copy("limits.tooltip.ark_cached")}
       />
     );
   }
@@ -856,6 +901,112 @@ function OpenCodeGoSetupHint() {
   );
 }
 
+// Command Code subscription usage comes from the CLI's own alpha endpoints,
+// authenticated exactly like the `cmd` CLI itself. Two supported logins: the
+// `cmd login` session the CLI stores in ~/.commandcode/auth.json (picked up
+// with no restart), or a COMMAND_CODE_API_KEY env var. TokenTracker never
+// exposes the credential to the dashboard; the local backend sends it only to
+// Command Code's API.
+function CommandCodeSetupHint() {
+  const [copied, setCopied] = useState(false);
+  // Command lines stay identical across locales; they are copy keys per the
+  // repo i18n convention (review 594) so the setup guide and the reauth
+  // tooltip share one source of truth for `cmd login`.
+  const platform = commandCodeSetupPlatform();
+  const loginSnippet = commandCodeLoginSnippet();
+  const snippet = platform === "windows"
+    ? copy("limits.commandCode.setupHint.snippet_env_windows").replaceAll("\\n", "\n")
+    : [
+    copy("limits.commandCode.setupHint.snippet_read"),
+    copy("limits.commandCode.setupHint.snippet_export"),
+    ...(platform === "macos" ? [copy("limits.commandCode.setupHint.snippet_setenv")] : []),
+  ].join("\n");
+
+  const onCopy = async (e) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(snippet);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch (_e) {
+      // Clipboard can be unavailable in embedded or restricted contexts.
+    }
+  };
+
+  return (
+    <div className="mt-1.5 rounded-lg border border-oai-gray-200 dark:border-oai-gray-700/60 bg-oai-gray-50/50 dark:bg-oai-gray-900/20 p-3 text-[11px] text-oai-gray-600 dark:text-oai-gray-300">
+      <div className="text-[12px] font-semibold text-oai-gray-800 dark:text-oai-gray-100">
+        {copy("limits.commandCode.setupHint.title")}
+      </div>
+      <div className="mt-0.5 leading-snug text-oai-gray-500 dark:text-oai-gray-400">
+        {copy("limits.commandCode.setupHint.subtitle")}
+      </div>
+
+      <ol className="mt-2.5 space-y-2.5">
+        <HintStep n="1">
+          <div>{copy("limits.commandCode.setupHint.step1")}</div>
+          <pre className="mt-1.5 overflow-x-auto rounded-md bg-oai-gray-100 dark:bg-oai-gray-900/60 px-2 py-1.5 font-mono text-[10.5px] leading-relaxed whitespace-pre">
+            {loginSnippet}
+          </pre>
+        </HintStep>
+        <HintStep n="2">
+          <div>{copy("limits.commandCode.setupHint.step2")}</div>
+          <div className="mt-1.5 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onCopy}
+              className="shrink-0 rounded-md border border-oai-gray-300 dark:border-oai-gray-700 px-2 py-0.5 text-[10.5px] text-oai-gray-700 dark:text-oai-gray-200 hover:bg-oai-gray-100 dark:hover:bg-oai-gray-800 transition-colors"
+            >
+              {copied
+                ? copy("limits.commandCode.setupHint.copied")
+                : copy("limits.commandCode.setupHint.copy")}
+            </button>
+          </div>
+          <pre className="mt-1.5 overflow-x-auto rounded-md bg-oai-gray-100 dark:bg-oai-gray-900/60 px-2 py-1.5 font-mono text-[10.5px] leading-relaxed whitespace-pre">
+            {snippet}
+          </pre>
+          <div className="mt-1 text-[10px] text-oai-gray-400 dark:text-oai-gray-500">
+            {platform === "windows" ? copy("limits.commandCode.setupHint.note_windows")
+              : platform === "linux" ? copy("limits.commandCode.setupHint.note_linux")
+                : copy("limits.commandCode.setupHint.note_app")}
+          </div>
+        </HintStep>
+      </ol>
+    </div>
+  );
+}
+
+// Devin quota is read through the Devin CLI's saved sign-in on this machine
+// — the backend reuses the session token the CLI wrote to its credentials
+// file, so all the row needs is the CLI installed and signed in once.
+// TokenTracker only ever sends that token to Devin's official quota endpoint.
+function DevinSetupHint() {
+  const loginSnippet = devinLoginSnippet();
+
+  return (
+    <div className="mt-1.5 rounded-lg border border-oai-gray-200 dark:border-oai-gray-700/60 bg-oai-gray-50/50 dark:bg-oai-gray-900/20 p-3 text-[11px] text-oai-gray-600 dark:text-oai-gray-300">
+      <div className="text-[12px] font-semibold text-oai-gray-800 dark:text-oai-gray-100">
+        {copy("limits.devin.setupHint.title")}
+      </div>
+      <div className="mt-0.5 leading-snug text-oai-gray-500 dark:text-oai-gray-400">
+        {copy("limits.devin.setupHint.subtitle")}
+      </div>
+
+      <ol className="mt-2.5 space-y-2.5">
+        <HintStep n="1">
+          <div>{copy("limits.devin.setupHint.step1")}</div>
+          <pre className="mt-1.5 overflow-x-auto rounded-md bg-oai-gray-100 dark:bg-oai-gray-900/60 px-2 py-1.5 font-mono text-[10.5px] leading-relaxed whitespace-pre">
+            {loginSnippet}
+          </pre>
+          <div className="mt-1 text-[10px] text-oai-gray-400 dark:text-oai-gray-500">
+            {copy("limits.devin.setupHint.note")}
+          </div>
+        </HintStep>
+      </ol>
+    </div>
+  );
+}
+
 // Ark Coding Plan (火山方舟) quota comes from the official Ark CLI (arkcli)
 // running on this machine — there is no public quota endpoint, so the CLI is
 // feature-detected at fetch time. When it is missing (or not signed in) the
@@ -922,6 +1073,69 @@ function ArkCodingPlanSetupHint() {
   );
 }
 
+function ArkAgentPlanSetupHint() {
+  const [copied, setCopied] = useState(false);
+  // Command lines stay identical across locales; only the inline comments
+  // localize. Kept as copy keys per the repo i18n convention (review 563).
+  const snippet = [
+    copy("limits.agentPlan.setupHint.snippet_install"),
+    copy("limits.agentPlan.setupHint.snippet_login"),
+    copy("limits.agentPlan.setupHint.snippet_status"),
+  ].join("\n");
+
+  const onCopy = async (e) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(snippet);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch (_e) {
+      // Clipboard can be unavailable in embedded or restricted contexts.
+    }
+  };
+
+  return (
+    <div className="mt-1.5 rounded-lg border border-oai-gray-200 dark:border-oai-gray-700/60 bg-oai-gray-50/50 dark:bg-oai-gray-900/20 p-3 text-[11px] text-oai-gray-600 dark:text-oai-gray-300">
+      <div className="text-[12px] font-semibold text-oai-gray-800 dark:text-oai-gray-100">{copy("limits.agentPlan.setupHint.title")}</div>
+      <div className="mt-0.5 leading-snug text-oai-gray-500 dark:text-oai-gray-400">{copy("limits.agentPlan.setupHint.subtitle")}</div>
+
+      <ol className="mt-2.5 space-y-2.5">
+        <HintStep n="1">
+          <div>{copy("limits.agentPlan.setupHint.step1")}</div>
+          <a
+            href="https://www.volcengine.com/docs/82379/2536875"
+            target="_blank"
+            rel="noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="mt-1 inline-flex items-center gap-1 rounded-md bg-oai-brand/10 px-2 py-1 font-medium text-oai-brand hover:bg-oai-brand/15 transition-colors"
+          >
+            {copy("limits.agentPlan.setupHint.cta")}
+            <ExternalArrow />
+          </a>
+        </HintStep>
+        <HintStep n="2">
+          <div>{copy("limits.agentPlan.setupHint.step2")}</div>
+          <div className="mt-0.5 text-oai-gray-500 dark:text-oai-gray-400">{copy("limits.agentPlan.setupHint.step2_remote")}</div>
+        </HintStep>
+        <HintStep n="3">
+          <div className="flex items-center gap-2">
+            <span>{copy("limits.agentPlan.setupHint.step3")}</span>
+            <button
+              type="button"
+              onClick={onCopy}
+              className="shrink-0 rounded-md border border-oai-gray-300 dark:border-oai-gray-700 px-2 py-0.5 text-[10.5px] text-oai-gray-700 dark:text-oai-gray-200 hover:bg-oai-gray-100 dark:hover:bg-oai-gray-800 transition-colors"
+            >
+              {copied ? copy("limits.agentPlan.setupHint.copied") : copy("limits.agentPlan.setupHint.copy")}
+            </button>
+          </div>
+          <pre className="mt-1.5 overflow-x-auto rounded-md bg-oai-gray-100 dark:bg-oai-gray-900/60 px-2 py-1.5 font-mono text-[10.5px] leading-relaxed whitespace-pre">{snippet}</pre>
+          <div className="mt-1 text-[10px] text-oai-gray-400 dark:text-oai-gray-500">{copy("limits.agentPlan.setupHint.note_app")}</div>
+        </HintStep>
+      </ol>
+    </div>
+  );
+}
+
 /**
  * Width of the widest rendered row label, so every label column matches it.
  * Mirrors the macOS popover behavior: bars stay aligned without reserving
@@ -956,8 +1170,8 @@ function useWidestLabelWidth(containerRef) {
   return labelWidth;
 }
 
-export function UsageLimitsPanel({ claude, codex, cursor, gemini, kimi, kiro, grok, antigravity, copilot, zcode, opencodeGo, qoder, qoderCn, codingPlan, order, visibility, displayMode, subscriptions = [], showSubscriptions = true }) {
-  const dataById = { claude, codex, cursor, gemini, kimi, kiro, grok, antigravity, copilot, zcode, opencodeGo, qoder, qoderCn, codingPlan };
+export function UsageLimitsPanel({ claude, codex, cursor, gemini, kimi, kiro, grok, antigravity, copilot, zcode, opencodeGo, commandCode, qoder, qoderCn, codingPlan, agentPlan, devin, order, visibility, displayMode, subscriptions = [], showSubscriptions = true }) {
+  const dataById = { claude, codex, cursor, gemini, kimi, kiro, grok, antigravity, copilot, zcode, opencodeGo, commandCode, qoder, qoderCn, codingPlan, agentPlan, devin };
   const containerRef = useRef(null);
   const labelWidth = useWidestLabelWidth(containerRef);
   const [expandedId, setExpandedId] = useState(null);

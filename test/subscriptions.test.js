@@ -6,8 +6,10 @@ const { test } = require("node:test");
 
 const {
   collectLocalSubscriptions,
+  detectClaudeCodeCredentialsPresence,
   detectClaudeCodeSubscriptionDetails,
   readClaudeCodeAccessToken,
+  readClaudeCodeOauthToken,
 } = require("../src/lib/subscriptions");
 
 function base64UrlEncodeJson(value) {
@@ -361,6 +363,7 @@ test("Claude Code credential helpers default to the current platform", async () 
           stdout: JSON.stringify({
             claudeAiOauth: {
               accessToken: "darwin-default-token",
+              expiresAt: Date.now() + 60 * 60 * 1000,
               subscriptionType: "max",
               rateLimitTier: "tier-1",
             },
@@ -383,6 +386,7 @@ test("Claude Code credential helpers default to the current platform", async () 
       await writeJson(path.join(tmp, ".claude", ".credentials.json"), {
         claudeAiOauth: {
           accessToken: "file-default-token",
+          expiresAt: Date.now() + 60 * 60 * 1000,
           subscriptionType: "max",
           rateLimitTier: "tier-1",
         },
@@ -405,6 +409,96 @@ test("Claude Code credential helpers default to the current platform", async () 
     await fs.rm(tmp, { recursive: true, force: true });
   }
 });
+
+test("readClaudeCodeAccessToken returns null when the keychain token is expired", () => {
+  const nowMs = Date.parse("2026-09-10T00:00:00.000Z");
+  const runner = () => ({
+    status: 0,
+    stdout: JSON.stringify({
+      claudeAiOauth: {
+        accessToken: "expired-darwin-token",
+        expiresAt: nowMs - 60_000,
+      },
+    }),
+  });
+
+  assert.equal(
+    readClaudeCodeAccessToken({ platform: "darwin", securityRunner: runner, nowMs }),
+    null,
+  );
+});
+
+test("readClaudeCodeOauthToken exposes the expiry that identifies the credential", () => {
+  const nowMs = Date.parse("2026-09-10T00:00:00.000Z");
+  const expiresAt = nowMs + 6 * 60 * 60 * 1000;
+  const runner = () => ({
+    status: 0,
+    stdout: JSON.stringify({ claudeAiOauth: { accessToken: "live-darwin-token", expiresAt } }),
+  });
+
+  assert.deepEqual(
+    readClaudeCodeOauthToken({ platform: "darwin", securityRunner: runner, nowMs }),
+    { accessToken: "live-darwin-token", expiresAtMs: expiresAt },
+  );
+});
+
+test("readClaudeCodeAccessToken returns a live keychain token", () => {
+  const nowMs = Date.parse("2026-09-10T00:00:00.000Z");
+  const runner = () => ({
+    status: 0,
+    stdout: JSON.stringify({
+      claudeAiOauth: {
+        accessToken: "live-darwin-token",
+        expiresAt: nowMs + 60 * 60 * 1000,
+      },
+    }),
+  });
+
+  assert.equal(
+    readClaudeCodeAccessToken({ platform: "darwin", securityRunner: runner, nowMs }),
+    "live-darwin-token",
+  );
+});
+
+for (const platform of ["linux", "win32"]) {
+  test(`readClaudeCodeAccessToken returns null when the ${platform} credentials file is expired`, async () => {
+    const nowMs = Date.parse("2026-09-10T00:00:00.000Z");
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), `tokentracker-subscriptions-claude-${platform}-expired-`));
+    try {
+      await writeJson(path.join(tmp, ".claude", ".credentials.json"), {
+        claudeAiOauth: {
+          accessToken: `expired-${platform}-token`,
+          expiresAt: nowMs - 60_000,
+        },
+      });
+      assert.equal(
+        readClaudeCodeAccessToken({ platform, home: tmp, nowMs }),
+        null,
+      );
+    } finally {
+      await fs.rm(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test(`readClaudeCodeAccessToken returns a live ${platform} credentials-file token`, async () => {
+    const nowMs = Date.parse("2026-09-10T00:00:00.000Z");
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), `tokentracker-subscriptions-claude-${platform}-live-`));
+    try {
+      await writeJson(path.join(tmp, ".claude", ".credentials.json"), {
+        claudeAiOauth: {
+          accessToken: `live-${platform}-token`,
+          expiresAt: nowMs + 60 * 60 * 1000,
+        },
+      });
+      assert.equal(
+        readClaudeCodeAccessToken({ platform, home: tmp, nowMs }),
+        `live-${platform}-token`,
+      );
+    } finally {
+      await fs.rm(tmp, { recursive: true, force: true });
+    }
+  });
+}
 
 test("collectLocalSubscriptions does not read ~/.claude/.credentials.json on unsupported platforms", async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-subscriptions-claude-other-"));
@@ -509,4 +603,37 @@ test("collectLocalSubscriptions includes OpenClaw when session plugin is configu
   } finally {
     await fs.rm(tmp, { recursive: true, force: true });
   }
+});
+
+test("Claude keychain reads and presence select the active account, never a stale service-only item", () => {
+  const calls = [];
+  const securityRunner = (_cmd, args) => {
+    calls.push(args);
+    const active = args.includes("-a") && args[args.indexOf("-a") + 1] === "active-user";
+    return { status: 0, stdout: JSON.stringify({ claudeAiOauth: { accessToken: active ? "active-token" : "stale-token", subscriptionType: active ? "max" : "pro" } }) };
+  };
+  const opts = { platform: "darwin", env: { USER: "active-user" }, securityRunner };
+  assert.equal(readClaudeCodeAccessToken(opts), "active-token");
+  assert.equal(detectClaudeCodeSubscriptionDetails(opts).planType, "max");
+  assert.equal(detectClaudeCodeCredentialsPresence(opts).planType, "present");
+  assert.equal(calls.length, 3);
+  for (const args of calls) assert.equal(args[args.indexOf("-a") + 1], "active-user");
+});
+
+test("Claude keychain does not fall back to an unrelated stale account when the selected item is absent", () => {
+  const calls = [];
+  const result = readClaudeCodeAccessToken({ platform: "darwin", env: { USER: "active-user" }, securityRunner: (_cmd, args) => {
+    calls.push(args);
+    return args.includes("-a") ? { status: 44 } : { status: 0, stdout: '{"claudeAiOauth":{"accessToken":"stale-token"}}' };
+  } });
+  assert.equal(result, null);
+  assert.equal(calls.length, 1);
+});
+
+test("Claude keychain account mirrors environment, OS fallback and upstream username validation", () => {
+  const { resolveClaudeKeychainAccount } = require("../src/lib/subscriptions");
+  assert.equal(resolveClaudeKeychainAccount({ env: { USER: "named-user" }, userInfo: () => ({ username: "os-user" }) }), "named-user");
+  assert.equal(resolveClaudeKeychainAccount({ env: {}, userInfo: () => ({ username: "os-user" }) }), "os-user");
+  assert.equal(resolveClaudeKeychainAccount({ env: { USER: "invalid user" } }), "claude-code-user");
+  assert.equal(resolveClaudeKeychainAccount({ env: {}, userInfo: () => { throw new Error("no user"); } }), "claude-code-user");
 });

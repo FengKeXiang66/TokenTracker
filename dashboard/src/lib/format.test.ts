@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatUsdCurrency } from "./format";
+import { formatChineseNumber, formatUsdCurrency } from "./format";
 
 describe("formatUsdCurrency — null / empty handling", () => {
   it("returns '-' for null", () => {
@@ -102,5 +102,45 @@ describe("formatUsdCurrency — edge cases", () => {
     const result = formatUsdCurrency(Infinity);
     expect(typeof result).toBe("string");
     expect(result.length).toBeGreaterThan(0);
+  });
+});
+
+describe("formatChineseNumber — Wan/Yi scale", () => {
+  it("keeps exact digits below one wan", () => {
+    expect(formatChineseNumber(0)).toBe("0");
+    expect(formatChineseNumber(999)).toBe("999");
+    expect(formatChineseNumber(9_999)).toBe("9999");
+  });
+
+  it("formats wan for 1e4 up to 1e8", () => {
+    expect(formatChineseNumber(10_000)).toBe("1万");
+    expect(formatChineseNumber(12_345)).toBe("1.2万");
+    expect(formatChineseNumber(99_960_000)).toBe("9996万");
+  });
+
+  it("formats yi for 1e8 and above", () => {
+    expect(formatChineseNumber(100_000_000)).toBe("1亿");
+    expect(formatChineseNumber(123_456_789)).toBe("1.2亿");
+  });
+
+  it("carries wan into yi when rounding reaches 10000 wan", () => {
+    expect(formatChineseNumber(999_960_000)).toBe("10亿");
+  });
+
+  it("uses wanyi for 1e12 and above", () => {
+    expect(formatChineseNumber(1_000_000_000_000)).toBe("1万亿");
+    expect(formatChineseNumber(1_234_567_890_123)).toBe("1.2万亿");
+  });
+
+  it("handles negative and invalid inputs", () => {
+    expect(formatChineseNumber(-12_345)).toBe("-1.2万");
+    expect(formatChineseNumber("abc")).toBe("-");
+    expect(formatChineseNumber(null)).toBe("-");
+  });
+
+  it("honors the decimals option and clamps it", () => {
+    expect(formatChineseNumber(12_345, { decimals: 2 })).toBe("1.23万");
+    expect(formatChineseNumber(12_345, { decimals: 0 })).toBe("1万");
+    expect(formatChineseNumber(12_345, { decimals: 99 })).toBe("1.2345万");
   });
 });

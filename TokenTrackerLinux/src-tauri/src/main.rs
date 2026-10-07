@@ -1,4 +1,4 @@
-use tokentracker_linux::{oauth, paths, server, tray};
+use tokentracker_linux::{external, oauth, paths, server, tray};
 
 use std::sync::Mutex;
 
@@ -14,13 +14,21 @@ const WEBKIT_DMABUF_ENV: &str = "WEBKIT_DISABLE_DMABUF_RENDERER";
 const NATIVE_OAUTH_BRIDGE: &str = r#"
 (() => {
   if (window.location.hostname !== '127.0.0.1') return;
-  window.webkit = window.webkit || {};
-  window.webkit.messageHandlers = window.webkit.messageHandlers || {};
-  window.webkit.messageHandlers.nativeOAuth = {
+  const handler = {
     postMessage(url) {
       return window.__TAURI_INTERNALS__.invoke('open_oauth', { url });
     }
   };
+  // WebKit's messageHandlers object is a host object and assigning onto it can
+  // throw. The dashboard then calls the Tauri command directly
+  // (getNativeOAuthBridge), so a failure here is not fatal.
+  try {
+    window.webkit = window.webkit || {};
+    if (!window.webkit.messageHandlers) window.webkit.messageHandlers = {};
+    if (!window.webkit.messageHandlers.nativeOAuth) {
+      window.webkit.messageHandlers.nativeOAuth = handler;
+    }
+  } catch (e) {}
 })();
 "#;
 
@@ -277,6 +285,22 @@ fn main() {
                 tauri::WebviewUrl::App("index.html".into()),
             )
             .initialization_script(NATIVE_OAUTH_BRIDGE)
+            // `target="_blank"` links (provider status pages, leaderboard
+            // profiles) belong in the system browser. WebKitGTK opens nothing
+            // at all unless this handler is installed.
+            .on_new_window(|url, _features| {
+                external::open_in_browser(&url);
+                tauri::webview::NewWindowResponse::Deny
+            })
+            // The app window has no browser chrome, so a top-level navigation
+            // off the dashboard would strand the user with no way back.
+            .on_navigation(|url| {
+                if external::is_internal_url(url) {
+                    return true;
+                }
+                external::open_in_browser(url);
+                false
+            })
             .title("TokenTracker")
             .inner_size(1180.0, 820.0)
             .min_inner_size(960.0, 640.0)

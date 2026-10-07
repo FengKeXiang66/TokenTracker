@@ -2,6 +2,10 @@ import SwiftUI
 
 struct ActivityHeatmapView: View {
     let heatmap: HeatmapResponse?
+    /// True when the grid is showing this machine's data only because the
+    /// cross-device read failed — worth saying out loud, because the same grid
+    /// normally aggregates every signed-in device.
+    var showsTransientLocalData: Bool = false
 
     private let cellSize: CGFloat = 11
     private let spacing: CGFloat = 3
@@ -115,6 +119,10 @@ struct ActivityHeatmapView: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .modifier(FontWeightModifier(weight: .medium))
+        } else if showsTransientLocalData {
+            Text(Strings.activityThisMacOnly)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         } else {
             Text(Strings.activeDays(h.activeDays))
                 .font(.caption2)

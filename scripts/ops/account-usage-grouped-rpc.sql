@@ -106,6 +106,31 @@ AS $func$
   cfg AS (
     SELECT ARRAY['cursor', 'trae-cn']::text[] AS account_sources
   ),
+  -- Read the large per-user hourly slice once. Machine-level and Cursor
+  -- canonicalization below rescan only this bounded materialized result.
+  base AS MATERIALIZED (
+    SELECT
+      h.device_id, h.hour_start, h.source, h.model,
+      h.total_tokens::bigint                AS total_tokens,
+      h.input_tokens::bigint                AS input_tokens,
+      h.output_tokens::bigint               AS output_tokens,
+      h.cached_input_tokens::bigint         AS cached_input_tokens,
+      h.cache_creation_input_tokens::bigint AS cache_creation_input_tokens,
+      h.reasoning_output_tokens::bigint     AS reasoning_output_tokens,
+      h.conversations::bigint               AS conversations,
+      h.updated_at
+    FROM tokentracker_hourly h CROSS JOIN cfg
+    WHERE h.user_id = p_user_id
+      AND h.hour_start >= p_from
+      AND h.hour_start < p_to
+      AND (
+        h.source = 'cursor'
+        OR (
+          NOT (h.source = ANY(cfg.account_sources))
+          AND h.device_id = ANY(p_device_ids)
+        )
+      )
+  ),
   -- Stage 1: canonicalize to the raw hour grain.
   hourly AS (
     -- Machine-level: ONE canonical whole row per (hour, source, model) across
@@ -162,12 +187,9 @@ AS $func$
         h.cache_creation_input_tokens::bigint AS cache_creation_input_tokens,
         h.reasoning_output_tokens::bigint     AS reasoning_output_tokens,
         h.conversations::bigint               AS conversations
-      FROM tokentracker_hourly h CROSS JOIN cfg
+      FROM base h
       LEFT JOIN tokentracker_device_machine dm ON dm.device_id = h.device_id
-      WHERE h.user_id = p_user_id
-        AND h.hour_start >= p_from
-        AND h.hour_start <  p_to
-        AND NOT (h.source = ANY(cfg.account_sources))
+      WHERE h.source NOT IN ('cursor', 'trae-cn')
         AND h.device_id = ANY(p_device_ids)
       ORDER BY COALESCE(dm.machine_cluster_id, h.device_id::text),
                h.hour_start, h.source, h.model, h.total_tokens DESC, h.updated_at DESC
@@ -193,11 +215,8 @@ AS $func$
         h.cache_creation_input_tokens::bigint AS cache_creation_input_tokens,
         h.reasoning_output_tokens::bigint     AS reasoning_output_tokens,
         h.conversations::bigint               AS conversations
-      FROM tokentracker_hourly h
-      WHERE h.user_id = p_user_id
-        AND h.hour_start >= p_from
-        AND h.hour_start <  p_to
-        AND h.source = 'cursor'
+      FROM base h
+      WHERE h.source = 'cursor'
       ORDER BY h.hour_start, h.source, h.model, h.total_tokens DESC, h.updated_at DESC
     ) d
 

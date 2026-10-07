@@ -4,9 +4,10 @@ const os = require("node:os");
 const path = require("node:path");
 const fs = require("node:fs/promises");
 
-const { readJson, writeJson } = require("../lib/fs");
+const { readJson, updateJsonLocked } = require("../lib/fs");
 const { resolveTrackerPaths } = require("../lib/tracker-paths");
 const { resolveRuntimeConfig } = require("../lib/runtime-config");
+const { functionUrlFor, fetchFunctionResponse } = require("../lib/function-url");
 
 const POLL_INTERVAL_MS = 5_000;
 const ABSOLUTE_TIMEOUT_MS = 16 * 60 * 1000; // matches the 15-min server window with a small buffer
@@ -26,7 +27,7 @@ function readBaseUrl(config) {
 }
 
 async function authorize({ baseUrl, clientInfo, machineId }) {
-  const res = await fetch(`${baseUrl}/functions/tokentracker-device-flow-authorize`, {
+  const res = await fetchFunctionResponse(functionUrlFor(baseUrl, "tokentracker-device-flow-authorize"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -46,7 +47,7 @@ async function authorize({ baseUrl, clientInfo, machineId }) {
 }
 
 async function pollOnce({ baseUrl, deviceCode }) {
-  const res = await fetch(`${baseUrl}/functions/tokentracker-device-flow-poll`, {
+  const res = await fetchFunctionResponse(functionUrlFor(baseUrl, "tokentracker-device-flow-poll"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ device_code: deviceCode }),
@@ -139,20 +140,15 @@ async function cmdDeviceLogin(argv = [], options = {}) {
       if (!result.deviceToken) {
         throw new Error("device login approved but server did not return a device token");
       }
-      const next = {
-        ...config,
-        // `config` was read BEFORE getOrCreateMachineId persisted the
-        // machineId — spreading it alone would clobber the freshly-written
-        // machineId on disk and the next caller would mint a different one
-        // (device identity drift, the exact bug this field exists to fix).
+      await updateJsonLocked(configPath, async (current) => ({
+        ...current,
         ...(machineId ? { machineId } : {}),
         baseUrl,
         user_id: result.user_id,
         deviceToken: result.deviceToken,
-        deviceId: result.deviceId || config.deviceId,
+        deviceId: result.deviceId || current.deviceId || config.deviceId,
         device_login_at: new Date().toISOString(),
-      };
-      await writeJson(configPath, next);
+      }));
       process.stdout.write(`\n✓ Approved. device token written to ${configPath}\n`);
       return;
     }

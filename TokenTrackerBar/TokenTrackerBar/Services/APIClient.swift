@@ -2,8 +2,12 @@ import Foundation
 
 struct UsageSummaryFetchResult {
     let summary: UsageSummaryResponse
-    let source: UsageSummaryViewSource
+    /// Full authority, including *why* a local payload was served.
+    let accountSource: AccountViewSource
     let completedAt: Date
+    /// Publication authority for the menu-bar summary slots — derived, so it
+    /// can never disagree with `accountSource`.
+    var source: UsageSummaryViewSource { accountSource.summaryViewSource }
 }
 
 actor APIClient {
@@ -21,12 +25,10 @@ actor APIClient {
     private(set) var latestAccountSummaryReadCompletedAt: Date?
 
     private init() {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 10
-        config.timeoutIntervalForResource = 30
-        self.session = URLSession(configuration: config)
+        self.session = URLSession(configuration: LocalAPIConfiguration.makeSessionConfiguration())
 
-        let syncConfig = URLSessionConfiguration.default
+        // Same loopback target, so it needs the same system-proxy bypass.
+        let syncConfig = LocalAPIConfiguration.makeSessionConfiguration()
         syncConfig.timeoutIntervalForRequest = Self.localSyncResourceTimeout
         syncConfig.timeoutIntervalForResource = Self.localSyncResourceTimeout
         self.syncSession = URLSession(configuration: syncConfig)
@@ -43,49 +45,39 @@ actor APIClient {
 	}
 
     func fetchSummaryWithSource(from: String, to: String) async throws -> UsageSummaryFetchResult {
-        let (data, response) = try await request(
+        let result: AccountFetchResult<UsageSummaryResponse> = try await fetchWithSource(
             "/functions/tokentracker-usage-summary",
             queryItems: withAccountQueryItems([
                 URLQueryItem(name: "from", value: from),
                 URLQueryItem(name: "to", value: to)
             ])
         )
-        let source: UsageSummaryViewSource
-        switch response.value(forHTTPHeaderField: "X-TokenTracker-Account-View") {
-        case "1":
-            source = .accountUpload
-        case "0":
-            source = .localQueue
-        default:
-            throw APIError.invalidResponse
-        }
-        let completedAt = Date()
-        if source == .accountUpload {
+        let completedAt = result.completedAt
+        if result.source.isAccount {
             latestAccountSummaryReadCompletedAt = completedAt
         }
-        let summary = try decoder.decode(UsageSummaryResponse.self, from: data)
         return UsageSummaryFetchResult(
-            summary: summary,
-            source: source,
+            summary: result.value,
+            accountSource: result.source,
             completedAt: completedAt
         )
     }
 
-	func fetchDaily(from: String, to: String) async throws -> DailyUsageResponse {
-		try await fetch("/functions/tokentracker-usage-daily", queryItems: withAccountQueryItems([
+	func fetchDaily(from: String, to: String) async throws -> AccountFetchResult<DailyUsageResponse> {
+		try await fetchWithSource("/functions/tokentracker-usage-daily", queryItems: withAccountQueryItems([
 			URLQueryItem(name: "from", value: from),
 			URLQueryItem(name: "to", value: to)
 		]))
 	}
 
-	func fetchHeatmap(weeks: Int = 52) async throws -> HeatmapResponse {
-		try await fetch("/functions/tokentracker-usage-heatmap", queryItems: withAccountQueryItems([
+	func fetchHeatmap(weeks: Int = 52) async throws -> AccountFetchResult<HeatmapResponse> {
+		try await fetchWithSource("/functions/tokentracker-usage-heatmap", queryItems: withAccountQueryItems([
 			URLQueryItem(name: "weeks", value: String(weeks))
 		]))
 	}
 
-	func fetchModelBreakdown(from: String, to: String) async throws -> ModelBreakdownResponse {
-		try await fetch("/functions/tokentracker-usage-model-breakdown", queryItems: withAccountQueryItems([
+	func fetchModelBreakdown(from: String, to: String) async throws -> AccountFetchResult<ModelBreakdownResponse> {
+		try await fetchWithSource("/functions/tokentracker-usage-model-breakdown", queryItems: withAccountQueryItems([
 			URLQueryItem(name: "from", value: from),
 			URLQueryItem(name: "to", value: to)
 		]))
@@ -99,23 +91,28 @@ actor APIClient {
 		]))
 	}
 
-	func fetchMonthly(from: String, to: String) async throws -> MonthlyUsageResponse {
-		try await fetch("/functions/tokentracker-usage-monthly", queryItems: withAccountQueryItems([
+	func fetchMonthly(from: String, to: String) async throws -> AccountFetchResult<MonthlyUsageResponse> {
+		try await fetchWithSource("/functions/tokentracker-usage-monthly", queryItems: withAccountQueryItems([
 			URLQueryItem(name: "from", value: from),
 			URLQueryItem(name: "to", value: to)
 		]))
 	}
 
-	func fetchHourly(day: String) async throws -> HourlyUsageResponse {
-		try await fetch("/functions/tokentracker-usage-hourly", queryItems: withAccountQueryItems([
+	func fetchHourly(day: String) async throws -> AccountFetchResult<HourlyUsageResponse> {
+		try await fetchWithSource("/functions/tokentracker-usage-hourly", queryItems: withAccountQueryItems([
 			URLQueryItem(name: "day", value: day)
 		]))
 	}
 
-    func fetchUsageLimits() async throws -> UsageLimitsResponse {
+    /// `devinEnabled` is the user's Settings provider selection. Only when it is
+    /// true does the request carry `devin=1` plus the local-auth header that
+    /// lets the server read the Devin CLI credentials; omitted means off.
+    func fetchUsageLimits(devinEnabled: Bool = false) async throws -> UsageLimitsResponse {
         try await fetch(
             "/functions/tokentracker-usage-limits",
-            requestTimeout: Self.usageLimitsRequestTimeout
+            queryItems: devinEnabled ? [URLQueryItem(name: "devin", value: "1")] : [],
+            requestTimeout: Self.usageLimitsRequestTimeout,
+            requiresLocalAuth: devinEnabled
         )
     }
 
@@ -163,15 +160,44 @@ actor APIClient {
 
     // MARK: - Private Helpers
 
-    private func fetch<T: Decodable>(
+    /// Like `fetch`, but keeps the account-view authority the local server
+    /// tagged the response with. Every `?account=1` endpoint must go through
+    /// this: dropping the headers is what let a transient cloud failure
+    /// masquerade as "the user only has one device".
+    private func fetchWithSource<T: Decodable>(
         _ path: String,
         queryItems: [URLQueryItem] = [],
         requestTimeout: TimeInterval? = nil
+    ) async throws -> AccountFetchResult<T> {
+        let (data, response) = try await request(
+            path,
+            queryItems: queryItems,
+            requestTimeout: requestTimeout
+        )
+        guard let source = AccountViewSource.parse(
+            accountView: response.value(forHTTPHeaderField: "X-TokenTracker-Account-View"),
+            fallback: response.value(forHTTPHeaderField: "X-TokenTracker-Account-Fallback")
+        ) else {
+            throw APIError.invalidResponse
+        }
+        return AccountFetchResult(
+            value: try decoder.decode(T.self, from: data),
+            source: source,
+            completedAt: Date()
+        )
+    }
+
+    private func fetch<T: Decodable>(
+        _ path: String,
+        queryItems: [URLQueryItem] = [],
+        requestTimeout: TimeInterval? = nil,
+        requiresLocalAuth: Bool = false
     ) async throws -> T {
         let (data, _) = try await request(
             path,
             queryItems: queryItems,
-            requestTimeout: requestTimeout
+            requestTimeout: requestTimeout,
+            requiresLocalAuth: requiresLocalAuth
         )
         return try decoder.decode(T.self, from: data)
     }
@@ -179,7 +205,8 @@ actor APIClient {
     private func request(
         _ path: String,
         queryItems: [URLQueryItem] = [],
-        requestTimeout: TimeInterval? = nil
+        requestTimeout: TimeInterval? = nil,
+        requiresLocalAuth: Bool = false
     ) async throws -> (Data, HTTPURLResponse) {
         guard var components = URLComponents(string: baseURL + path) else {
             throw APIError.invalidURL
@@ -192,9 +219,14 @@ actor APIClient {
         }
         let data: Data
         let response: URLResponse
-        if let requestTimeout {
+        if requestTimeout != nil || requiresLocalAuth {
             var request = URLRequest(url: url)
-            request.timeoutInterval = requestTimeout
+            if let requestTimeout {
+                request.timeoutInterval = requestTimeout
+            }
+            if requiresLocalAuth {
+                request.setValue(try await fetchLocalAuthToken(), forHTTPHeaderField: "x-tokentracker-local-auth")
+            }
             (data, response) = try await session.data(for: request)
         } else {
             (data, response) = try await session.data(from: url)

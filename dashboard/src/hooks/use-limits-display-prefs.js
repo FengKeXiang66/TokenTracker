@@ -33,6 +33,14 @@ const UPDATED_AT_KEY = "tt.limits.updatedAt";
 const NATIVE_PREFERENCES_KEY = "limitsPreferences";
 const NATIVE_DISPLAY_MODE_KEY = "limitsDisplayMode";
 
+/**
+ * Dispatched on `window` whenever a limits-preferences snapshot is applied —
+ * the `storage` event never fires in the window that made the change, so
+ * same-window consumers (and the native mirror landing through applySnapshot)
+ * need this to re-read the saved selection.
+ */
+export const LIMITS_PREFS_CHANGED_EVENT = "tt:limits-prefs-changed";
+
 export const LIMIT_DISPLAY_MODES = Object.freeze({
   USED: "used",
   REMAINING: "remaining",
@@ -51,8 +59,16 @@ function defaultOrder() {
   return [...ALL_LIMIT_PROVIDERS];
 }
 
+// Providers that read local credentials or call a subscription quota API only
+// after the user turns them on in Settings > Usage & Limits > Providers. The
+// stored selection doubles as the opt-in flag the local API requires before
+// reading credentials, so they default OFF — display-only providers stay on.
+const OPT_IN_PROVIDERS = new Set(["devin"]);
+
 function defaultVisibility() {
-  return Object.fromEntries(ALL_LIMIT_PROVIDERS.map((id) => [id, true]));
+  return Object.fromEntries(
+    ALL_LIMIT_PROVIDERS.map((id) => [id, !OPT_IN_PROVIDERS.has(id)]),
+  );
 }
 
 function normalizeOrder(value) {
@@ -132,6 +148,20 @@ function readVisibility() {
   } catch {
     return defaultVisibility();
   }
+}
+
+/** `storage`-event key filter matching every key this module persists. */
+export function isLimitsPrefsStorageKey(key) {
+  return key === null || STORAGE_KEYS.has(key);
+}
+
+/**
+ * The saved Devin provider selection — the opt-in fact every usage-limits
+ * request must forward. Only an explicit `true` in stored visibility counts;
+ * anything else (absent, default-filled, non-boolean) is off.
+ */
+export function isDevinProviderSelected() {
+  return readVisibility().devin === true;
 }
 
 function readDisplayMode() {
@@ -280,6 +310,9 @@ export function useLimitsDisplayPrefs() {
     prefsRef.current = next;
     setPrefs(next);
     if (options.writeLocal) writeLocalSnapshot(next);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(LIMITS_PREFS_CHANGED_EVENT));
+    }
     return next;
   }, []);
 

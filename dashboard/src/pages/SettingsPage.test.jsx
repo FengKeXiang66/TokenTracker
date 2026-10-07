@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsPage } from "./SettingsPage.jsx";
 
 const nativeSettingsMock = vi.hoisted(() => ({
+  windows: false,
   available: true,
   settings: {
     toastOnReset: true,
@@ -21,12 +22,21 @@ const proxySettingsMock = vi.hoisted(() => ({
 const LABELS = {
   "settings.page.title": "Settings",
   "settings.page.subtitle": "Manage your preferences",
+  "settings.nav.group.personal": "Personal",
+  "settings.nav.group.app": "App",
+  "settings.nav.group.developer": "Developer",
   "settings.section.appearance": "Appearance",
-  "settings.section.menubar": "Menu Bar App",
+  "settings.section.appearance.description": "Theme and display preferences",
+  "settings.section.menubar": "App & Updates",
+  "settings.section.menubar.description": "Background sync and updates",
   "settings.section.account": "Account",
-  "settings.section.limits": "Limits Display",
+  "settings.section.account.description": "Cloud sync and profile",
+  "settings.section.limits": "Usage & Limits",
+  "settings.section.limits.description": "Usage display and providers",
   "settings.section.labs": "Labs",
+  "settings.section.labs.description": "Experimental insights",
   "settings.section.network": "Network",
+  "settings.section.network.description": "Proxy configuration",
   "settings.limits.providers": "Providers",
   "limits.settings.display_mode_label": "Usage Display",
   "settings.menubar.toastOnReset": "Toast on limits reset",
@@ -41,6 +51,7 @@ vi.mock("../lib/copy", () => ({
 
 vi.mock("../lib/native-bridge", () => ({
   isNativeApp: () => true,
+  isNativeWindowsApp: () => nativeSettingsMock.windows,
   isBridgeAvailable: () => nativeSettingsMock.available,
 }));
 
@@ -130,6 +141,7 @@ function renderSettings(initialPath = "/settings") {
 
 describe("SettingsPage category navigation", () => {
   beforeEach(() => {
+    nativeSettingsMock.windows = false;
     nativeSettingsMock.available = true;
     nativeSettingsMock.settings = {
       toastOnReset: true,
@@ -137,6 +149,19 @@ describe("SettingsPage category navigation", () => {
     };
     nativeSettingsMock.setSetting.mockReset();
     proxySettingsMock.available = false;
+  });
+
+  it("hides macOS reset controls on Windows before native settings arrive", () => {
+    nativeSettingsMock.windows = true;
+    nativeSettingsMock.settings = null;
+    const view = renderSettings("/settings?section=limits");
+    expect(screen.queryByRole("switch", { name: "Toast on limits reset" })).toBeNull();
+    expect(screen.queryByRole("switch", { name: "Confetti on limits reset" })).toBeNull();
+
+    nativeSettingsMock.settings = { platform: "windows" };
+    view.rerender(<MemoryRouter initialEntries={["/settings?section=limits"]}><SettingsPage /></MemoryRouter>);
+    expect(screen.queryByRole("switch", { name: "Toast on limits reset" })).toBeNull();
+    expect(screen.queryByRole("switch", { name: "Confetti on limits reset" })).toBeNull();
   });
 
   it("switches the visible category while keeping every section mounted", async () => {
@@ -148,6 +173,10 @@ describe("SettingsPage category navigation", () => {
     const appearancePanel = container.querySelector('[data-settings-panel="appearance"]');
     const accountPanel = container.querySelector('[data-settings-panel="account"]');
 
+    expect(screen.getByText("Manage your preferences")).toBeInTheDocument();
+    expect(screen.getByText("Personal")).toBeInTheDocument();
+    expect(screen.getByText("App")).toBeInTheDocument();
+    expect(screen.getByText("Developer")).toBeInTheDocument();
     expect(appearanceButton).toHaveAttribute("aria-current", "page");
     expect(appearancePanel).not.toHaveAttribute("hidden");
     expect(accountPanel).toHaveAttribute("hidden");
@@ -185,7 +214,7 @@ describe("SettingsPage category navigation", () => {
     nativeSettingsMock.available = false;
     const { container } = renderSettings();
 
-    expect(screen.queryByRole("button", { name: "Menu Bar App" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "App & Updates" })).not.toBeInTheDocument();
     expect(container.querySelector('[data-settings-panel="native-app"]')).toBeNull();
     expect(screen.getByRole("button", { name: "Appearance" })).toHaveAttribute("aria-current", "page");
   });
@@ -198,10 +227,10 @@ describe("SettingsPage category navigation", () => {
     expect(screen.getByRole("switch", { name: "Confetti on limits reset" })).toBeDisabled();
   });
 
-  it("selects Limits Display from a settings deep link", () => {
+  it("selects Usage & Limits from a settings deep link", () => {
     const { container } = renderSettings("/settings?section=limits");
 
-    expect(screen.getByRole("button", { name: "Limits Display" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Usage & Limits" })).toHaveAttribute(
       "aria-current",
       "page",
     );
@@ -209,7 +238,7 @@ describe("SettingsPage category navigation", () => {
     expect(container.querySelector('[data-settings-panel="appearance"]')).toHaveAttribute("hidden");
   });
 
-  it("offers independent reset toast and confetti settings in Limits Display", async () => {
+  it("offers independent reset toast and confetti settings in Usage & Limits", async () => {
     const user = userEvent.setup();
     renderSettings("/settings?section=limits");
 
@@ -232,7 +261,7 @@ describe("SettingsPage category navigation", () => {
     renderSettings("/settings?section=limits");
 
     const [settingsCard, providersCard] = screen.getAllByTestId("section-card");
-    expect(settingsCard.dataset.sectionCardTitle).toBe("Limits Display");
+    expect(settingsCard.dataset.sectionCardTitle).toBe("Usage & Limits");
     expect(within(settingsCard).getByTestId("limits-mode")).toBeInTheDocument();
     expect(within(settingsCard).getByRole("switch", { name: "Toast on limits reset" })).toBeInTheDocument();
     expect(within(settingsCard).getByRole("switch", { name: "Confetti on limits reset" })).toBeInTheDocument();

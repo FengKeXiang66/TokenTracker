@@ -30,9 +30,9 @@ namespace TokenTrackerWin;
 /// native caption bar — see "Window controls" below). <see cref="WindowChrome"/>
 /// keeps the window resizable + Aero-snappable despite having no visible caption.
 ///
-/// Closing releases WebView2 so the hidden dashboard does not keep Chromium's
-/// renderer and graphics surfaces resident. Persistent WebView2 storage keeps the
-/// login across recreation; an active OAuth PKCE round trip is retained temporarily.
+/// Closing hides the window so the initialized WebView2 instance (and its login
+/// session) can be reused instantly. WebView2 is released only when the tray app
+/// exits, which avoids paying the Chromium startup cost on every dashboard toggle.
 /// The app exits via the tray "Quit" → <see cref="Shutdown"/>.
 /// </summary>
 internal sealed class DashboardWindow : Window
@@ -45,12 +45,15 @@ internal sealed class DashboardWindow : Window
     // empty regions rendered black. Drop-in API-compatible replacement.
     // AllowExternalDrop must be off: windowless (DirectComposition) hosting does not
     // support external drag-drop and throws on initialization otherwise.
-    private readonly WebView2CompositionControl _webView = new() { AllowExternalDrop = false };
+    private WebView2CompositionControl _webView = CreateWebViewControl();
     private readonly ServerManager _server;
     private bool _coreReady;
     private bool _exiting;
     private bool _oauthInFlight;
     private CancellationTokenSource? _oauthTimeout;
+    private Task? _initializationTask;
+    private bool _recoveryInFlight;
+    private bool _tiltForwardLogged;
     private nint _hwnd;
     private string _pendingPathAndQuery = "/?app=1";
 
@@ -65,9 +68,13 @@ internal sealed class DashboardWindow : Window
 
     public event Action? PetSettingsRequested;
     public event Action<string, string?>? PetSettingChanged;
+    /// <summary>Raised when the dashboard asks for the native settings snapshot.</summary>
+    public event Action? NativeSettingsRequested;
+    /// <summary>Raised when the dashboard changes a native setting.</summary>
+    public event Action<string, object?>? NativeSettingChanged;
+    /// <summary>Raised when the dashboard invokes a native action.</summary>
+    public event Action<string>? NativeActionRequested;
     public event Action<string, string>? NotificationRequested;
-    public event Action<DashboardWindow>? ReleasedForIdle;
-
     public DashboardWindow(ServerManager server)
     {
         _server = server;
@@ -113,7 +120,7 @@ internal sealed class DashboardWindow : Window
         // BACKGROUND_COLOR=0 env var in InitializeWebViewAsync instead.
         Content = _webView;
 
-        Loaded += async (_, _) => await InitializeWebViewAsync();
+        Loaded += OnLoaded;
         StateChanged += (_, _) =>
         {
             SyncMaxGlyph();
@@ -139,6 +146,24 @@ internal sealed class DashboardWindow : Window
         };
         KeyDown += (_, e) => { if (e.Key == System.Windows.Input.Key.Escape) CloseOrHideForOAuth(); };
         _server.StatusChanged += OnServerStatusChanged;
+    }
+
+    private static WebView2CompositionControl CreateWebViewControl() =>
+        new() { AllowExternalDrop = false };
+
+    private async void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await InitializeWebViewAsync();
+        }
+        catch (Exception ex)
+        {
+            // WPF async event handlers are async-void. Never let a WebView2 runtime,
+            // profile, or GPU initialization failure escape to the dispatcher and
+            // terminate the tray host; the retry path below is deliberately bounded.
+            Log($"webview initialization failed: {ex}");
+        }
     }
 
     private static System.Windows.Media.ImageSource? LoadWindowIcon()
@@ -178,6 +203,14 @@ internal sealed class DashboardWindow : Window
         base.OnSourceInitialized(e);
         _hwnd = new WindowInteropHelper(this).Handle;
 
+        // Tilt-wheel support: WPF has no horizontal-wheel routed event, and the
+        // composition-hosted WebView2 only sees WPF input — so WM_MOUSEHWHEEL
+        // (0x020E) never reaches the Chromium page. Intercept it at the window and
+        // forward it into the page (see TiltWheelScrollForwarder). The hook lives
+        // on the window, not the control, so it survives ReplaceWebViewControl()
+        // recovery rebuilds.
+        HwndSource.FromHwnd(_hwnd)?.AddHook(DashboardWndProc);
+
         // Dark window chrome so any DWM-drawn pixels stay dark (the app defaults to a
         // dark theme; a user's Settings choice still recolours the page contents).
         int dark = 1;
@@ -207,9 +240,128 @@ internal sealed class DashboardWindow : Window
         DwmSetWindowAttribute(_hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref type, sizeof(int));
     }
 
+    // ── Tilt wheel (horizontal scroll) ─────────────────────────────────
+
+    /// <summary>
+    /// Forwards horizontal mouse-wheel tilts into the hosted page. Only
+    /// WM_MOUSEHWHEEL is touched: vertical wheeling (WM_MOUSEWHEEL) flows through
+    /// the WebView2 control's normal WPF event channel. While exiting or before
+    /// the WebView core is up (including the ReplaceWebViewControl recovery race)
+    /// there is no page to scroll, so the message is left fully unhandled for the
+    /// default window procedure.
+    /// </summary>
+    private nint DashboardWndProc(nint hwnd, int msg, nint wParam, nint lParam, ref bool handled)
+    {
+        if (msg != WM_MOUSEHWHEEL) return nint.Zero;
+        if (_exiting || !_coreReady) return nint.Zero;
+
+        try
+        {
+            var core = _webView.CoreWebView2;
+            if (core is null) return nint.Zero;
+
+            var delta = TiltWheelScrollForwarder.ExtractWheelDelta(wParam);
+            // lParam carries the cursor position in screen device pixels;
+            // PointFromScreen converts it to control-relative DIP, which is what
+            // the page's elementFromPoint expects (1 DIP = 1 CSS pixel on the
+            // composition control).
+            var (sx, sy) = TiltWheelScrollForwarder.ExtractScreenPoint(lParam);
+            var point = _webView.PointFromScreen(new System.Windows.Point(sx, sy));
+            var script = TiltWheelScrollForwarder.BuildScrollScript(
+                _coreReady, _exiting, delta, point.X, point.Y);
+            if (script is null) return nint.Zero;
+
+            if (!_tiltForwardLogged)
+            {
+                _tiltForwardLogged = true;
+                Log($"tilt wheel forwarded: delta={delta} point=({point.X:0.#},{point.Y:0.#})");
+            }
+            _ = core.ExecuteScriptAsync(script); // fire-and-forget, like the other injected scripts
+        }
+        catch (Exception ex)
+        {
+            // PointFromScreen / the CoreWebView2 getter can throw while the control
+            // is being rebuilt; a lost tilt tick must never reach the dispatcher.
+            Log($"tilt wheel forward failed: {ex.Message}");
+            return nint.Zero;
+        }
+
+        handled = true;
+        return new nint(1);
+    }
+
     // ── WebView2 ───────────────────────────────────────────────────────
 
-    private async Task InitializeWebViewAsync()
+    private Task InitializeWebViewAsync()
+    {
+        if (_coreReady) return Task.CompletedTask;
+        // Loaded can be raised more than once and a process-failure recovery can race
+        // with a pending initialization. Share the same task so only one WebView2
+        // environment is created at a time.
+        if (_initializationTask is { } pending) return pending;
+
+        // Publish the task before starting the retry routine. The WebView2 APIs can
+        // complete synchronously (especially with a warm profile); starting the
+        // routine first would let its cleanup run before the field was assigned,
+        // leaving a completed task cached forever and blocking recovery.
+        var completion = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var task = completion.Task;
+        _initializationTask = task;
+        _ = RunWebViewInitializationAsync(task, completion);
+        return task;
+    }
+
+    private async Task InitializeWebViewWithRetryAsync()
+    {
+        Exception? lastError = null;
+        for (var attempt = 1; attempt <= 3; attempt++)
+        {
+            try
+            {
+                await InitializeWebViewCoreAsync();
+                return;
+            }
+            catch (Exception ex) when (attempt < 3)
+            {
+                lastError = ex;
+                Log($"webview initialization attempt {attempt} failed: {ex.Message}");
+                ReplaceWebViewControl();
+                await Task.Delay(TimeSpan.FromMilliseconds(300 * attempt));
+            }
+            catch (Exception ex)
+            {
+                lastError = ex;
+                Log($"webview initialization attempt {attempt} failed: {ex.Message}");
+            }
+        }
+
+        throw new InvalidOperationException(
+            "WebView2 could not be initialized after three attempts.", lastError);
+    }
+
+    private async Task RunWebViewInitializationAsync(
+        Task identity, TaskCompletionSource<bool> completion)
+    {
+        try
+        {
+            await InitializeWebViewWithRetryAsync();
+            completion.TrySetResult(true);
+        }
+        catch (Exception ex)
+        {
+            completion.TrySetException(ex);
+        }
+        finally
+        {
+            // A recovery can replace this task while the previous one unwinds;
+            // never clear the replacement task by identity accident.
+            if (ReferenceEquals(_initializationTask, identity))
+                _initializationTask = null;
+        }
+    }
+
+    private async Task InitializeWebViewCoreAsync()
     {
         if (_coreReady) return;
 
@@ -253,6 +405,26 @@ internal sealed class DashboardWindow : Window
         core.Settings.AreDefaultContextMenusEnabled = false;
         core.Settings.IsStatusBarEnabled = false;
 
+        core.ProcessFailed += (_, e) =>
+        {
+            Log($"webview process failed kind={e.ProcessFailedKind}");
+            // WebView2 reports renderer unresponsiveness repeatedly while a busy
+            // page catches up. Recreating the control for that transient signal would
+            // make the dashboard flicker and discard in-flight navigation; reserve
+            // recovery for processes that actually exited.
+            if (e.ProcessFailedKind == CoreWebView2ProcessFailedKind.RenderProcessUnresponsive)
+                return;
+            if (_exiting || _recoveryInFlight) return;
+            try
+            {
+                Dispatcher.BeginInvoke(new Action(() => _ = RecoverWebViewAsync()));
+            }
+            catch
+            {
+                // The dispatcher may already be shutting down.
+            }
+        };
+
         // Open target=_blank / external links in the system browser, not a popup WebView.
         core.NewWindowRequested += (_, e) =>
         {
@@ -275,14 +447,23 @@ internal sealed class DashboardWindow : Window
 
         core.NavigationCompleted += async (_, _) =>
         {
-            try { Log($"nav completed uri={_webView.CoreWebView2.Source}"); } catch { }
-            if (_oauthInFlight
-                && Uri.TryCreate(_webView.CoreWebView2.Source, UriKind.Absolute, out var completedUri)
-                && completedUri.AbsolutePath is "/" or "/dashboard")
+            try
             {
-                CompleteNativeOAuth();
+                Log($"nav completed uri={_webView.CoreWebView2.Source}");
+                if (_oauthInFlight
+                    && Uri.TryCreate(_webView.CoreWebView2.Source, UriKind.Absolute, out var completedUri)
+                    && completedUri.AbsolutePath is "/" or "/dashboard")
+                {
+                    CompleteNativeOAuth();
+                }
+                await ApplyNativeChromeAsync();
             }
-            await ApplyNativeChromeAsync();
+            catch (Exception ex)
+            {
+                // Navigation callbacks are async-void event handlers too. A page
+                // transition must never bring down the native tray process.
+                Log($"navigation completion handler failed: {ex.Message}");
+            }
         };
 
         // SPA route changes (history.pushState) don't raise NavigationCompleted; this
@@ -322,6 +503,23 @@ internal sealed class DashboardWindow : Window
                     else if (t.GetString() == "authCompleted")
                     {
                         CompleteNativeOAuth();
+                    }
+                    else if (t.GetString() == "getSettings")
+                    {
+                        NativeSettingsRequested?.Invoke();
+                    }
+                    else if (t.GetString() == "setSetting"
+                             && doc.RootElement.TryGetProperty("key", out var settingKey)
+                             && doc.RootElement.TryGetProperty("value", out var settingValue))
+                    {
+                        if (settingKey.GetString() is { } key)
+                            NativeSettingChanged?.Invoke(key, JsonValueToObject(settingValue));
+                    }
+                    else if (t.GetString() == "action"
+                             && doc.RootElement.TryGetProperty("name", out var actionName)
+                             && actionName.GetString() is { } name)
+                    {
+                        NativeActionRequested?.Invoke(name);
                     }
                     else if (t.GetString() == "nativeSetting"
                              && doc.RootElement.TryGetProperty("key", out var k)
@@ -454,6 +652,63 @@ internal sealed class DashboardWindow : Window
             Dispatcher.BeginInvoke(new Action(() => NavigateWhenServerReady(_pendingPathAndQuery)));
         }
         catch { /* window is closing */ }
+    }
+
+    private void ReplaceWebViewControl()
+    {
+        if (_exiting) return;
+        _coreReady = false;
+        var old = _webView;
+        Content = null;
+        try { old.Dispose(); } catch { }
+        _webView = CreateWebViewControl();
+        Content = _webView;
+        _webView.Visibility = WindowState == WindowState.Minimized
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+    }
+
+    private async Task RecoverWebViewAsync()
+    {
+        if (_exiting || _recoveryInFlight) return;
+        _recoveryInFlight = true;
+        try
+        {
+            Log("recovering WebView2 after process failure");
+            ReplaceWebViewControl();
+            await InitializeWebViewAsync();
+            NavigateWhenServerReady(_pendingPathAndQuery);
+            Log("WebView2 recovery completed");
+        }
+        catch (Exception ex)
+        {
+            // Keep the window/tray alive even when the runtime itself is unavailable;
+            // the next dashboard open can trigger a fresh recovery attempt.
+            Log($"WebView2 recovery failed: {ex.Message}");
+        }
+        finally
+        {
+            _recoveryInFlight = false;
+        }
+    }
+
+    /// <summary>
+    /// Recover a WebView2 disposal race reported by the shared WPF dispatcher.
+    /// Returns false when this window is already closing or hidden, allowing the
+    /// central exception policy to leave an unrelated exception unhandled.
+    /// </summary>
+    internal bool RecoverFromDispatcherException(Exception exception)
+    {
+        if (_exiting || !IsVisible) return false;
+        try
+        {
+            Dispatcher.BeginInvoke(new Action(() => _ = RecoverWebViewAsync()));
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private void NavigateWhenServerReady(string pathAndQuery)
@@ -673,6 +928,33 @@ internal sealed class DashboardWindow : Window
         }
     }
 
+    /// <summary>Push the native settings snapshot to the dashboard WebView.</summary>
+    public void PushNativeSettings(object settings)
+    {
+        if (!_coreReady) return;
+        var json = JsonSerializer.Serialize(settings);
+        try
+        {
+            _ = _webView.CoreWebView2.ExecuteScriptAsync(
+                $"window.dispatchEvent(new CustomEvent('native:settings', {{detail:{json}}}));");
+        }
+        catch { /* page is navigating */ }
+    }
+
+    private static object? JsonValueToObject(JsonElement value)
+    {
+        return value.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Number when value.TryGetInt64(out var integer) => integer,
+            JsonValueKind.Number when value.TryGetDouble(out var number) => number,
+            JsonValueKind.String => value.GetString(),
+            JsonValueKind.Null or JsonValueKind.Undefined => null,
+            _ => value.GetRawText(),
+        };
+    }
+
     private void CompleteNativeOAuth()
     {
         if (!_oauthInFlight) return;
@@ -690,12 +972,11 @@ internal sealed class DashboardWindow : Window
 
     private void CloseOrHideForOAuth()
     {
-        if (_oauthInFlight)
-        {
-            Hide();
-            return;
-        }
-        Close();
+        // Keep the initialized WebView2 alive while the dashboard is hidden. This
+        // preserves cookies/session state and avoids recreating the Chromium process
+        // (which added several seconds to every tray click). OAuth still uses Hide so
+        // its sessionStorage PKCE verifier remains available.
+        Hide();
     }
 
     /// <summary>Show the dashboard, bringing an already-open window to the front.</summary>
@@ -855,9 +1136,10 @@ internal sealed class DashboardWindow : Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
-        // Preserve sessionStorage only while OAuth needs its PKCE verifier. In every
-        // normal close path, allow WPF to close so OnClosed can dispose WebView2.
-        if (!_exiting && _oauthInFlight)
+        // A close can also arrive from WPF/window-manager commands instead of the
+        // injected title-bar button. Treat every non-shutdown close as a hide so the
+        // dashboard instance remains reusable and startup stays fast.
+        if (!_exiting)
         {
             e.Cancel = true;
             Hide();
@@ -869,6 +1151,8 @@ internal sealed class DashboardWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        try { HwndSource.FromHwnd(_hwnd)?.RemoveHook(DashboardWndProc); }
+        catch { /* the source may already be gone during teardown */ }
         _oauthTimeout?.Cancel();
         _oauthTimeout?.Dispose();
         _oauthTimeout = null;
@@ -876,13 +1160,13 @@ internal sealed class DashboardWindow : Window
         Content = null;
         _webView.Dispose();
         base.OnClosed(e);
-        if (!_exiting) ReleasedForIdle?.Invoke(this);
     }
 
     // ── P/Invoke + constants ───────────────────────────────────────────
 
     private const int WM_NCLBUTTONDOWN = 0xA1;
     private const int HTCAPTION = 2;
+    private const int WM_MOUSEHWHEEL = 0x020E; // horizontal wheel tilt (no WPF routing exists for it)
 
     // DWM (Win10 2004+ / Win11)
     private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;

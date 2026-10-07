@@ -3,8 +3,28 @@ const { EventEmitter } = require("node:events");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { test } = require("node:test");
+const { beforeEach, test } = require("node:test");
 const { DEFAULT_BASE_URL } = require("../src/lib/runtime-config");
+
+beforeEach((t) => {
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), "tt-local-api-security-"));
+  const prevHome = process.env.HOME;
+  const prevUserProfile = process.env.USERPROFILE;
+  process.env.HOME = tmpHome;
+  process.env.USERPROFILE = tmpHome;
+  // Upload security cases require an explicit opt-in and must not read the
+  // developer's saved preference. Opt-out cases use their own nested fixture.
+  const trackerDir = path.join(tmpHome, ".tokentracker", "tracker");
+  fs.mkdirSync(trackerDir, { recursive: true });
+  fs.writeFileSync(path.join(trackerDir, "cloud-sync-pref.json"), JSON.stringify({ enabled: true }));
+  t.after(() => {
+    if (prevHome === undefined) delete process.env.HOME;
+    else process.env.HOME = prevHome;
+    if (prevUserProfile === undefined) delete process.env.USERPROFILE;
+    else process.env.USERPROFILE = prevUserProfile;
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  });
+});
 
 function createRequest({ method = "GET", headers = {}, body } = {}) {
   const req = new EventEmitter();
@@ -70,6 +90,27 @@ test("local device metadata exposes the system name separately from machine iden
   const expected = os.hostname().replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 128) || null;
   assert.equal(getSystemDeviceName(), expected);
   assert.doesNotMatch(getSystemDeviceName() || "", /^Token Tracker .*#/u);
+});
+
+test("local auth reports the serve runtime version when provided", async (t) => {
+  const { createLocalApiHandler } = require("../src/lib/local-api");
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "tt-local-auth-version-"));
+  t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }));
+  const handler = createLocalApiHandler({
+    queuePath: path.join(tempDir, "queue.jsonl"),
+    serverVersion: "1.2.3-test",
+  });
+  const req = createRequest({ method: "GET" });
+  const res = createResponse();
+
+  const handled = await handler(req, res, new URL("http://127.0.0.1/api/local-auth"));
+
+  assert.equal(handled, true);
+  assert.equal(res.statusCode, 200);
+  const body = JSON.parse(res.body.toString("utf8"));
+  assert.equal(body.serverVersion, "1.2.3-test");
+  assert.equal(typeof body.token, "string");
+  assert.ok(body.token.length > 0);
 });
 
 function createSuccessfulSpawn(calls) {
@@ -841,8 +882,9 @@ test("local sync scopes relayed device token cache by InsForge base URL", async 
         json: async () => ({ accessToken: "default-access-token" }),
       };
     }
-    if (url.endsWith("/functions/tokentracker-device-token-issue")) {
-      const root = url.slice(0, -"/functions/tokentracker-device-token-issue".length);
+    if (url.endsWith("/tokentracker-device-token-issue")) {
+      const root = url.startsWith("https://srctyff5.function2.insforge.app/")
+        ? defaultRoot : url.slice(0, -"/functions/tokentracker-device-token-issue".length);
       return {
         ok: true,
         status: 200,
@@ -889,7 +931,7 @@ test("local sync scopes relayed device token cache by InsForge base URL", async 
     assert.equal(calls[1].options.env.TOKENTRACKER_DEVICE_TOKEN, "default-device-token");
     assert.equal(calls[1].options.env.TOKENTRACKER_INSFORGE_BASE_URL, defaultRoot);
     assert.equal(fetchCalls.filter((c) => c.url.endsWith("/api/auth/refresh?client_type=mobile")).length, 2);
-    assert.equal(fetchCalls.filter((c) => c.url.endsWith("/functions/tokentracker-device-token-issue")).length, 2);
+    assert.equal(fetchCalls.filter((c) => c.url.endsWith("/tokentracker-device-token-issue")).length, 2);
   } finally {
     restore();
     global.fetch = prevFetch;
@@ -1389,6 +1431,100 @@ test("auth bridge mutation requires the local auth token", async () => {
     assert.equal(res.statusCode, 401);
     assert.deepEqual(JSON.parse(res.body.toString("utf8")), { error: "Unauthorized" });
   } finally {
+    restore();
+  }
+});
+
+test("usage-limits honors devin=1 only on locally authenticated requests", async () => {
+  const { mod, restore } = loadLocalApiWithSpawn(createSuccessfulSpawn([]));
+  // Stub the aggregate seam so the handler never touches real credentials or
+  // the network; only the forwarded selection flag is observed.
+  const usageLimits = require("../src/lib/usage-limits");
+  const originalGet = usageLimits.getUsageLimits;
+  const originalReset = usageLimits.resetUsageLimitsCache;
+  const forwarded = [];
+  let aggregateCalls = 0;
+  let cacheResets = 0;
+  usageLimits.getUsageLimits = async (options) => {
+    aggregateCalls += 1;
+    forwarded.push(options);
+    return { fetched_at: "2026-01-01T00:00:00Z", devin: { configured: false } };
+  };
+  usageLimits.resetUsageLimitsCache = () => {
+    cacheResets += 1;
+  };
+
+  async function requestLimits({ devin, token, refresh, origin } = {}) {
+    const params = new URLSearchParams();
+    if (devin) params.set("devin", devin);
+    if (refresh) params.set("refresh", refresh);
+    const query = params.size ? `?${params}` : "";
+    const headers = {};
+    if (token) headers["x-tokentracker-local-auth"] = token;
+    if (origin) headers.origin = origin;
+    const req = createRequest({ method: "GET", headers });
+    const res = createResponse();
+    const handled = await handler(
+      req,
+      res,
+      new URL(`http://127.0.0.1/functions/tokentracker-usage-limits${query}`),
+    );
+    assert.equal(handled, true);
+    return res;
+  }
+
+  const handler = mod.createLocalApiHandler({
+    queuePath: path.join(process.cwd(), "tmp-queue.jsonl"),
+  });
+  try {
+    const localAuthToken = await getLocalAuthToken(handler);
+
+    // An explicit opt-in without local auth is rejected outright — before any
+    // cache reset or aggregate work, so nothing downstream can misreport the
+    // enabled client as a disabled provider.
+    for (const token of [undefined, "wrong-token"]) {
+      const res = await requestLimits({ devin: "1", refresh: "1", token });
+      assert.equal(res.statusCode, 401, `devin=1 with token=${token} must 401`);
+      assert.deepEqual(JSON.parse(res.body.toString("utf8")), { error: "Unauthorized" });
+    }
+    // The devin=true alias is the same opt-in: rejected without auth, and a
+    // valid token from a non-loopback origin fails the check all the same.
+    const trueUnauthed = await requestLimits({ devin: "true" });
+    assert.equal(trueUnauthed.statusCode, 401, "devin=true without auth must 401");
+    const badOrigin = await requestLimits({
+      devin: "1",
+      token: localAuthToken,
+      origin: "https://evil.example",
+    });
+    assert.equal(badOrigin.statusCode, 401, "devin=1 from a foreign origin must 401");
+    assert.equal(aggregateCalls, 0, "unauthorized opt-in reached the aggregate");
+    assert.equal(cacheResets, 0, "unauthorized opt-in reset the limits cache");
+
+    const ok = await requestLimits({ devin: "1", token: localAuthToken });
+    assert.equal(ok.statusCode, 200);
+    assert.equal(forwarded.at(-1).devinEnabled, true, "authenticated opt-in forwards enabled");
+
+    const trueOk = await requestLimits({ devin: "true", token: localAuthToken });
+    assert.equal(trueOk.statusCode, 200);
+    assert.equal(forwarded.at(-1).devinEnabled, true, "devin=true with auth forwards enabled");
+
+    // devin=0/false are absent opt-ins: no auth needed, provider stays off.
+    for (const devin of ["0", "false"]) {
+      const res = await requestLimits({ devin });
+      assert.equal(res.statusCode, 200, `devin=${devin} must not require auth`);
+      assert.equal(forwarded.at(-1).devinEnabled, false, `devin=${devin} stays off`);
+    }
+
+    // Ordinary requests — with or without local auth but no devin flag — keep
+    // their previous behavior.
+    for (const token of [localAuthToken, undefined]) {
+      const res = await requestLimits({ token });
+      assert.equal(res.statusCode, 200);
+      assert.equal(forwarded.at(-1).devinEnabled, false, `token=${token} without opt-in stays off`);
+    }
+  } finally {
+    usageLimits.getUsageLimits = originalGet;
+    usageLimits.resetUsageLimitsCache = originalReset;
     restore();
   }
 });

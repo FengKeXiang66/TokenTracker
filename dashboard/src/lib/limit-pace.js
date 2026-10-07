@@ -51,7 +51,7 @@ export function resetToMs(isoOrUnix) {
 export function computePace({ usedPercent, windowSeconds, resetMs, mode, now = Date.now() }) {
   const usedFraction = Math.min(Math.max(Number(usedPercent) || 0, 0), 100) / 100;
   const out = { pacePercent: null, paceOver: false, expectedPercent: null, runsOutEta: null, projectedEnd: null };
-  if (!(windowSeconds > 0) || !Number.isFinite(resetMs)) return out;
+  if (!(windowSeconds > 0) || !Number.isFinite(resetMs) || resetMs <= now) return out;
 
   const secondsUntilReset = Math.max(0, (resetMs - now) / 1000);
   const expected = expectedUsedFraction(windowSeconds, secondsUntilReset);
@@ -60,9 +60,9 @@ export function computePace({ usedPercent, windowSeconds, resetMs, mode, now = D
   out.expectedPercent = Math.round(expected * 100);
   out.paceOver = isOverPace(usedFraction, expected);
 
-  // Show the mark only once the window has meaningful usage (≥5%), so a fresh
-  // window doesn't float a mark in the empty track.
-  if (usedFraction >= 0.05) {
+  // Hide the mark only on an unused window. Even small usage needs an
+  // even-pace reference (for example, Grok at 3% used / 97% remaining).
+  if (usedFraction > 0) {
     const display = mode === "remaining" ? 1 - expected : expected;
     out.pacePercent = display * 100;
   }

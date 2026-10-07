@@ -1,6 +1,7 @@
 // Pure pricing-lookup logic. No I/O, no async. Tested in isolation.
 //
 // Resolve order:
+//   0. CURATED source exact match (source-specific pricing)
 //   1. CURATED exact match (self-defined aliases like kiro-*, hy3-*)
 //   2. LiteLLM exact match (mainstream claude/gpt-5/gemini)
 //   3. CURATED alias (e.g. "auto" -> "composer-1")
@@ -164,16 +165,41 @@ function normalizeWorkbuddyModel(model) {
   return model;
 }
 
+function normalizeIFlytekMaasModel(model) {
+  if (!model || typeof model !== "string") return model;
+  const trimmed = model.trim();
+  const lower = trimmed.toLowerCase();
+  // The default Agent slug maps to the Spark X2 service in the supplied price list.
+  if (lower === "xsparkx2agent") return "xsparkx2";
+  return trimmed;
+}
+
+// Unsloth Studio can mix local engines and paid API providers in one database.
+// The parser qualifies metered models with their provider and marks local,
+// subscription-backed, or ambiguous custom routes as unpriced. Returning a
+// sentinel here prevents the generic reverse-substring matcher from mistaking
+// a locally hosted model name for the similarly named cloud SKU.
+function normalizeUnslothModel(model) {
+  if (typeof model !== "string") return model;
+  const lower = model.trim().toLowerCase();
+  if (lower.startsWith("local/") || lower.startsWith("unpriced/")) {
+    return "__tokentracker_unpriced_unsloth_model__";
+  }
+  return model;
+}
+
 // Per-source model-name normalizers, applied at pricing-lookup time only (the
 // raw model name is preserved for storage/display). Add a source here when its
 // model strings don't match the LiteLLM/curated keys verbatim.
 const SOURCE_MODEL_NORMALIZERS = {
+  acode: normalizeIFlytekMaasModel,
   antigravity: normalizeAntigravityModel,
   claude: normalizeClaudeModel,
   cursor: normalizeCursorModel,
   "pi-anthropic": normalizeClaudeModel,
   "prime-agent-anthropic": normalizeClaudeModel,
   zed: normalizeZedModel,
+  unsloth: normalizeUnslothModel,
   workbuddy: normalizeWorkbuddyModel,
 };
 
@@ -227,7 +253,35 @@ function lookupPricing(model, { curated, litellm, source } = {}) {
   const lower = lookupModel.toLowerCase();
   const dotForm = buildDotRestoredModel(lookupModel);
 
+  // 0. CURATED source exact. Source-specific prices apply only to their source,
+  // preventing collisions with public prices for same-named models from other CLIs.
+  const sourceKey = typeof source === "string" ? source.toLowerCase() : "";
+  if (sourceKey === "cline" && lower.endsWith(":free")) {
+    return {
+      hit: true,
+      source: "curated:cline-free-suffix",
+      value: { input: 0, output: 0, cache_read: 0, cache_write: 0 },
+    };
+  }
+  // AStudio does not disclose its routed model. Stop before generic aliases
+  // and fuzzy matching can turn an unresolved router into a priced model.
+  if (sourceKey === "acode" && (lower === "auto" || lower.endsWith("-auto"))) {
+    return { hit: false, source: "miss", value: null };
+  }
+  const sourceExact = curated.source_exact?.[sourceKey];
+  if (sourceExact) {
+    const sourceValue = lookupExactCaseInsensitive(sourceExact, lookupModel);
+    if (sourceValue) {
+      return { hit: true, source: "curated:source-exact", value: sourceValue };
+    }
+  }
+
   // 1. CURATED exact
+  // Qwen Flash's provider-qualified and dated IDs share the reference SKU.
+  // Keep the boundary strict: Flash-Next and Max have independent prices.
+  if (/(?:^|\/)qwen3[.-]8-flash(?:-\d{4}-\d{2}-\d{2})?$/.test(lower.trim()) && curated.exact?.["qwen3.8-flash"]) {
+    return { hit: true, source: "curated:exact", value: curated.exact["qwen3.8-flash"] };
+  }
   if (curated.exact && curated.exact[lookupModel]) {
     return { hit: true, source: "curated:exact", value: curated.exact[lookupModel] };
   }
@@ -367,6 +421,7 @@ module.exports = {
   lookupPricing,
   stripReasoningSuffix,
   normalizeAntigravityModel,
+  normalizeIFlytekMaasModel,
   normalizeClaudeModel,
   normalizeCursorModel,
   normalizeZedModel,

@@ -64,20 +64,48 @@ test('release workflow builds Linux in parallel with macOS and Windows', () => {
   assert.ok(bundleIndex < buildIndex, 'bundle:node must run before the AppImage build');
 });
 
-test('release produces exactly one Linux artifact and verifies its payload', () => {
+test('release builds one artifact per Linux format and verifies every payload', () => {
   const linuxJob = release.slice(release.indexOf('\n  linux:'), release.indexOf('\n  publish:'));
 
-  // Guard against a silently empty bundle: an AppImage without the embedded
-  // runtime starts and then fails to find tracker.js on every machine.
+  // Guard against a silently empty bundle: a package without the embedded
+  // runtime starts and then fails to find tracker.js on every machine. Each
+  // format is produced by a separate tauri bundler and can fail on its own, so
+  // all three are extracted and checked rather than trusting one as a proxy.
   assert.match(linuxJob, /--appimage-extract/);
+  assert.match(linuxJob, /dpkg-deb -x/);
+  assert.match(linuxJob, /rpm2cpio/);
+  assert.match(
+    linuxJob,
+    /if ! \(cd "\$workdir\/rpm" && rpm2cpio[\s\S]*?fi\n\s+verify_payload "rpm"/,
+    'an rpm extractor status must not bypass the fail-closed payload check',
+  );
+  assert.match(linuxJob, /verify_payload "AppImage"/);
+  assert.match(linuxJob, /verify_payload "deb"/);
+  assert.match(linuxJob, /verify_payload "rpm"/);
+
   assert.match(linuxJob, /EmbeddedServer/);
   assert.match(linuxJob, /tokentracker\/bin\/tracker\.js/);
   assert.match(linuxJob, /dashboard\/dist\/index\.html/);
-  assert.match(linuxJob, /Expected exactly 1 AppImage/);
-  assert.match(linuxJob, /TokenTracker-linux-x86_64\.AppImage --clobber/);
+
+  // One artifact per format: a second AppImage would mean an ambiguous upload.
+  assert.match(linuxJob, /Expected exactly 1 \$label/);
+
+  // rpm2cpio and cpio are not on ubuntu-latest by default; without them the
+  // rpm arm cannot be inspected at all.
+  assert.match(linuxJob, /^ {12}rpm \\$/m);
+  assert.match(linuxJob, /^ {12}cpio$/m);
+
+  for (const ext of ['AppImage', 'deb', 'rpm']) {
+    assert.match(
+      linuxJob,
+      new RegExp(`dist-linux/TokenTracker-linux-x86_64\\.${ext}`),
+      `the ${ext} must be staged under its stable asset name`,
+    );
+  }
+  assert.match(linuxJob, /TokenTracker-linux-x86_64\.rpm --clobber/);
 });
 
-test('publish waits for all three platforms and verifies four assets', () => {
+test('publish waits for all three platforms and verifies every asset', () => {
   assert.match(release, /^ {4}needs: \[build, windows, linux\]$/m);
 
   const assetLine = release
@@ -89,6 +117,8 @@ test('publish waits for all three platforms and verifies four assets', () => {
     'TokenTracker-win-x64.zip',
     'TokenTracker-Setup.exe',
     'TokenTracker-linux-x86_64.AppImage',
+    'TokenTracker-linux-x86_64.deb',
+    'TokenTracker-linux-x86_64.rpm',
   ]) {
     assert.ok(assetLine.includes(asset), `publish must verify ${asset}`);
   }
@@ -116,6 +146,27 @@ test('no workflow or doc still references the old release workflow name', () => 
       `${file} still names the workflow "release (macOS + Windows)"`,
     );
   }
+});
+
+test('deb and rpm register tokentracker:// so the OAuth return reaches the app', () => {
+  // Tauri's default desktop template has no %u and no scheme handler, and the
+  // runtime xdg-mime registration only runs for the AppImage, so v1.1.0's deb
+  // and rpm could never finish a browser sign-in.
+  const tauriDir = path.join(root, 'TokenTrackerLinux/src-tauri');
+  const conf = JSON.parse(fs.readFileSync(path.join(tauriDir, 'tauri.conf.json'), 'utf8'));
+  const debTemplate = conf.bundle?.linux?.deb?.desktopTemplate;
+  assert.ok(debTemplate, 'deb needs a custom desktop template');
+  assert.equal(conf.bundle?.linux?.rpm?.desktopTemplate, debTemplate, 'rpm must use the same template');
+
+  const template = fs.readFileSync(path.join(tauriDir, debTemplate), 'utf8');
+  assert.match(template, /^Exec=\{\{exec\}\} %u$/m);
+  assert.match(template, /^MimeType=x-scheme-handler\/tokentracker;$/m);
+
+  const linuxJob = release.slice(release.indexOf('\n  linux:'), release.indexOf('\n  publish:'));
+  assert.match(linuxJob, /verify_scheme_handler "deb" "\$workdir\/deb"/);
+  assert.match(linuxJob, /verify_scheme_handler "rpm" "\$workdir\/rpm"/);
+  assert.match(linuxJob, /grep -Fxq 'MimeType=x-scheme-handler\/tokentracker;'/);
+  assert.match(linuxJob, /grep -Fxq 'Exec=tokentracker-linux %u'/);
 });
 
 test('Arch package build disables the unused split debug package', () => {

@@ -54,3 +54,13 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Devin brand mark
+
+`dashboard/public/brand-logos/devin.svg` is a monochrome vector trace of the
+official Devin "nodes" mark published by Cognition at
+`https://app.devin.ai/assets/pwa/apple-touch-icon.png` (also
+`https://app.devin.ai/assets/pwa/pwa-icon-192.png`). The Devin name and logo
+are trademarks of Cognition; the mark is bundled solely to identify the Devin
+CLI source and subscription quota in the dashboard, recoloured to `currentColor` like the
+other provider marks.

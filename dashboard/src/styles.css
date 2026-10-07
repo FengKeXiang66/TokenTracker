@@ -70,6 +70,8 @@
 
   /* Provider accents */
   --provider-anythingllm: #0ba5ec;
+  --provider-lmstudio: #6e7ef3;
+  --provider-unsloth: #58cc02;
 
   /* Global metrics data visualization */
   --community-codex: #3b82f6;

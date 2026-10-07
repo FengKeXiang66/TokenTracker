@@ -190,6 +190,9 @@ enum Strings {
     }
     static var syncingUsageData: String { t("Syncing usage data…", "正在同步使用数据…", "正在同步使用資料…", "使用データを同期中…", "사용 데이터 동기화 중…") }
     static var syncingFirstLaunchHint: String { t("First launch may take a moment", "首次启动可能需要一点时间", "首次啟動可能需要一點時間", "初回起動は少し時間がかかる場合があります", "첫 실행은 잠시 시간이 걸릴 수 있습니다") }
+    /// Shown in the Activity header while the cross-device read is failing and
+    /// the popover has nothing but this machine's data to fall back on.
+    static var activityThisMacOnly: String { t("This Mac only · reconnecting", "仅本机 · 重连中", "僅本機 · 重新連線中", "このMacのみ · 再接続中", "이 Mac만 · 재연결 중") }
     static var limitsDisplayTitle: String { t("Limit Display", "限额显示", "限額顯示", "上限の表示", "한도 표시") }
     static var toastOnResetLabel: String { t("Toast on limits reset", "额度重置时显示提示", "額度重置時顯示提示", "リセット時に通知を表示", "한도 초기화 시 알림 표시") }
     static var confettiOnResetLabel: String { t("Confetti on limits reset", "额度重置时撒花", "額度重置時撒花", "リセット時に紙吹雪", "한도 초기화 시 색종이") }
@@ -310,6 +313,22 @@ enum Strings {
         t("Failed to launch server: \(error)", "启动服务失败：\(error)", "啟動服務失敗：\(error)", "サーバーの起動に失敗しました：\(error)", "서버 실행에 실패했습니다: \(error)")
     }
     static var serverBecameUnreachable: String { t("Server became unreachable.", "服务已不可访问。", "服務已不可訪問。", "サーバーに接続できなくなりました。", "서버에 연결할 수 없게 되었습니다.") }
+
+    static var dashboardLoadFailedTitle: String {
+        t("Couldn't Load Dashboard", "无法加载仪表盘", "無法載入儀表盤", "ダッシュボードを読み込めませんでした", "대시보드를 불러오지 못했습니다")
+    }
+    static func dashboardLoadFailedReason(_ reason: String) -> String {
+        t("Reason: \(reason)", "原因：\(reason)", "原因：\(reason)", "原因：\(reason)", "원인: \(reason)")
+    }
+    static var dashboardLoadFailedProxyHint: String {
+        t(
+            "If a system proxy or VPN is running, add localhost and 127.0.0.1 to its bypass list, then retry.",
+            "如果开启了系统代理或 VPN，请把 localhost 和 127.0.0.1 加入绕过列表后重试。",
+            "如果開啟了系統代理或 VPN，請把 localhost 和 127.0.0.1 加入繞過清單後重試。",
+            "システムプロキシや VPN を使用している場合は、localhost と 127.0.0.1 をバイパスリストに追加してから再試行してください。",
+            "시스템 프록시나 VPN을 사용 중이라면 localhost와 127.0.0.1을 우회 목록에 추가한 뒤 다시 시도하세요."
+        )
+    }
 
     static var updateChecking: String { t("Checking for updates...", "正在检查更新...", "正在檢查更新...", "アップデートを確認中...", "업데이트 확인 중...") }
     static func updateSkipped(target: String, current: String) -> String {

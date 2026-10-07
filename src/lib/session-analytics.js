@@ -30,9 +30,17 @@ const path = require("node:path");
 const readline = require("node:readline");
 const { listClaudeProjectFiles, listRolloutFilesDeep, claudeMessageDedupKey } = require("./rollout");
 const { parseCodexRolloutFile } = require("./codex-rollout-parser");
-const { computeRowCost } = require("./pricing");
+const { computeRowCost, getModelPricing } = require("./pricing");
 const { USD_TICKS_PER_USD, normalizeGrokUsage } = require("./grok-usage");
 const wsl = require("./wsl-probe");
+const {
+  appendUniqueDirs,
+  dedupeDirsByRealpath,
+  expandHome,
+  loadScanRootsConfig,
+  normalizeScanRootsConfig,
+  scanRootDirState,
+} = require("./scan-roots");
 
 // Bump the sidecar when derived metrics change so cached rows are rebuilt
 // instead of leaving the dashboard on the previous (over-counted) heuristic.
@@ -57,9 +65,10 @@ const wsl = require("./wsl-probe");
 // their union, deduping shared records while retaining divergent tails.
 // v12 fixes Grok's mutually exclusive token columns, retains exact reported
 // cost, and adds metadata-only usage diagnostics to the local session browser.
-// v12 retains Codex parent/subagent metadata locally and derives exact child
-// token totals from observed child rollouts instead of spawn-call estimates.
-const SIDECAR_VERSION = 12;
+// v13 stores per-model Codex usage (including observed reroutes and the exact
+// long-context subset) and folds delivery signals into the token parser's
+// single pass instead of parsing every Codex file twice.
+const SIDECAR_VERSION = 13;
 const EDIT_TOOLS = new Set([
   "apply_patch",
   "edit",
@@ -116,6 +125,195 @@ function addTotals(target, delta) {
 
 function emptyTotals() {
   return tokenTotals({});
+}
+
+const MODEL_USAGE_SUM_FIELDS = [
+  "input_tokens",
+  "cached_input_tokens",
+  "cache_creation_input_tokens",
+  "output_tokens",
+  "reasoning_output_tokens",
+  "total_tokens",
+  "long_context_input_tokens",
+  "long_context_cached_input_tokens",
+  "long_context_cache_creation_input_tokens",
+  "long_context_output_tokens",
+  "long_context_reasoning_output_tokens",
+  "priority_input_tokens",
+  "priority_cached_input_tokens",
+  "priority_cache_creation_input_tokens",
+  "priority_output_tokens",
+  "priority_reasoning_output_tokens",
+  "priority_long_context_input_tokens",
+  "priority_long_context_cached_input_tokens",
+  "priority_long_context_cache_creation_input_tokens",
+  "priority_long_context_output_tokens",
+  "priority_long_context_reasoning_output_tokens",
+  "usage_events",
+  "rerouted_usage_events",
+  "long_context_usage_events",
+  "priority_usage_events",
+  // Not a token counter: an edit turn is a turn, and turn_context both marks
+  // where a turn begins and names its model, so an edit turn has exactly one
+  // owner. Splitting it here keeps by_model.tokens_per_edit a ratio over one
+  // population instead of this model's tokens over the whole session's turns.
+  "edit_turns",
+];
+
+function normalizeModelUsageRows(rows) {
+  const byModel = new Map();
+  for (const value of Array.isArray(rows) ? rows : []) {
+    const model = normalizeSessionModel(value?.model) || "unknown";
+    let row = byModel.get(model);
+    if (!row) {
+      row = {
+        model,
+        ...Object.fromEntries(MODEL_USAGE_SUM_FIELDS.map((field) => [field, 0])),
+        selected_models: new Set(),
+        reroute_reasons: new Set(),
+        model_attribution: "selected",
+      };
+      byModel.set(model, row);
+    }
+    for (const field of MODEL_USAGE_SUM_FIELDS) row[field] += finite(value?.[field]);
+    if (Array.isArray(value?.selected_models)) {
+      for (const selected of value.selected_models) {
+        const normalized = normalizeSessionModel(selected);
+        if (normalized) row.selected_models.add(normalized);
+      }
+    } else if (model !== "unknown") {
+      // serializeModelUsageRow() omits selected_models when it is just the
+      // effective model repeated. An absent field therefore means "selected
+      // == effective", which is the case for every non-rerouted row.
+      row.selected_models.add(model);
+    }
+    for (const reason of Array.isArray(value?.reroute_reasons) ? value.reroute_reasons : []) {
+      if (typeof reason === "string" && reason.trim()) row.reroute_reasons.add(reason.trim());
+    }
+    if (value?.model_attribution === "effective" || finite(value?.rerouted_usage_events) > 0) {
+      row.model_attribution = "effective";
+    }
+  }
+  return [...byModel.values()]
+    .map((row) => ({
+      ...row,
+      selected_models: [...row.selected_models].sort(),
+      reroute_reasons: [...row.reroute_reasons].sort(),
+    }))
+    .sort((a, b) => b.total_tokens - a.total_tokens || a.model.localeCompare(b.model));
+}
+
+// The sidecar is re-read on every dashboard request, so keep it small: omit
+// the model_usage fields that normalizeModelUsageRows() reconstructs on read.
+// All four omissions are lossless - zero counters default to 0, an absent
+// selected_models re-seeds from `model`, model_attribution is derived from
+// rerouted_usage_events, and cost_usd is always recomputed by
+// repriceSessionRecord(). Worth ~19% of the file on a 6.8k-session history,
+// most of it the long_context_* counters for sessions with no requests over
+// OPENAI_LONG_CONTEXT_INPUT_THRESHOLD in src/lib/pricing/index.js.
+function serializeModelUsageRow(row) {
+  const out = { model: row.model };
+  for (const field of MODEL_USAGE_SUM_FIELDS) {
+    const value = finite(row[field]);
+    if (value !== 0) out[field] = value;
+  }
+  const selected = Array.isArray(row.selected_models) ? row.selected_models : [];
+  if (!(selected.length === 1 && selected[0] === row.model)) out.selected_models = selected;
+  if (Array.isArray(row.reroute_reasons) && row.reroute_reasons.length > 0) {
+    out.reroute_reasons = row.reroute_reasons;
+  }
+  if (row.model_attribution === "effective") out.model_attribution = "effective";
+  return out;
+}
+
+function serializeSessionRecord(row) {
+  if (!Array.isArray(row?.model_usage) || row.model_usage.length === 0) {
+    return JSON.stringify(row);
+  }
+  return JSON.stringify({ ...row, model_usage: row.model_usage.map(serializeModelUsageRow) });
+}
+
+function repriceSessionRecord(record) {
+  const modelUsage = normalizeModelUsageRows(record?.model_usage);
+  if (modelUsage.length > 0) {
+    let hasUnpricedUsage = false;
+    for (const row of modelUsage) {
+      row.cost_usd = computeRowCost({ source: record.source, ...row });
+      if (record.source === "codex" && row.total_tokens > 0) {
+        const pricing = getModelPricing(row.model, { source: record.source });
+        if (![pricing.input, pricing.output, pricing.cache_read, pricing.cache_write]
+          .some((value) => finite(value) > 0)) {
+          hasUnpricedUsage = true;
+        }
+      }
+    }
+    record.model_usage = modelUsage;
+    record.model = modelUsage.length > 1 ? "mixed" : modelUsage[0].model;
+    record.cost_usd = modelUsage.reduce((sum, row) => sum + finite(row.cost_usd), 0);
+    record.cost_source = "model_pricing";
+    // Internal labels such as `codex-auto-review` expose token usage but not
+    // an underlying public model/rate. Keep their tokens, leave their cost at
+    // zero, and explicitly mark the session estimate as a known lower bound.
+    record.cost_is_partial = hasUnpricedUsage;
+  } else {
+    const providerCost = Number(record.provider_cost_usd);
+    record.cost_usd = record.cost_source === "provider_reported"
+      && Number.isFinite(providerCost)
+      && providerCost >= 0
+      ? providerCost
+      : computeRowCost({ source: record.source, model: record.model, ...record.tokens });
+  }
+  record.cost_per_edit = record.edit_turns > 0 ? record.cost_usd / record.edit_turns : null;
+  return record;
+}
+
+// The model_usage wire contract is DENSE: every field dashboard/src/lib/
+// sessions-api.ts declares is present on every row. Storage is free to be
+// sparse - serializeModelUsageRow() drops zero counters, and a record with no
+// model_usage at all (every claude/grok session, plus codex sessions written
+// by an older sidecar) has nothing to trim in the first place - but neither
+// shape may leak into an API response, or the declared type describes a row
+// that does not exist. Densify here, the one point both the by_model
+// aggregation and toSessionBrowserRow() pass through.
+function denseModelUsageRow(overrides = {}) {
+  return {
+    model: "unknown",
+    ...Object.fromEntries(MODEL_USAGE_SUM_FIELDS.map((field) => [field, 0])),
+    selected_models: [],
+    reroute_reasons: [],
+    model_attribution: "selected",
+    cost_usd: 0,
+    ...overrides,
+  };
+}
+
+function modelUsageForAggregation(record) {
+  const editTurns = finite(record?.edit_turns);
+  const rows = normalizeModelUsageRows(record?.model_usage);
+  if (rows.length === 0) {
+    return [denseModelUsageRow({
+      model: normalizeSessionModel(record?.model) || "unknown",
+      total_tokens: finite(record?.total_tokens || record?.tokens?.total_tokens),
+      cost_usd: finite(record?.cost_usd),
+      edit_turns: editTurns,
+    })];
+  }
+  const priced = rows.map((row) => denseModelUsageRow({
+    ...row,
+    cost_usd: Number.isFinite(Number(row.cost_usd))
+      ? Number(row.cost_usd)
+      : computeRowCost({ source: record.source, ...row }),
+  }));
+  // Sum(rows.edit_turns) has to equal record.edit_turns or the by_model column
+  // stops summing to summary.edit_turns. It can fall short two ways: a sidecar
+  // written before model_usage carried edit_turns, and an edit turn whose model
+  // produced no billable delta, leaving no usage row to attach to. Fold the
+  // residual into the busiest model - normalizeModelUsageRows() sorts by
+  // total_tokens - which is the same approximation `retries` uses.
+  const assigned = priced.reduce((sum, row) => sum + finite(row.edit_turns), 0);
+  const residual = editTurns - assigned;
+  if (residual > 0) priced[0].edit_turns = finite(priced[0].edit_turns) + residual;
+  return priced;
 }
 
 function safeTimestamp(value) {
@@ -243,12 +441,7 @@ function finalizeRecord(record) {
   record.active_ms = Math.max(0, finite(record.active_ms));
   record.duration_ms = record.active_ms;
   record.total_tokens = finite(record.total_tokens || record.tokens?.total_tokens);
-  const providerCost = Number(record.provider_cost_usd);
-  record.cost_usd = record.cost_source === "provider_reported"
-    && Number.isFinite(providerCost)
-    && providerCost >= 0
-    ? providerCost
-    : computeRowCost({ source: record.source, model: record.model, ...record.tokens });
+  repriceSessionRecord(record);
   record.productive = record.edit_turns > 0;
   // A first-pass delivery has exactly one user turn containing an observed
   // edit and no repeated user request. The legacy one_shot field stays as an
@@ -409,8 +602,7 @@ async function scanClaudeSession(filePath) {
   });
 }
 
-async function scanCodexDeliverySignals(filePath) {
-  const filePaths = readableSessionPaths(filePath);
+function createCodexDeliverySignalCollector() {
   const bounds = emptyBounds();
   let turns = 0;
   let editTurns = 0;
@@ -422,95 +614,117 @@ async function scanCodexDeliverySignals(filePath) {
   let lastPromptFingerprint = null;
   let subagentCalls = 0;
   const subagentTypes = new Map();
+  // The model the open turn belongs to, as decided by codex-model-attribution.
+  // The parser hands it in rather than this collector re-reading
+  // turn_context.payload.model, so there stays exactly one authority on which
+  // model owns a turn - the same one that bills the turn's tokens.
+  let currentTurnModel = null;
+  const editTurnsByModel = new Map();
 
   function closeTurn() {
-    if (currentTurnOpen && currentHadEdit) editTurns += 1;
+    if (currentTurnOpen && currentHadEdit) {
+      editTurns += 1;
+      const key = currentTurnModel || "unknown";
+      editTurnsByModel.set(key, (editTurnsByModel.get(key) || 0) + 1);
+    }
     currentHadEdit = false;
   }
 
-  function beginTurn(key) {
+  function beginTurn(key, model) {
     if (currentTurnOpen && key && currentTurnKey === key) return;
     if (currentTurnOpen) closeTurn();
     currentTurnOpen = true;
     currentTurnKey = key || null;
+    currentTurnModel = model || null;
     turns += 1;
   }
 
-  const priorRecordHashes = new Set();
-  let scannedFiles = 0;
-  for (const currentFilePath of filePaths) {
-    const currentRecordHashes = new Set();
-    try {
-      const input = fs.createReadStream(currentFilePath, { encoding: "utf8" });
-      const lines = readline.createInterface({ input, crlfDelay: Infinity });
-      for await (const line of lines) {
-        if (filePaths.length > 1) {
-          const recordHash = crypto.createHash("sha256").update(line).digest("base64url");
-          if (priorRecordHashes.has(recordHash)) continue;
-          currentRecordHashes.add(recordHash);
-        }
-        let obj;
-        try { obj = JSON.parse(line); } catch { continue; }
-        updateBounds(bounds, obj.timestamp);
-        if (obj.type === "turn_context") {
-          hasTurnContext = true;
-          beginTurn(String(obj.payload?.turn_id || obj.timestamp || turns + 1));
-          continue;
-        }
-        const prompt = extractCodexPrompt(obj);
-        if (prompt) {
-          const fingerprint = promptFingerprint(prompt);
-          if (lastPromptFingerprint && fingerprint === lastPromptFingerprint) retryTurns += 1;
-          lastPromptFingerprint = fingerprint;
-          if (!hasTurnContext) beginTurn(String(obj.timestamp || turns + 1));
-          continue;
-        }
-        if (obj.type !== "response_item") continue;
-        const toolNames = extractCodexSignalTools(obj.payload);
-        if (!toolNames.length) continue;
-        if (!currentTurnOpen) beginTurn(String(obj.timestamp || turns + 1));
-        if (toolNames.some((name) => EDIT_TOOLS.has(name))) currentHadEdit = true;
-        for (const name of toolNames) {
-          if (!CODEX_SUBAGENT_TOOLS.has(name)) continue;
-          subagentCalls += 1;
-          const displayName = name === "multi_agent_v1__spawn_agent" ? "spawn_agent" : name;
-          subagentTypes.set(displayName, (subagentTypes.get(displayName) || 0) + 1);
-        }
-      }
-      scannedFiles += 1;
-    } catch (error) {
-      if (!isRecoverableSessionReadError(error)) throw error;
-    } finally {
-      for (const recordHash of currentRecordHashes) priorRecordHashes.add(recordHash);
+  function consume(obj, model = null) {
+    updateBounds(bounds, obj?.timestamp);
+    if (obj?.type === "turn_context") {
+      hasTurnContext = true;
+      beginTurn(String(obj.payload?.turn_id || obj.timestamp || turns + 1), model);
+      return;
+    }
+    // Between two turn_context rows the attributed model only moves when a
+    // model/rerouted event fires mid-turn. recordModelUsage() bills the rest of
+    // the turn's tokens to the new model, so the turn's edits have to move with
+    // them - otherwise one turn's tokens and its edit count land on two
+    // different rows and by_model.tokens_per_edit divides across models.
+    if (currentTurnOpen && model && model !== currentTurnModel) currentTurnModel = model;
+    const prompt = extractCodexPrompt(obj);
+    if (prompt) {
+      const fingerprint = promptFingerprint(prompt);
+      if (lastPromptFingerprint && fingerprint === lastPromptFingerprint) retryTurns += 1;
+      lastPromptFingerprint = fingerprint;
+      if (!hasTurnContext) beginTurn(String(obj.timestamp || turns + 1), model);
+      return;
+    }
+    if (obj?.type !== "response_item") return;
+    const toolNames = extractCodexSignalTools(obj.payload);
+    if (!toolNames.length) return;
+    if (!currentTurnOpen) beginTurn(String(obj.timestamp || turns + 1), model);
+    if (toolNames.some((name) => EDIT_TOOLS.has(name))) currentHadEdit = true;
+    for (const name of toolNames) {
+      if (!CODEX_SUBAGENT_TOOLS.has(name)) continue;
+      subagentCalls += 1;
+      const displayName = name === "multi_agent_v1__spawn_agent" ? "spawn_agent" : name;
+      subagentTypes.set(displayName, (subagentTypes.get(displayName) || 0) + 1);
     }
   }
-  if (!scannedFiles) throw new Error("all grouped Codex signal files failed during read");
-  closeTurn();
-  return {
-    bounds,
-    turns,
-    editTurns,
-    retryTurns,
-    subagentCalls,
-    subagentTypes: Object.fromEntries([...subagentTypes.entries()].sort()),
-  };
+
+  function finish() {
+    closeTurn();
+    return {
+      bounds,
+      turns,
+      editTurns,
+      editTurnsByModel: Object.fromEntries(editTurnsByModel),
+      retryTurns,
+      subagentCalls,
+      subagentTypes: Object.fromEntries([...subagentTypes.entries()].sort()),
+    };
+  }
+
+  return { consume, finish };
 }
 
 async function scanCodexSession(filePath) {
   const filePaths = readableSessionPaths(filePath);
   const primaryFilePath = filePaths[0] || String(filePath || "");
-  const [parsed, signals] = await Promise.all([
-    parseCodexRolloutFile(filePaths, { seenTokenEvents: new Set() }),
-    scanCodexDeliverySignals(filePaths),
-  ]);
+  const signalCollector = createCodexDeliverySignalCollector();
+  const parsed = await parseCodexRolloutFile(filePaths, {
+    seenTokenEvents: new Set(),
+    collectBreakdowns: false,
+    collectModelUsage: true,
+    onObject: signalCollector.consume,
+  });
+  const signals = signalCollector.finish();
+  // The collector keyed edit turns by the model the parser handed it, so the
+  // keys are the same raw model ids parsed.modelUsage rows carry. A model whose
+  // edit turns produced no billable delta has no row to land on;
+  // modelUsageForAggregation() folds that residual into the busiest model so
+  // the by_model column still sums to edit_turns.
+  const editTurnsByModel = signals.editTurnsByModel || {};
+  const modelUsage = (parsed.modelUsage || []).map((row) => ({
+    ...row,
+    edit_turns: finite(editTurnsByModel[row.model]),
+  }));
   const parsedModel = normalizeSessionModel(parsed.model);
   const provider = normalizeSessionModel(parsed.provider);
   // Older Codex rollouts can omit turn_context.model. The shared parser then
   // falls back to model_provider (for example "openai"), which is provenance
   // rather than a model and must not become a model-table row.
-  const model = parsedModel && parsedModel.toLowerCase() !== provider?.toLowerCase()
-    ? parsedModel
-    : "unknown";
+  const observedModels = (parsed.modelUsage || [])
+    .map((row) => normalizeSessionModel(row.model))
+    .filter(Boolean);
+  const model = observedModels.length > 1
+    ? "mixed"
+    : observedModels[0] || (
+      parsedModel && parsedModel.toLowerCase() !== provider?.toLowerCase()
+        ? parsedModel
+        : "unknown"
+    );
   // Codex's own thread title from session_index.jsonl (Codex-authored
   // metadata, keyed by session id). Null when Codex never named the thread —
   // the UI then falls back to the project name.
@@ -539,6 +753,7 @@ async function scanCodexSession(filePath) {
     project_key: projectKey(parsed.cwd, primaryFilePath),
     project_ref: parsed.cwd || null,
     model,
+    model_usage: modelUsage,
     ...signals.bounds,
     turns: signals.turns || finite(parsed.turnCount),
     edit_turns: signals.editTurns,
@@ -867,8 +1082,11 @@ function providerRoots(home, providerDir, env, deps = {}) {
       && path.resolve(home) === path.resolve(homedir())
       && typeof env?.CODEX_HOME === "string"
       && env.CODEX_HOME.trim();
+    // Same normalization as sync / the cursor store (scan-roots.expandHome):
+    // a relative CODEX_HOME is anchored to home, never to process.cwd(), so
+    // the browser walks the exact root the cursors were keyed under.
     const nativeRoot = useProcessCodexHome
-      ? path.resolve(env.CODEX_HOME.trim())
+      ? expandHome(env.CODEX_HOME, home)
       : path.join(home, providerDir);
     roots.push(nativeRoot);
   }
@@ -888,7 +1106,21 @@ function providerRoots(home, providerDir, env, deps = {}) {
     const wslRoot = discoverWslHome(providerDir, { env });
     if (wslRoot) roots.push(wslRoot);
   }
-  return [...new Set(roots)];
+  // Extra roots (#657), mirroring src/commands/sync.js: CLAUDE_CONFIG_DIR is
+  // the spawning process's implicit Claude root (additive — ~/.claude stays
+  // scanned), and config.scanRoots.<provider> arrives as deps.extraRoots from
+  // discoverSessionFiles. Extras are realpath-deduped against the roots above
+  // so one directory listed under two spellings is walked once.
+  const extras = [];
+  const useProcessClaudeConfigDir = providerDir === ".claude"
+    && path.resolve(home) === path.resolve(homedir())
+    && typeof env?.CLAUDE_CONFIG_DIR === "string"
+    && env.CLAUDE_CONFIG_DIR.trim();
+  if (useProcessClaudeConfigDir) extras.push(expandHome(env.CLAUDE_CONFIG_DIR, home));
+  for (const extra of Array.isArray(deps.extraRoots) ? deps.extraRoots : []) {
+    if (typeof extra === "string" && extra) extras.push(path.resolve(extra));
+  }
+  return appendUniqueDirs([...new Set(roots)], extras);
 }
 
 // Group one logical session discovered under more than one root. A group is
@@ -1014,10 +1246,37 @@ function groupCodexFiles(filePaths) {
 
 async function discoverSessionFiles(home, env = process.env, deps = {}) {
   const grokHome = resolveGrokHome(home);
-  const claudeRoots = providerRoots(home, ".claude", env, deps);
-  const codexRoots = providerRoots(home, ".codex", env, deps);
+  // config.scanRoots (#657): read from the tracker config unless the caller
+  // injects it (tests). A missing or malformed config yields no extras.
+  const scanRootsConfig = deps.scanRootsConfig !== undefined
+    ? normalizeScanRootsConfig(deps.scanRootsConfig)
+    : await loadScanRootsConfig({ home });
+  // expandHome resolves `~` and relative entries against `home` (never cwd);
+  // only readable directories are walked, absence and stat errors alike.
+  const extraRootsFor = (provider) => scanRootsConfig[provider]
+    .map((root) => expandHome(root, home))
+    .filter((root) => root && scanRootDirState(root).exists);
+  const claudeRoots = providerRoots(home, ".claude", env, { ...deps, extraRoots: extraRootsFor("claude") });
+  const codexRoots = providerRoots(home, ".codex", env, { ...deps, extraRoots: extraRootsFor("codex") });
+  // Two distinct roots may share one projects/ dir through a symlink; dedupe
+  // the derived projects dirs by realpath (as sync does) so the browser never
+  // lists the same transcript twice under two spellings.
+  const claudeProjectsDirs = dedupeDirsByRealpath(claudeRoots.map((r) => path.join(r, "projects")));
+  // listClaudeProjectFiles / listRolloutFilesDeep turn a listing error into an
+  // empty result, so a root whose projects/ (or sessions/) exists but cannot be
+  // read would look like "no sessions" and get cached as such. Report those
+  // directories as incomplete discovery instead; the caller decides not to
+  // persist a partial inventory (sync defers its repair on the same state).
+  const incomplete = [];
+  for (const dir of [
+    ...claudeProjectsDirs,
+    ...codexRoots.map((r) => path.join(r, "sessions")),
+  ]) {
+    const state = scanRootDirState(dir);
+    if (state.error !== null) incomplete.push({ path: dir, error: state.error });
+  }
   const [claudeGroups, codexGroups, archivedGroups, grok] = await Promise.all([
-    Promise.all(claudeRoots.map((r) => listClaudeProjectFiles(path.join(r, "projects")))),
+    Promise.all(claudeProjectsDirs.map((dir) => listClaudeProjectFiles(dir))),
     Promise.all(codexRoots.map((r) => listRolloutFilesDeep(path.join(r, "sessions")))),
     Promise.all(codexRoots.map((r) => listRolloutFilesDeep(path.join(r, "archived_sessions")))),
     listGrokSessionFiles(path.join(grokHome, "sessions")),
@@ -1032,7 +1291,20 @@ async function discoverSessionFiles(home, env = process.env, deps = {}) {
   const claude = allClaude.filter((filePaths) => !filePaths.some((filePath) => filePath
     .split(path.sep)
     .some((segment) => segment.endsWith(CLAUDE_MEM_OBSERVER_PROJECT_SUFFIX))));
-  return { claude, codex: groupCodexFiles([...codex, ...archived]), grok };
+  return { claude, codex: groupCodexFiles([...codex, ...archived]), grok, incomplete };
+}
+
+// Warn once per unreadable directory per process: the dashboard polls this
+// path, and a line per poll would flood the serve log.
+const warnedIncompleteDiscovery = new Set();
+function warnIncompleteDiscovery(incomplete) {
+  for (const entry of incomplete) {
+    if (warnedIncompleteDiscovery.has(entry.path)) continue;
+    warnedIncompleteDiscovery.add(entry.path);
+    if (!process.env.NODE_TEST_CONTEXT) {
+      console.warn(`[session-analytics] session directory unreadable (${entry.error}), inventory incomplete: ${entry.path}`);
+    }
+  }
 }
 
 function filesSignature(files) {
@@ -1129,7 +1401,10 @@ function analyticsEntryStatKey(source, filePath) {
 
 function readSidecar(sidecarPath) {
   try {
-    return fs.readFileSync(sidecarPath, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line));
+    return fs.readFileSync(sidecarPath, "utf8")
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => repriceSessionRecord(JSON.parse(line)));
   } catch { return []; }
 }
 
@@ -1158,6 +1433,19 @@ async function buildSessionAnalyticsInternal({ home = os.homedir(), force = fals
     } catch { /* first run */ }
   }
   const discovered = await discoverSessionFiles(home);
+  // Incomplete discovery (an unreadable projects/ or sessions/ dir): never let
+  // a partial inventory replace a complete snapshot. Serve the last complete
+  // sidecar when there is one; otherwise build from what is readable but do
+  // not persist it, so the next refresh tries again.
+  const incompleteDirs = Array.isArray(discovered.incomplete) ? discovered.incomplete : [];
+  if (incompleteDirs.length > 0) {
+    warnIncompleteDiscovery(incompleteDirs);
+    if (!force && previousMeta?.version === SIDECAR_VERSION) {
+      const cached = readSidecar(sidecarPath);
+      Object.defineProperty(cached, "incompleteDirs", { value: incompleteDirs, enumerable: false });
+      return cached;
+    }
+  }
   // Codex thread titles are stored separately from rollout files. Include the
   // index in the overall signature so an index-only rename reaches the
   // per-file dependency check below on the next refresh. Grok titles/metadata
@@ -1219,6 +1507,7 @@ async function buildSessionAnalyticsInternal({ home = os.homedir(), force = fals
       }
     }
     if (!row) continue;
+    repriceSessionRecord(row);
     // A one-way file hash enables incremental reuse without persisting or
     // exposing the user's local session path.
     row._cache_key = cacheKey;
@@ -1226,19 +1515,22 @@ async function buildSessionAnalyticsInternal({ home = os.homedir(), force = fals
     nextFiles[cacheKey] = { stat_key: statKey };
   }
   sessions.sort((a, b) => String(b.ended_at || "").localeCompare(String(a.ended_at || "")));
-  const content = sessions.map((row) => JSON.stringify(row)).join("\n") + (sessions.length ? "\n" : "");
-  await writeAtomic(sidecarPath, content);
-  const generatedAt = new Date().toISOString();
-  await writeAtomic(metaPath, `${JSON.stringify({
-    version: SIDECAR_VERSION,
-    signature,
-    generated_at: generatedAt,
-    checked_at: generatedAt,
-    files: nextFiles,
-  })}\n`);
+  if (incompleteDirs.length === 0) {
+    const content = sessions.map(serializeSessionRecord).join("\n") + (sessions.length ? "\n" : "");
+    await writeAtomic(sidecarPath, content);
+    const generatedAt = new Date().toISOString();
+    await writeAtomic(metaPath, `${JSON.stringify({
+      version: SIDECAR_VERSION,
+      signature,
+      generated_at: generatedAt,
+      checked_at: generatedAt,
+      files: nextFiles,
+    })}\n`);
+  }
   // Non-enumerable so the array still behaves exactly like a plain row list
   // for every existing caller (map/filter/JSON of the rows is unaffected).
   Object.defineProperty(sessions, "skippedFiles", { value: skippedFiles, enumerable: false });
+  Object.defineProperty(sessions, "incompleteDirs", { value: incompleteDirs, enumerable: false });
   return sessions;
 }
 
@@ -1290,32 +1582,85 @@ function summarizeSessions(sessions, { from = "", to = "", includeSessions = tru
     .map((row) => ({ ...row })));
   const byModel = new Map();
   const subagents = new Map();
+  const totals = {
+    sessions: 0,
+    productive_sessions: 0,
+    one_shot_sessions: 0,
+    edit_turns: 0,
+    retries: 0,
+    total_tokens: 0,
+    cost_usd: 0,
+    edit_tokens: 0,
+    edit_cost_usd: 0,
+  };
   for (const row of filtered) {
-    const key = row.model || "unknown";
-    const agg = byModel.get(key) || {
-      model: key,
-      sessions: 0,
-      productive_sessions: 0,
-      one_shot_sessions: 0,
-      edit_turns: 0,
-      retries: 0,
-      total_tokens: 0,
-      cost_usd: 0,
-      edit_tokens: 0,
-      edit_cost_usd: 0,
-    };
-    agg.sessions += 1;
-    if (row.productive) agg.productive_sessions += 1;
-    if (row.first_pass ?? row.one_shot) agg.one_shot_sessions += 1;
-    agg.edit_turns += finite(row.edit_turns);
-    agg.retries += finite(row.retry_turns);
-    agg.total_tokens += finite(row.total_tokens);
-    agg.cost_usd += finite(row.cost_usd);
+    totals.sessions += 1;
+    if (row.productive) totals.productive_sessions += 1;
+    if (row.first_pass ?? row.one_shot) totals.one_shot_sessions += 1;
+    totals.edit_turns += finite(row.edit_turns);
+    totals.retries += finite(row.retry_turns);
+    totals.total_tokens += finite(row.total_tokens);
+    totals.cost_usd += finite(row.cost_usd);
     if (row.productive) {
-      agg.edit_tokens += finite(row.total_tokens);
-      agg.edit_cost_usd += finite(row.cost_usd);
+      totals.edit_tokens += finite(row.total_tokens);
+      totals.edit_cost_usd += finite(row.cost_usd);
     }
-    byModel.set(key, agg);
+
+    // One session contributes a row to EVERY model it used, so per-model
+    // `sessions` counts "sessions that touched this model" and the column does
+    // NOT sum to summary.sessions (a session that switched models mid-thread
+    // is counted once per model). Token, cost, edit_turn and edit_token columns
+    // DO sum exactly - only the session headcount overlaps. Read the session
+    // total from summary.sessions / session_count, never by summing this column;
+    // test/session-analytics.test.js locks both halves of that contract.
+    const usageRows = modelUsageForAggregation(row);
+    const primaryModel = usageRows[0]?.model || "unknown";
+    for (const usage of usageRows) {
+      const key = usage.model || "unknown";
+      const agg = byModel.get(key) || {
+        model: key,
+        sessions: 0,
+        productive_sessions: 0,
+        one_shot_sessions: 0,
+        edit_turns: 0,
+        retries: 0,
+        total_tokens: 0,
+        cost_usd: 0,
+        edit_tokens: 0,
+        edit_cost_usd: 0,
+        usage_events: 0,
+        rerouted_usage_events: 0,
+        long_context_usage_events: 0,
+        model_attribution: "selected",
+      };
+      agg.sessions += 1;
+      if (row.productive) agg.productive_sessions += 1;
+      if (row.first_pass ?? row.one_shot) agg.one_shot_sessions += 1;
+      agg.total_tokens += finite(usage.total_tokens);
+      agg.cost_usd += finite(usage.cost_usd);
+      agg.usage_events += finite(usage.usage_events);
+      agg.rerouted_usage_events += finite(usage.rerouted_usage_events);
+      agg.long_context_usage_events += finite(usage.long_context_usage_events);
+      if (usage.model_attribution === "effective") agg.model_attribution = "effective";
+      // Numerator and denominator of tokens_per_edit / cost_per_edit must come
+      // from the same population, so both are per model: an edit turn is a
+      // turn, and turn_context names the model that owns it. Giving one model
+      // the whole session's edit_turns but only its own slice of the tokens
+      // understated the ratio and broke sum(edit_tokens) == summary.edit_tokens.
+      agg.edit_turns += finite(usage.edit_turns);
+      if (row.productive) {
+        agg.edit_tokens += finite(usage.total_tokens);
+        agg.edit_cost_usd += finite(usage.cost_usd);
+      }
+      // Retries are deliberately NOT split. A retry is detected from the user
+      // prompt, and user_message / turn_context ordering is not stable in Codex
+      // rollouts (1332 one way vs 1139 the other across 400 local files), so a
+      // per-model retry would name the wrong turn about as often as the right
+      // one. Attributing them to the busiest model keeps the column summing to
+      // summary.retries without claiming a precision the log cannot support.
+      if (key === primaryModel) agg.retries += finite(row.retry_turns);
+      byModel.set(key, agg);
+    }
     if (row.source === "codex" && row.parent_session_hash) {
       const name = row.agent_role || row.agent_nickname || "subagent";
       const sub = subagents.get(name) || {
@@ -1359,10 +1704,6 @@ function summarizeSessions(sessions, { from = "", to = "", includeSessions = tru
     tokens_per_edit: row.edit_turns ? row.edit_tokens / row.edit_turns : null,
     cost_per_edit: row.edit_turns ? row.edit_cost_usd / row.edit_turns : null,
   })).sort((a, b) => b.edit_turns - a.edit_turns || b.productive_sessions - a.productive_sessions || b.sessions - a.sessions);
-  const totals = by_model.reduce((acc, row) => {
-    for (const key of ["sessions", "productive_sessions", "one_shot_sessions", "edit_turns", "retries", "total_tokens", "cost_usd", "edit_tokens", "edit_cost_usd"]) acc[key] += finite(row[key]);
-    return acc;
-  }, { sessions: 0, productive_sessions: 0, one_shot_sessions: 0, edit_turns: 0, retries: 0, total_tokens: 0, cost_usd: 0, edit_tokens: 0, edit_cost_usd: 0 });
   return {
     available: filtered.length > 0,
     // Local filesystem paths and raw session ids are required internally for
@@ -1449,6 +1790,7 @@ function toSessionBrowserRow(row) {
     // browser can show where a session ran and compose a resume command.
     project_ref: row.project_ref || null,
     model: row.model,
+    model_usage: modelUsageForAggregation(row),
     started_at: row.started_at || null,
     ended_at: row.ended_at || null,
     duration_ms: finite(row.duration_ms),
@@ -1506,6 +1848,7 @@ function mergeSessionFragments(rows) {
       byHash.set(key, {
         ...row,
         tokens: row.tokens && typeof row.tokens === "object" ? { ...row.tokens } : emptyTotals(),
+        model_usage: normalizeModelUsageRows(row.model_usage),
         _repr_tokens: finite(row.total_tokens),
       });
       continue;
@@ -1515,6 +1858,10 @@ function mergeSessionFragments(rows) {
     cur.retry_turns = finite(cur.retry_turns) + finite(row.retry_turns);
     cur.subagent_calls = finite(cur.subagent_calls) + finite(row.subagent_calls);
     addTotals(cur.tokens, row.tokens);
+    cur.model_usage = normalizeModelUsageRows([
+      ...(cur.model_usage || []),
+      ...(row.model_usage || []),
+    ]);
     cur.total_tokens = finite(cur.total_tokens) + finite(row.total_tokens);
     cur.cost_usd = finite(cur.cost_usd) + finite(row.cost_usd);
     cur.provider_cost_usd = finite(cur.provider_cost_usd) + finite(row.provider_cost_usd);
@@ -1543,8 +1890,9 @@ function mergeSessionFragments(rows) {
     if (!cur.forked_from_id && row.forked_from_id) cur.forked_from_id = row.forked_from_id;
     if (!cur.agent_nickname && row.agent_nickname) cur.agent_nickname = row.agent_nickname;
     if (!cur.agent_role && row.agent_role) cur.agent_role = row.agent_role;
-    // Representative model/project comes from the busiest fragment (most
-    // tokens) so a tiny sidechain cannot overwrite the real coding model.
+    // Legacy records (including Claude) have no per-model usage, so retain
+    // their busiest-fragment model as a display label. Codex model_usage is
+    // merged independently and overrides this representative during repricing.
     if (finite(row.total_tokens) > finite(cur._repr_tokens)) {
       cur._repr_tokens = finite(row.total_tokens);
       if (row.model && row.model !== "unknown") cur.model = row.model;
@@ -1569,6 +1917,11 @@ function mergeSessionFragments(rows) {
     row.duration_ms = finite(row.active_ms);
     row.first_pass = finite(row.edit_turns) === 1 && finite(row.retry_turns) === 0;
     row.one_shot = row.first_pass;
+    // Only a complete per-model breakdown can reprice merged usage safely.
+    // Claude fragments may use different models: their summed cost is exact,
+    // while charging all tokens at the representative model changes that sum.
+    if (row.model_usage.length > 0) repriceSessionRecord(row);
+    else row.cost_per_edit = row.edit_turns > 0 ? finite(row.cost_usd) / row.edit_turns : null;
     merged.push(row);
   }
   return merged;
@@ -1714,9 +2067,12 @@ function listSessionsForBrowser(sessions, { from = "", to = "", limit = 0 } = {}
 }
 
 function sessionsToCsv(rows) {
-  const columns = ["session_hash", "source", "project_key", "model", "started_at", "ended_at", "duration_ms", "turns", "edit_turns", "retry_turns", "subagent_calls", "total_tokens", "cost_usd", "productive", "first_pass", "one_shot"];
+  const columns = ["session_hash", "source", "project_key", "model", "model_usage_json", "started_at", "ended_at", "duration_ms", "turns", "edit_turns", "retry_turns", "subagent_calls", "total_tokens", "cost_usd", "productive", "first_pass", "one_shot"];
   const escape = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
-  return [columns.join(","), ...(rows || []).map((row) => columns.map((key) => escape(row[key])).join(","))].join("\n") + "\n";
+  const valueFor = (row, key) => key === "model_usage_json"
+    ? JSON.stringify(row.model_usage || [])
+    : row[key];
+  return [columns.join(","), ...(rows || []).map((row) => columns.map((key) => escape(valueFor(row, key))).join(","))].join("\n") + "\n";
 }
 
 module.exports = {
@@ -1731,6 +2087,7 @@ module.exports = {
   resumeCommandFor,
   sessionsToCsv,
   providerRoots,
+  discoverSessionFiles,
   dedupeClaudeFilesAcrossRoots,
   analyticsEntryStatKey,
 };
