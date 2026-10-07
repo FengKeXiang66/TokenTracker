@@ -9,6 +9,9 @@ struct UsageLimitsView: View {
     /// Width of the widest visible row label; all label columns match it so
     /// bars align without reserving space for labels that aren't on screen.
     @State private var labelColumnWidth: CGFloat = 0
+    /// Width of the widest trailing reset label ("5d", "已过期", …); reset
+    /// columns match it so bars also share the same right edge.
+    @State private var resetColumnWidth: CGFloat = 0
     /// Provider id whose explanation popover is open. Each provider block is
     /// clickable (CodexBar-style); clicking opens a side popover that explains how
     /// to read its bars. A click toggle — not hover — so nothing reflows/jitters.
@@ -18,9 +21,28 @@ struct UsageLimitsView: View {
 
     private static let rowColumnSpacing: CGFloat = 5
     private static let percentColumnWidth: CGFloat = 34
+    /// Floor for the trailing reset column; it grows with the widest reset
+    /// label (see `resetColumnWidth`) but never gets narrower than this.
     private static let relativeResetColumnWidth: CGFloat = 24
-    private static var resetExpiryColumnWidth: CGFloat {
-        percentColumnWidth + rowColumnSpacing + relativeResetColumnWidth
+    /// Upper bound for the shared label column. A label past it truncates with
+    /// an ellipsis (full text stays in the row tooltip) instead of squeezing
+    /// every row's bar — model + plan names can run well past this width.
+    /// 60pt keeps labels to a short recognizable prefix so long names barely
+    /// affect bar width (reporter-chosen value).
+    private static let labelColumnMaxWidth: CGFloat = 60
+
+    /// Measured reset-column width with the fixed floor applied. Before the
+    /// first measurement lands it equals the old fixed width, so reset rows
+    /// lay out exactly as before on the first pass.
+    private var effectiveResetColumnWidth: CGFloat {
+        max(resetColumnWidth, Self.relativeResetColumnWidth)
+    }
+
+    /// Reset-bank rows show one wider trailing column (expiry) where the limit
+    /// rows show the percent + reset pair; keeping it equal to that pair's
+    /// total width makes every bar in the section share the same right edge.
+    private var resetExpiryColumnWidth: CGFloat {
+        Self.percentColumnWidth + Self.rowColumnSpacing + effectiveResetColumnWidth
     }
 
     /// At least one provider is configured and error-free.
@@ -59,6 +81,7 @@ struct UsageLimitsView: View {
                 }
             }
             .onPreferenceChange(LimitLabelWidthKey.self) { labelColumnWidth = ceil($0) }
+            .onPreferenceChange(LimitResetWidthKey.self) { resetColumnWidth = ceil($0) }
         } else if limits == nil {
             LimitsSkeleton()
         }
@@ -515,6 +538,36 @@ struct UsageLimitsView: View {
 
     // MARK: - Row
 
+    /// Shared row-label column: every row matches the widest visible label so
+    /// bars align. The visible text truncates with an ellipsis once the column
+    /// hits `labelColumnMaxWidth` — a long model/plan name must not squeeze
+    /// every bar — while a hidden fixed-size copy keeps reporting the label's
+    /// natural width so the column still grows with the widest label. The full
+    /// text stays reachable through the hover tooltip.
+    private func rowLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.system(.caption, design: .default))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            // Unmeasured first pass renders at natural width (as if fixedSize);
+            // from the second pass on, the shared column width applies and
+            // truncation kicks in past the cap.
+            .fixedSize(horizontal: labelColumnWidth == 0, vertical: false)
+            .frame(width: labelColumnWidth > 0 ? min(labelColumnWidth, Self.labelColumnMaxWidth) : nil, alignment: .leading)
+            .background(alignment: .topLeading) {
+                Text(text)
+                    .font(.system(.caption, design: .default))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .opacity(0)
+                    .accessibilityHidden(true)
+                    .background(GeometryReader { proxy in
+                        Color.clear.preference(key: LimitLabelWidthKey.self, value: proxy.size.width)
+                    })
+            }
+            .help(text)
+    }
+
     private func limitRow(
         label: String,
         pct: Double,
@@ -556,15 +609,7 @@ struct UsageLimitsView: View {
         )
 
         return HStack(spacing: Self.rowColumnSpacing) {
-            Text(label)
-                .font(.system(.caption, design: .default))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-                .background(GeometryReader { proxy in
-                    Color.clear.preference(key: LimitLabelWidthKey.self, value: proxy.size.width)
-                })
-                .frame(width: labelColumnWidth > 0 ? labelColumnWidth : nil, alignment: .leading)
+            rowLabel(label)
 
             UsageLimitBar(
                 percent: displayValue,
@@ -585,7 +630,15 @@ struct UsageLimitsView: View {
                     .font(.system(.caption2, design: .default))
                     .monospacedDigit()
                     .foregroundStyle(.tertiary)
-                    .frame(width: Self.relativeResetColumnWidth, alignment: .trailing)
+                    .lineLimit(1)
+                    // Never wrap: the column grows to the widest reset label,
+                    // so a long "已过期" stays on one line instead of raising
+                    // the row height.
+                    .fixedSize(horizontal: true, vertical: false)
+                    .background(GeometryReader { proxy in
+                        Color.clear.preference(key: LimitResetWidthKey.self, value: proxy.size.width)
+                    })
+                    .frame(width: resetColumnWidth > 0 ? effectiveResetColumnWidth : nil, alignment: .trailing)
             }
         }
         .accessibilityElement(children: .ignore)
@@ -608,15 +661,7 @@ struct UsageLimitsView: View {
         let a11y = "\(Strings.subscriptionLabel) \(percentLabel) \(remaining)"
         return AnyView(
             HStack(spacing: Self.rowColumnSpacing) {
-                Text(Strings.subscriptionLabel)
-                    .font(.system(.caption, design: .default))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-                    .background(GeometryReader { proxy in
-                        Color.clear.preference(key: LimitLabelWidthKey.self, value: proxy.size.width)
-                    })
-                    .frame(width: labelColumnWidth > 0 ? labelColumnWidth : nil, alignment: .leading)
+                rowLabel(Strings.subscriptionLabel)
 
                 UsageLimitBar(
                     percent: clampedPct,
@@ -635,7 +680,13 @@ struct UsageLimitsView: View {
                     .font(.system(.caption2, design: .default))
                     .monospacedDigit()
                     .foregroundStyle(view.expired ? AnyShapeStyle(Color.red) : AnyShapeStyle(.tertiary))
-                    .frame(width: Self.relativeResetColumnWidth, alignment: .trailing)
+                    .lineLimit(1)
+                    // Same never-wrap rule as the limit rows' reset column.
+                    .fixedSize(horizontal: true, vertical: false)
+                    .background(GeometryReader { proxy in
+                        Color.clear.preference(key: LimitResetWidthKey.self, value: proxy.size.width)
+                    })
+                    .frame(width: resetColumnWidth > 0 ? effectiveResetColumnWidth : nil, alignment: .trailing)
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(a11y)
@@ -666,15 +717,7 @@ struct UsageLimitsView: View {
 
     private func resetRow(_ row: CodexResetRowSpec) -> some View {
         HStack(spacing: Self.rowColumnSpacing) {
-            Text(row.label)
-                .font(.system(.caption, design: .default))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-                .background(GeometryReader { proxy in
-                    Color.clear.preference(key: LimitLabelWidthKey.self, value: proxy.size.width)
-                })
-                .frame(width: labelColumnWidth > 0 ? labelColumnWidth : nil, alignment: .leading)
+            rowLabel(row.label)
 
             UsageLimitBar(
                 percent: row.lifetimeRemainingPercent,
@@ -689,7 +732,7 @@ struct UsageLimitsView: View {
                 .foregroundStyle(.tertiary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
-                .frame(width: Self.resetExpiryColumnWidth, alignment: .trailing)
+                .frame(width: resetExpiryColumnWidth, alignment: .trailing)
         }
         .help(row.detail ?? "")
         .accessibilityElement(children: .ignore)
@@ -920,6 +963,15 @@ private struct LimitsSkeleton: View {
 
 /// Reports the widest limit-row label so every row's label column can match it.
 private struct LimitLabelWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+/// Reports the widest trailing reset label ("5d", "已过期", …) so every row's
+/// reset column can match it and bars share the same right edge.
+private struct LimitResetWidthKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = max(value, nextValue())
