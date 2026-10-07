@@ -52,6 +52,7 @@
   "dependencies": {
     "@journeyapps/wa-sqlite": "2.0.6",
     "@mongodb-js/zstd": "^2.0.1",
+    "smol-toml": "^1.9.0",
     "undici": "8.11.2",
     "yauzl": "^3.4.0"
   },
