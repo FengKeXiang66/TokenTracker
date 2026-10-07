@@ -3704,13 +3704,14 @@ function isOpencodeForkCopy(fingerprintIndex, fingerprint, messageKey) {
   if (!owners) return false;
   const session = opencodeMessageKeySession(messageKey);
   if (!session) return false;
+  let hasCrossSessionOwner = false;
   for (const owner of owners instanceof Set ? owners : [owners]) {
     const ownerSession = opencodeMessageKeySession(owner);
     if (!ownerSession) continue;
     if (owner === messageKey) return false;
-    if (ownerSession !== session) return true;
+    if (ownerSession !== session) hasCrossSessionOwner = true;
   }
-  return false;
+  return hasCrossSessionOwner;
 }
 
 function normalizeOpencodeAttribution(raw) {

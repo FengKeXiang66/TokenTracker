@@ -288,9 +288,9 @@ test("parseOpencodeDbIncremental repairs fork copies counted before fingerprints
     // Recreate the state shipped before #426: both session/message ids were
     // present and both snapshots had already been added to the same bucket.
     const parentEntry = cursors.opencode.messages["ses_parent|msg_parent"];
+    delete parentEntry.fingerprint;
     cursors.opencode.messages["ses_fork|msg_fork"] = {
       lastTotals: { ...parentEntry.lastTotals },
-      fingerprint: parentEntry.fingerprint,
       updatedAt: new Date().toISOString(),
     };
     const bucket = Object.values(cursors.hourly.buckets)[0];
@@ -435,6 +435,54 @@ test("fork dedup scans past same-session fingerprint owners", async () => {
     assert.equal(cursors.opencode.messages["ses_same|msg_3"].dedupedForkCopy, true);
   });
 });
+
+for (const sharded of [false, true]) {
+  for (const foreignFirst of [false, true]) {
+    test(`exact fingerprint owner survives ${foreignFirst ? "foreign-first" : "self-first"} order (${sharded ? "migrated shards" : "legacy"})`, async () => {
+      await withTmp(async (tmp) => {
+        const queuePath = path.join(tmp, "queue.jsonl");
+        const trackerDir = path.join(tmp, "tracker");
+        const cursorsPath = path.join(trackerDir, "cursors.json");
+        let cursors = newCursors();
+        const self = msg({ id: "msg_self", sessionID: "ses_self", created: Date.parse(HOUR) + 1000, input: 100 });
+        await parseOpencodeDbIncremental({ dbMessages: [self], cursors, queuePath, source: "opencode" });
+        const selfEntry = cursors.opencode.messages["ses_self|msg_self"];
+        const entries = [
+          ["ses_self|msg_self", selfEntry],
+          ["ses_foreign|msg_foreign", { ...selfEntry }],
+        ];
+        cursors.opencode.messages = Object.fromEntries(foreignFirst ? entries.reverse() : entries);
+        const before = await queueTotals(queuePath);
+        const beforeRaw = await fs.readFile(queuePath, "utf8");
+        let store = null;
+        if (sharded) {
+          await fs.mkdir(trackerDir, { recursive: true });
+          await fs.writeFile(cursorsPath, JSON.stringify(cursors));
+          store = await openCursorStore({ trackerDir, cursorsPath, forceV2: true });
+          await store.commit();
+        }
+        // Reopen and sync twice after migration, proving persisted shard state
+        // neither reclassifies its exact owner nor retracts authoritative usage.
+        for (let sync = 0; sync < 2; sync += 1) {
+          if (sharded) {
+            store = await openCursorStore({ trackerDir, cursorsPath });
+            cursors = store.cursors;
+          }
+          const result = await parseOpencodeDbIncremental({
+            dbMessages: [self], cursors, queuePath, source: "opencode",
+            opencodeCursorStore: store,
+          });
+          assert.equal(result.eventsAggregated, 0);
+          assert.equal(result.bucketsQueued, 0);
+          assert.notEqual(cursors.opencode.messages["ses_self|msg_self"].dedupedForkCopy, true);
+          assert.deepEqual(await queueTotals(queuePath), before);
+          assert.equal(await fs.readFile(queuePath, "utf8"), beforeRaw);
+          if (store) await store.commit();
+        }
+      });
+    });
+  }
+}
 
 test("fingerprint ownership keeps alternate same-session owners after a correction", async () => {
   await withTmp(async (tmp) => {
