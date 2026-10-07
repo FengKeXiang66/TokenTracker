@@ -1,11 +1,50 @@
+function groupIntegerDigits(value: string, groupSize: number, separator: string) {
+  const negative = value.startsWith("-");
+  const digits = negative ? value.slice(1) : value;
+  const groups: string[] = [];
+
+  for (let end = digits.length; end > 0; end -= groupSize) {
+    groups.unshift(digits.slice(Math.max(0, end - groupSize), end));
+  }
+
+  return `${negative ? "-" : ""}${groups.join(separator)}`;
+}
+
 export function toDisplayNumber(value: any) {
   if (value == null) return "-";
   try {
-    if (typeof value === "bigint") return new Intl.NumberFormat().format(value);
-    if (typeof value === "number") return new Intl.NumberFormat().format(value);
+    if (typeof value === "bigint" || typeof value === "number") {
+      return new Intl.NumberFormat().format(value);
+    }
     const s = String(value).trim();
-    if (/^[0-9]+$/.test(s)) return new Intl.NumberFormat().format(BigInt(s));
-    return s;
+    return /^[0-9]+$/.test(s) ? new Intl.NumberFormat().format(BigInt(s)) : s;
+  } catch (_e) {
+    return String(value);
+  }
+}
+
+export function toDisplayNumberWithOptions(
+  value: any,
+  { groupSize = 3 }: { groupSize?: number } = {},
+) {
+  if (!Number.isInteger(groupSize) || groupSize === 3) return toDisplayNumber(value);
+  if (value == null) return "-";
+  try {
+    let numeric = value;
+    if (typeof value !== "bigint" && typeof value !== "number") {
+      const s = String(value).trim();
+      if (!/^[0-9]+$/.test(s)) return s;
+      numeric = BigInt(s);
+    }
+    const formatter = new Intl.NumberFormat(undefined, { useGrouping: false });
+    if (groupSize <= 1 || (typeof numeric === "number" && !Number.isFinite(numeric))) {
+      return formatter.format(numeric);
+    }
+    const separator = new Intl.NumberFormat().formatToParts(10000)
+      .find((part) => part.type === "group")?.value || ",";
+    return formatter.formatToParts(numeric).map((part) =>
+      part.type === "integer" ? groupIntegerDigits(part.value, groupSize, separator) : part.value,
+    ).join("");
   } catch (_e) {
     return String(value);
   }

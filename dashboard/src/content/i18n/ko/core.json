@@ -574,5 +574,9 @@
   "settings.section.labs": "Labs",
   "limits.alert.blocked": "알림이 꺼져 있음 — 시스템 설정에서 허용하세요",
   "settings.limits.showSubscriptions": "구독을 한도에 표시",
-  "settings.limits.showSubscriptionsHint": "수동으로 등록한 구독 갱신 바를 한도와 함께 표시합니다."
+  "settings.limits.showSubscriptionsHint": "수동으로 등록한 구독 갱신 바를 한도와 함께 표시합니다.",
+  "settings.appearance.token_grouping.label": "숫자 그룹화",
+  "settings.appearance.token_grouping.hint": "정확한 숫자는 3자리 또는 중국어 4자리 그룹을 사용합니다. 간단히 표시한 값의 툴팁에도 적용됩니다.",
+  "settings.appearance.token_grouping.thousand": "3자리",
+  "settings.appearance.token_grouping.wan": "4자리"
 }

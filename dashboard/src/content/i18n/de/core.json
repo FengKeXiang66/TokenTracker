@@ -571,5 +571,9 @@
   "settings.section.labs": "Labs",
   "limits.alert.blocked": "Benachrichtigungen sind aus – in den Systemeinstellungen erlauben",
   "settings.limits.showSubscriptions": "Abos in Limits anzeigen",
-  "settings.limits.showSubscriptionsHint": "Zeige manuell eingetragene Abo-Verlängerungen zusammen mit den Limits an."
+  "settings.limits.showSubscriptionsHint": "Zeige manuell eingetragene Abo-Verlängerungen zusammen mit den Limits an.",
+  "settings.appearance.token_grouping.label": "Zahlengruppierung",
+  "settings.appearance.token_grouping.hint": "Genaue Zahlen verwenden 3- oder chinesische 4-Ziffer-Gruppen. Tooltips folgen dieser Einstellung.",
+  "settings.appearance.token_grouping.thousand": "3er",
+  "settings.appearance.token_grouping.wan": "4er"
 }

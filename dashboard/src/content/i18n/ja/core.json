@@ -574,5 +574,9 @@
   "settings.section.labs": "Labs",
   "limits.alert.blocked": "通知がオフです — システム設定で許可してください",
   "settings.limits.showSubscriptions": "サブスクを制限表示に表示",
-  "settings.limits.showSubscriptionsHint": "手動登録した更新日バーを制限と一緒に表示します。"
+  "settings.limits.showSubscriptionsHint": "手動登録した更新日バーを制限と一緒に表示します。",
+  "settings.appearance.token_grouping.label": "数値の区切り",
+  "settings.appearance.token_grouping.hint": "正確な数値は 3 桁または中国語の 4 桁区切りを使用します。コンパクト表示のツールチップにも適用されます。",
+  "settings.appearance.token_grouping.thousand": "3桁",
+  "settings.appearance.token_grouping.wan": "4桁"
 }
