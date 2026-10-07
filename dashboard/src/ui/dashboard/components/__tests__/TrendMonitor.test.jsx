@@ -122,39 +122,50 @@ describe("TrendMonitor", () => {
     const rows = [{ billable_total_tokens: 100 }];
 
     const without = render(<TrendMonitor rows={rows} showTimeZoneLabel={false} />);
-    expect(without.queryByRole("button")).toBeNull();
+    expect(without.queryByRole("button", { name: /zoom|expand/i })).toBeNull();
 
     const withCfg = render(
       <TrendMonitor rows={rows} zoomConfig={{ baseUrl: "http://localhost" }} showTimeZoneLabel={false} />,
     );
-    expect(withCfg.queryByRole("button")).not.toBeNull();
+    expect(withCfg.queryByRole("button", { name: /zoom|expand/i })).not.toBeNull();
   });
 
-  it("keeps the scrollable tooltip open while the pointer moves from a bar into it", () => {
-    vi.useFakeTimers();
-    const models = Object.fromEntries(
-      Array.from({ length: 8 }, (_, index) => [`model-${index + 1}`, 100 - index]),
-    );
-    const { container } = render(
-      <TrendMonitor
-        rows={[{ billable_total_tokens: 772, models }]}
-        showTimeZoneLabel={false}
-      />,
-    );
+  it("keeps hover non-interactive and anchors adjacent bars at the same height", () => {
+    const { container } = render(<TrendMonitor rows={[{ total_tokens: 10 }, { total_tokens: 500 }]} />);
+    const bars = container.querySelectorAll('[role="button"]');
+    bars.forEach((bar, i) => { bar.getBoundingClientRect = () => ({ left: i * 30, bottom: 160, width: 30 }); });
+    fireEvent.mouseEnter(bars[0]);
+    let tooltip = container.querySelector('[data-trend-tooltip]');
+    expect(tooltip.className).toContain("pointer-events-none");
+    expect(tooltip.style.top).toBe("160px");
+    fireEvent.mouseLeave(bars[0]);
+    fireEvent.mouseEnter(bars[1]);
+    tooltip = container.querySelector('[data-trend-tooltip]');
+    expect(tooltip.style.top).toBe("160px");
+    expect(tooltip.textContent).toContain("500");
+    fireEvent.mouseLeave(bars[1]);
+    expect(container.querySelector('[data-trend-tooltip]')).toBeNull();
+  });
 
-    const bar = container.querySelector('[data-trend-bar="true"]');
-    fireEvent.mouseEnter(bar);
-    const tooltip = container.querySelector('[data-trend-tooltip="true"]');
-    expect(tooltip).not.toBeNull();
-
-    fireEvent.mouseLeave(bar);
-    fireEvent.mouseEnter(tooltip);
-    act(() => vi.advanceTimersByTime(200));
-    expect(container.querySelector('[data-trend-tooltip="true"]')).not.toBeNull();
-
-    fireEvent.mouseLeave(tooltip);
-    act(() => vi.advanceTimersByTime(200));
-    expect(container.querySelector('[data-trend-tooltip="true"]')).toBeNull();
+  it("pins scrollable details on click and dismisses with Escape or an outside pointer", () => {
+    const models = Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`model-${i}`, 100]));
+    const { container } = render(<TrendMonitor rows={[{ total_tokens: 800, models }, { total_tokens: 20 }]} />);
+    const bars = container.querySelectorAll('[role="button"]');
+    fireEvent.click(bars[0]);
+    const tooltip = container.querySelector('[data-trend-tooltip]');
+    expect(tooltip.className).toContain("pointer-events-auto");
+    expect(tooltip.querySelector('.overflow-y-auto')).not.toBeNull();
+    fireEvent.mouseLeave(bars[0]);
+    fireEvent.mouseEnter(bars[1]);
+    expect(tooltip.textContent).toContain("800");
+    fireEvent.pointerDown(tooltip);
+    expect(container.querySelector('[data-trend-tooltip]')).not.toBeNull();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(container.querySelector('[data-trend-tooltip]')).toBeNull();
+    fireEvent.keyDown(bars[0], { key: "Enter" });
+    expect(container.querySelector('[data-trend-tooltip]')).not.toBeNull();
+    fireEvent.pointerDown(document.body);
+    expect(container.querySelector('[data-trend-tooltip]')).toBeNull();
   });
 
   it("merges model segments whose names differ only by case", () => {

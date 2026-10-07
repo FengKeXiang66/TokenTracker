@@ -218,6 +218,8 @@ const TrendBar = React.memo(function TrendBar({
   totalBars,
   onMouseEnter,
   onMouseLeave,
+  onSelect,
+  label,
 }) {
   const shouldReduceMotion = useReducedMotion();
   const kind = getBarKind(row, value);
@@ -256,6 +258,16 @@ const TrendBar = React.memo(function TrendBar({
       style={{ originY: 1 }}
       onMouseEnter={(e) => onMouseEnter(e, row, value, segments, kind, displayValue)}
       onMouseLeave={onMouseLeave}
+      role="button"
+      tabIndex={0}
+      aria-label={label}
+      onClick={(e) => onSelect(e, row, value, segments, kind, displayValue)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect(e, row, value, segments, kind, displayValue);
+        }
+      }}
     >
       {/* 纵向整列 Hover 引导条 */}
       <div className="absolute inset-x-0 top-0 bottom-0 bg-oai-gray-100/70 dark:bg-white/[0.08] opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none" />
@@ -450,75 +462,62 @@ export function TrendMonitor({
 
   const [hoveredBar, setHoveredBar] = React.useState(null);
   const [tooltipPos, setTooltipPos] = React.useState({ x: 0, y: 0, shiftX: 0, flipDown: false });
+  const [pinned, setPinned] = React.useState(false);
+  const tooltipRef = React.useRef(null);
+  const selectedBarRef = React.useRef(null);
   const [isZoomOpen, setIsZoomOpen] = React.useState(false);
   const containerRef = React.useRef(null);
-  const hideTimeoutRef = React.useRef(null);
-
-  const handleBarMouseEnter = React.useCallback((e, row, value, segments, kind, displayValue) => {
-    if (hideTimeoutRef.current) {
-      clearTimeout(hideTimeoutRef.current);
-      hideTimeoutRef.current = null;
-    }
-
-    const timeLabel = formatBucketRange(row, granularity, locale);
-    setHoveredBar({
-      row,
-      value,
-      segments,
-      timeLabel,
-      kind,
-      displayValue,
-    });
-
-    // 优先寻找真实柱状图定位，以防外层 hover 容器导致 top 坐标上移
-    // 注意：data-trend-bar="true" 绑定在子级 segment 上，它的 parentElement 才是整根柱子的实体容器包装 div
-    const barEl = e.currentTarget.querySelector('[data-trend-bar="true"]');
-    const rect = barEl && barEl.parentElement
-      ? barEl.parentElement.getBoundingClientRect()
-      : e.currentTarget.getBoundingClientRect();
+  const showBar = React.useCallback((e, row, value, segments, kind, displayValue) => {
+    setHoveredBar({ row, value, segments, timeLabel: formatBucketRange(row, granularity, locale), kind, displayValue });
+    const rect = e.currentTarget.getBoundingClientRect();
     const container = containerRef.current;
     if (!container) return;
-
     const containerRect = container.getBoundingClientRect();
     const x = rect.left - containerRect.left + rect.width / 2;
-    const y = rect.top - containerRect.top;
+    const halfWidth = Math.min(140, containerRect.width / 2);
+    const shiftX = Math.max(halfWidth, Math.min(x, containerRect.width - halfWidth)) - x;
+    // Anchor to the full-height column rather than the variable bar top.
+    // Keep zoom details inside its scrollable chart pane.
+    setTooltipPos({ x, y: (isZoom ? rect.top : rect.bottom) - containerRect.top, shiftX, flipDown: true });
+  }, [granularity, locale, isZoom]);
 
-    // 自适应横向防溢出
-    const halfWidth = 140;
-    let shiftX = 0;
-    if (x < halfWidth) {
-      shiftX = halfWidth - x;
-    } else if (x > containerRect.width - halfWidth) {
-      shiftX = (containerRect.width - halfWidth) - x;
-    }
-
-    // Flip the tooltip below the bar when there isn't room above it. Tall zoom
-    // bars sit near the top of the chart, so an upward tooltip would be clipped
-    // by the chart container. `y` is the bar top relative to the container top.
-    const estTooltipHeight =
-      96 + (isZoom ? 22 : 0) + (segments.length ? Math.min(segments.length * 30 + 24, 174) : 0);
-    const flipDown = y < estTooltipHeight + 12;
-
-    setTooltipPos({ x, y, shiftX, flipDown });
-  }, [isZoom, granularity, locale]);
-
+  const handleBarMouseEnter = React.useCallback((...args) => {
+    if (!pinned) showBar(...args);
+  }, [pinned, showBar]);
   const handleBarMouseLeave = React.useCallback(() => {
-    if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
-    hideTimeoutRef.current = setTimeout(() => {
+    if (!pinned) setHoveredBar(null);
+  }, [pinned]);
+  const handleBarSelect = React.useCallback((e, ...args) => {
+    if (pinned && selectedBarRef.current === e.currentTarget) {
+      setPinned(false);
       setHoveredBar(null);
-    }, 150);
-  }, []);
-
-  const handleTooltipMouseEnter = React.useCallback(() => {
-    if (hideTimeoutRef.current) {
-      clearTimeout(hideTimeoutRef.current);
-      hideTimeoutRef.current = null;
+      return;
     }
-  }, []);
+    selectedBarRef.current = e.currentTarget;
+    showBar(e, ...args);
+    setPinned(true);
+  }, [pinned, showBar]);
 
-  const handleTooltipMouseLeave = React.useCallback(() => {
-    handleBarMouseLeave();
-  }, [handleBarMouseLeave]);
+  React.useEffect(() => {
+    if (!pinned) return;
+    const dismiss = (event) => {
+      if (event.type === "keydown" ? event.key !== "Escape" :
+        tooltipRef.current?.contains(event.target) || selectedBarRef.current?.contains(event.target)) return;
+      setPinned(false);
+      setHoveredBar(null);
+    };
+    document.addEventListener("pointerdown", dismiss);
+    document.addEventListener("keydown", dismiss);
+    return () => {
+      document.removeEventListener("pointerdown", dismiss);
+      document.removeEventListener("keydown", dismiss);
+    };
+  }, [pinned]);
+
+  React.useEffect(() => {
+    setPinned(false);
+    setHoveredBar(null);
+  }, [series, granularity, locale]);
 
   return (
     <div
@@ -587,6 +586,8 @@ export function TrendMonitor({
                     totalBars={seriesValues.length}
                     onMouseEnter={handleBarMouseEnter}
                     onMouseLeave={handleBarMouseLeave}
+                    onSelect={handleBarSelect}
+                    label={formatBucketRange(row, granularity, locale)}
                   />
                 );
               })
@@ -646,9 +647,9 @@ export function TrendMonitor({
       {hoveredBar && (
         <div
           data-trend-tooltip="true"
-          onMouseEnter={handleTooltipMouseEnter}
-          onMouseLeave={handleTooltipMouseLeave}
-          className="absolute z-[9999] w-0 h-0 transition-all duration-100 ease-out"
+          ref={tooltipRef}
+          data-pinned={pinned}
+          className={cn("absolute z-[9999] w-0 h-0", pinned ? "pointer-events-auto" : "pointer-events-none")}
           style={{
             left: `${tooltipPos.x}px`,
             top: `${tooltipPos.y}px`,
@@ -664,6 +665,7 @@ export function TrendMonitor({
               transform: `translateX(calc(-50% + ${tooltipPos.shiftX}px))`,
             }}
           >
+            {!pinned && <p className="text-[10px] text-oai-gray-400">{copy("trend.monitor.pin_hint")}</p>}
             {/* 顶栏 */}
             <div className="flex items-center justify-between border-b border-oai-gray-100 dark:border-oai-gray-800/80 pb-1.5">
               <span className="text-[11px] font-semibold text-oai-gray-500 dark:text-oai-gray-400">

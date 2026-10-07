@@ -1,4 +1,5 @@
 {
+  "trend.monitor.pin_hint": "点击柱子固定并滚动查看详情",
   "usage.overview.all_tools": "全部",
   "usage.overview.all_models": "全部模型",
   "usage.overview.all_models_note": "同名模型会跨工具合并，并按总用量排序。",
