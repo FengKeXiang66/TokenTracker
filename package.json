@@ -1,7 +1,7 @@
 {
   "name": "tokentracker-cli",
   "version": "1.1.12",
-  "description": "Track AI coding token usage across 44 tools with local dashboards and desktop apps.",
+  "description": "Local-first AI coding token usage and cost tracker for 44 tools, with a dashboard, desktop pet, widgets, achievements, and native macOS/Windows apps.",
   "main": "src/cli.js",
   "bin": {
     "tokentracker-cli": "bin/tracker.js",
