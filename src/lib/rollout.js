@@ -1,3 +1,4 @@
+const { claudeUserIdentity, collectClaudeForkAliases } = require("./claude-user-identity");
 const fs = require("node:fs/promises");
 const fssync = require("node:fs");
 const os = require("node:os");
@@ -983,6 +984,35 @@ async function parseClaudeIncremental({
   const prevHashes = Array.isArray(cursors.claudeHashes) ? cursors.claudeHashes : [];
   const seenMessageHashes = new Set(prevHashes);
   const defaultSource = normalizeSourceInput(source) || "claude";
+  // Resolve all changed-file lineage before counting: fork files may sort first.
+  const forkTimes = new Map();
+  const forkAliases = await collectClaudeForkAliases(files, cursors,
+    (obj) => { if (typeof obj.timestamp === "string") forkTimes.set(obj.uuid, obj.timestamp); });
+  {
+    // Correct only copies whose old UUID identities prove they were counted.
+    // Preserve all token totals and history whose source files were removed.
+    const families = new Map();
+    const familyTimes = new Map();
+    for (const [uuid, ts] of forkTimes) familyTimes.set(claudeUserIdentity({ uuid }, forkAliases), ts);
+    for (const hash of prevHashes) {
+      if (typeof hash !== "string" || !hash.startsWith("u:")) continue;
+      const canonical = claudeUserIdentity({ uuid: hash.slice(2) }, forkAliases);
+      families.set(canonical, (families.get(canonical) || 0) + 1);
+      seenMessageHashes.delete(hash);
+      seenMessageHashes.add(canonical);
+    }
+    for (const [canonical, count] of families) {
+      if (count < 2) continue;
+      const ts = familyTimes.get(canonical);
+      const hour = ts ? toUtcHalfHourStart(ts) : null;
+      if (!hour) continue;
+      const key = bucketKey(defaultSource, DEFAULT_MODEL, hour);
+      const bucket = hourlyState.buckets[key];
+      if (!bucket || bucket.totals.conversation_count < count - 1) continue;
+      bucket.totals.conversation_count -= count - 1;
+      touchedBuckets.add(key);
+    }
+  }
 
   if (!cursors.files || typeof cursors.files !== "object") {
     cursors.files = {};
@@ -1156,11 +1186,13 @@ async function parseClaudeIncremental({
       projectRef,
       projectKey,
       seenMessageHashes,
+      forkAliases,
     });
 
     cursors.files[key] = {
       inode,
       offset: result.endOffset,
+      claudeForkIndexed: true,
       updatedAt: new Date().toISOString(),
       ...(fileId ? { fileId, fileIdSize: st.size } : {}),
       ...(projectEnabled
@@ -1199,6 +1231,7 @@ async function parseClaudeIncremental({
     cursors.projectHourly = projectState;
   }
   // Persist message hashes for cross-sync dedup; cap at 100k entries to bound size.
+  cursors.claudeForkAliases = forkAliases;
   const allHashes = Array.from(seenMessageHashes);
   cursors.claudeHashes =
     allHashes.length > 100_000 ? allHashes.slice(allHashes.length - 100_000) : allHashes;
@@ -2679,6 +2712,7 @@ async function parseClaudeFile({
   projectRef,
   projectKey,
   seenMessageHashes,
+  forkAliases,
 }) {
   const st = fileStat || (await fs.stat(filePath).catch(() => null));
   if (!st || !st.isFile()) return { endOffset: startOffset, eventsAggregated: 0 };
@@ -2713,15 +2747,9 @@ async function parseClaudeFile({
           typeof content === "string" ||
           (Array.isArray(content) && content.some((b) => b?.type === "text"));
         if (hasText) {
-          // Dedup by the line's uuid so a synced copy of the session file
-          // (WSL mirror of a divergent native file, inode-reset re-read)
-          // cannot re-count the conversation. Usage rows get the same
-          // guarantee from claudeMessageDedupKey; user lines have no
-          // message.id, so the line uuid is the identity.
-          const userKey =
-            seenMessageHashes && typeof userObj?.uuid === "string" && userObj.uuid
-              ? `u:${userObj.uuid}`
-              : null;
+          // Copied user rows share their original identity through the full
+          // fork lineage. Token dedup remains independent.
+          const userKey = seenMessageHashes ? claudeUserIdentity(userObj, forkAliases) : null;
           if (!userKey || !seenMessageHashes.has(userKey)) {
             if (userKey) seenMessageHashes.add(userKey);
             const userTs = typeof userObj?.timestamp === "string" ? userObj.timestamp : null;
