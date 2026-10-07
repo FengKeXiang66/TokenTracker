@@ -52,15 +52,34 @@ fn ui_zoom_bridge(initial_zoom: f64) -> String {
   const MAX = {max};
   const BASELINE = {baseline};
   let zoom = BASELINE;
+  let revision = 0;
+  let sending = false;
+
+  const flush = async () => {{
+    if (sending) return;
+    sending = true;
+    try {{
+      while (true) {{
+        const sentRevision = revision;
+        try {{
+          const applied = await window.__TAURI_INTERNALS__
+            .invoke('set_ui_zoom', {{ value: zoom }});
+          if (sentRevision === revision && typeof applied === 'number' && Number.isFinite(applied)) {{
+            zoom = applied;
+          }}
+        }} catch (_) {{}}
+        if (sentRevision === revision) break;
+      }}
+    }} finally {{
+      sending = false;
+    }}
+  }};
 
   const apply = (next) => {{
-    const candidate = Math.min(Math.max(next, MIN), MAX);
-    window.__TAURI_INTERNALS__
-      .invoke('set_ui_zoom', {{ value: candidate }})
-      .then((applied) => {{
-        if (typeof applied === 'number') zoom = applied;
-      }})
-      .catch(() => {{}});
+    // Record intent before awaiting the host; coalesce bursts behind one write.
+    zoom = Math.round(Math.min(Math.max(next, MIN), MAX) * 10) / 10;
+    revision += 1;
+    void flush();
   }};
 
   window.addEventListener('keydown', (event) => {{
@@ -70,12 +89,15 @@ fn ui_zoom_bridge(initial_zoom: f64) -> String {
     // Resets to the level this launch started at rather than to 100%: on a
     // desktop configured for 150%, dropping back to 100% is the complaint.
     else if (event.key === '0') apply(BASELINE);
+    else return;
+    event.preventDefault();
   }});
 
   // `passive: false` so Ctrl + wheel zooms instead of scrolling.
   window.addEventListener('wheel', (event) => {{
     if (!event.ctrlKey) return;
     event.preventDefault();
+    if (!event.deltaY) return;
     apply(event.deltaY < 0 ? zoom + STEP : zoom - STEP);
   }}, {{ passive: false }});
 }})();"#,
