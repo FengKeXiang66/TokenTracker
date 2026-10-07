@@ -6,6 +6,24 @@ import XCTest
 /// already pins down here must hold on macOS too.
 final class SubscriptionCycleTests: XCTestCase {
 
+    func testManualSubscriptionWithoutProviderContentHasNoQuotaExplanation() {
+        XCTAssertTrue(SubscriptionSectionPolicy.usesSubscriptionOnly(
+            hasQuotaRows: false, hasResetContent: false, hasServiceStatus: false
+        ))
+    }
+
+    func testQuotaResetAndIncidentContentKeepTheProviderSection() {
+        for quota in [false, true] {
+            for reset in [false, true] {
+                for status in [false, true] where quota || reset || status {
+                    XCTAssertFalse(SubscriptionSectionPolicy.usesSubscriptionOnly(
+                        hasQuotaRows: quota, hasResetContent: reset, hasServiceStatus: status
+                    ))
+                }
+            }
+        }
+    }
+
     private static let dayMs: Double = 86400000
 
     /// 2026-08-16T06:00:00Z, matching the web fixture's default boundary.

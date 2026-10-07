@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 function read(relPath) {
-  return fs.readFileSync(path.join(__dirname, "..", relPath), "utf8");
+  return fs.readFileSync(path.join(__dirname, "..", relPath), "utf8").replace(/\r\n/g, "\n");
 }
 
 const usageLimitsViewPath = "TokenTrackerBar/TokenTrackerBar/Views/UsageLimitsView.swift";

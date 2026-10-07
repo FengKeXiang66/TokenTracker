@@ -1,5 +1,5 @@
 const assert = require("node:assert/strict");
-const { describe, it } = require("node:test");
+const { describe, it, afterEach } = require("node:test");
 const fs = require("node:fs");
 const net = require("node:net");
 const os = require("node:os");
@@ -641,6 +641,187 @@ describe("getUsageLimits claude data-age fields (stale + cached_at)", () => {
       assert.ok(result.claude.retry_at, "an active cooldown must expose retry_at for the client");
       const retryMs = Date.parse(result.claude.retry_at);
       assert.ok(retryMs > Date.now(), "retry_at must be a future instant");
+    } finally {
+      resetUsageLimitsCache();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("getUsageLimits reads Claude Code's cached usage", () => {
+  const CLAUDE_USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
+  const ACCOUNT = "11111111-2222-4333-8444-555555555555";
+
+  function writeClaudeCreds(home, token) {
+    const dir = path.join(home, ".claude");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, ".credentials.json"), JSON.stringify({ claudeAiOauth: { accessToken: token } }));
+  }
+
+  /** Write Claude Code's global config with a cached /api/oauth/usage body. */
+  function writeClaudeCodeConfig(dir, {
+    fetchedAtMs,
+    fiveHour,
+    cachedAccount = ACCOUNT,
+    currentAccount = ACCOUNT,
+    fiveHourResetMs = Date.now() + 3_600_000,
+    sevenDayResetMs = Date.now() + 86_400_000,
+  }) {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, ".claude.json"), JSON.stringify({
+      oauthAccount: { accountUuid: currentAccount },
+      cachedUsageUtilization: {
+        fetchedAtMs,
+        accountUuid: cachedAccount,
+        utilization: {
+          five_hour: { utilization: fiveHour, resets_at: new Date(fiveHourResetMs).toISOString() },
+          seven_day: { utilization: 12, resets_at: new Date(sevenDayResetMs).toISOString() },
+          limits: [],
+        },
+      },
+    }));
+  }
+
+  function writeOwnCache(home, { cachedAt, fiveHour }) {
+    const cacheDir = path.join(home, ".tokentracker", "tracker");
+    fs.mkdirSync(cacheDir, { recursive: true });
+    fs.writeFileSync(path.join(cacheDir, "claude-usage-limits-cache.json"), JSON.stringify({
+      claude: {
+        five_hour: { utilization: fiveHour, resets_at: new Date(Date.now() + 3_600_000).toISOString() },
+        seven_day: null, seven_day_opus: null, weekly_scoped: null, extra_usage: null,
+        cached_at: cachedAt,
+      },
+    }));
+  }
+
+  /** Run getUsageLimits on Linux with Claude's usage endpoint answering via `claudeResponse`. */
+  async function run(home, claudeResponse, extra = {}) {
+    return getUsageLimits({
+      home,
+      platform: "linux",
+      providerTimeoutMs: 2000,
+      securityRunner() { return { status: 1, stdout: "" }; },
+      commandRunner() { return { status: 1, stdout: "" }; },
+      fetchImpl(url) {
+        if (url === CLAUDE_USAGE_URL) return claudeResponse();
+        return Promise.reject(new Error("unmocked"));
+      },
+      ...extra,
+    });
+  }
+
+  const rateLimited = () => Promise.resolve({
+    ok: false,
+    status: 429,
+    headers: { get: (k) => (k === "retry-after" ? "3600" : null) },
+    json: async () => ({}),
+  });
+
+  it("serves Claude Code's newer cached read instead of our older cache when the live read 429s", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-limits-claude-code-cache-"));
+    try {
+      writeClaudeCreds(tmp, "sk-ant-oauth-cc-cache");
+      writeOwnCache(tmp, { cachedAt: new Date(Date.now() - 15 * 3_600_000).toISOString(), fiveHour: 80 });
+      const fetchedAtMs = Date.now() - 60 * 60 * 1000;
+      writeClaudeCodeConfig(tmp, { fetchedAtMs, fiveHour: 5 });
+
+      const result = await run(tmp, rateLimited);
+
+      assert.equal(result.claude.error, null);
+      assert.equal(result.claude.stale, true);
+      assert.equal(result.claude.five_hour.utilization, 5);
+      assert.equal(result.claude.seven_day.utilization, 12);
+      assert.equal(result.claude.cached_at, new Date(fetchedAtMs).toISOString());
+    } finally {
+      resetUsageLimitsCache();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("skips the usage API while Claude Code's cached read is within the fresh TTL", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-limits-claude-code-fresh-"));
+    try {
+      writeClaudeCreds(tmp, "sk-ant-oauth-cc-fresh");
+      writeClaudeCodeConfig(tmp, { fetchedAtMs: Date.now() - 2 * 60 * 1000, fiveHour: 33 });
+      let calls = 0;
+
+      const result = await run(tmp, () => { calls += 1; return rateLimited(); });
+
+      assert.equal(calls, 0, "a fresh Claude Code read must not spend another usage request");
+      assert.equal(result.claude.error, null);
+      assert.equal(result.claude.stale, false);
+      assert.equal(result.claude.five_hour.utilization, 33);
+    } finally {
+      resetUsageLimitsCache();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("ignores Claude Code's cached read when it belongs to another account", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-limits-claude-code-account-"));
+    try {
+      writeClaudeCreds(tmp, "sk-ant-oauth-cc-account");
+      const ownCachedAt = new Date(Date.now() - 3 * 3_600_000).toISOString();
+      writeOwnCache(tmp, { cachedAt: ownCachedAt, fiveHour: 70 });
+      writeClaudeCodeConfig(tmp, {
+        fetchedAtMs: Date.now() - 60 * 1000,
+        fiveHour: 1,
+        cachedAccount: "99999999-2222-4333-8444-555555555555",
+      });
+
+      const result = await run(tmp, rateLimited);
+
+      assert.equal(result.claude.five_hour.utilization, 70);
+      assert.equal(result.claude.cached_at, ownCachedAt);
+    } finally {
+      resetUsageLimitsCache();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("stays on the token's profile and ignores a $CLAUDE_CONFIG_DIR copy", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-limits-claude-code-configdir-"));
+    try {
+      writeClaudeCreds(tmp, "sk-ant-oauth-cc-configdir");
+      const ownCachedAt = new Date(Date.now() - 3 * 3_600_000).toISOString();
+      writeOwnCache(tmp, { cachedAt: ownCachedAt, fiveHour: 70 });
+      // The token comes from the default profile, so another profile's cache must not be used.
+      const configDir = path.join(tmp, "alt-claude");
+      writeClaudeCodeConfig(configDir, { fetchedAtMs: Date.now() - 60 * 1000, fiveHour: 21 });
+
+      const result = await run(tmp, rateLimited, { env: { CLAUDE_CONFIG_DIR: configDir } });
+
+      assert.equal(result.claude.five_hour.utilization, 70);
+      assert.equal(result.claude.cached_at, ownCachedAt);
+    } finally {
+      resetUsageLimitsCache();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps an older usable cache when Claude Code's newer read has only expired windows", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-limits-claude-code-expired-"));
+    try {
+      writeClaudeCreds(tmp, "sk-ant-oauth-cc-expired");
+      const ownCachedAt = new Date(Date.now() - 3 * 3_600_000).toISOString();
+      writeOwnCache(tmp, { cachedAt: ownCachedAt, fiveHour: 64 });
+      writeClaudeCodeConfig(tmp, {
+        fetchedAtMs: Date.now() - 60 * 60 * 1000,
+        fiveHour: 2,
+        fiveHourResetMs: Date.now() - 60 * 1000,
+        sevenDayResetMs: Date.now() - 60 * 1000,
+      });
+
+      const result = await run(tmp, rateLimited);
+
+      assert.equal(result.claude.error, null);
+      assert.equal(result.claude.five_hour.utilization, 64);
+      assert.equal(result.claude.cached_at, ownCachedAt);
     } finally {
       resetUsageLimitsCache();
       fs.rmSync(tmp, { recursive: true, force: true });
@@ -4472,6 +4653,127 @@ describe("fetchAntigravityLimits remote OAuth", () => {
       const quotaCalls = calls.filter((url) => url.includes("retrieveUserQuotaSummary"));
       assert.equal(quotaCalls[0], "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary");
       assert.ok(!quotaCalls.includes("https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary"));
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA opt-out", () => {
+  afterEach(() => {
+    delete process.env.TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA;
+    resetUsageLimitsCache();
+  });
+
+  it("does not serve a pre-existing aggregate from before the opt-out was set", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-optout-aggregate-"));
+    try {
+      writeAntigravityOauthToken(tmp);
+      const calls = [];
+      const opts = {
+        home: tmp,
+        platform: "linux",
+        providerTimeoutMs: 1000,
+        securityRunner() { return { status: 1, stdout: "" }; },
+        commandRunner() { return { status: 1, stdout: "" }; },
+        fetchImpl: antigravityRemoteFetchImpl({ calls }),
+      };
+
+      // Warm the aggregate cache while Antigravity is still enabled.
+      const before = await getUsageLimits(opts);
+      assert.equal(before.antigravity.configured, true);
+      assert.ok(calls.length > 0, "warm-up must actually hit the quota endpoint");
+
+      // Enabling the opt-out must not be answered from that cached aggregate.
+      process.env.TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA = "1";
+      const after = await getUsageLimits(opts);
+      assert.equal(after.antigravity.configured, false);
+      assert.equal(after.antigravity.cached, undefined);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("does not cache a pre-opt-out result into the post-opt-out slot when the flag flips mid-fetch", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-optout-inflight-"));
+    try {
+      writeAntigravityOauthToken(tmp);
+      const calls = [];
+      const opts = {
+        home: tmp,
+        platform: "linux",
+        providerTimeoutMs: 1000,
+        securityRunner() { return { status: 1, stdout: "" }; },
+        commandRunner() { return { status: 1, stdout: "" }; },
+        // Flip the opt-out only once the real Antigravity quota answer is in hand:
+        // the provider has already read credentials and produced live data, but the
+        // aggregate cache write has not happened yet. That is the exact window in
+        // which a re-derived selection key would file live data under the
+        // post-opt-out slot.
+        async fetchImpl(url, ...rest) {
+          const response = await antigravityRemoteFetchImpl({ calls })(url, ...rest);
+          if (String(url).includes("retrieveUserQuotaSummary")) {
+            process.env.TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA = "1";
+          }
+          return response;
+        },
+      };
+
+      await getUsageLimits(opts);
+      assert.ok(calls.length > 0, "the quota endpoint must be reached before the flip");
+
+      // No resetUsageLimitsCache() on purpose: the slot written by the in-flight
+      // fetch is exactly what must not answer a post-opt-out read.
+      const after = await getUsageLimits(opts);
+      assert.equal(after.antigravity.configured, false);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("skips credential reads and makes no remote fetch when set", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-optout-"));
+    try {
+      writeAntigravityOauthToken(tmp);
+      process.env.TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA = "1";
+      const calls = [];
+      const result = await fetchAntigravityLimits({
+        platform: "linux",
+        home: tmp,
+        commandRunner() { throw new Error("must not scan processes"); },
+        fetchImpl: antigravityRemoteFetchImpl({ calls }),
+        nowMs: Date.parse("2026-08-31T00:00:00.000Z"),
+      });
+      assert.deepEqual(result, { configured: false, error: null });
+      assert.deepEqual(calls, []);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("suppresses cached Antigravity limits when set", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-optout-cache-"));
+    try {
+      const trackerDir = path.join(tmp, ".tokentracker", "tracker");
+      fs.mkdirSync(trackerDir, { recursive: true });
+      fs.writeFileSync(path.join(trackerDir, "usage-limits-cache.json"), JSON.stringify({
+        antigravity: {
+          primary_window: { used_percent: 42, reset_at: "2099-05-22T00:00:00.000Z" },
+          cached_at: new Date(Date.now() - 60_000).toISOString(),
+        },
+      }));
+      process.env.TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA = "1";
+      const result = await getUsageLimits({
+        home: tmp,
+        platform: "linux",
+        providerTimeoutMs: 1000,
+        securityRunner() { return { status: 1, stdout: "" }; },
+        commandRunner() { return { status: 1, stdout: "" }; },
+        fetchImpl() { return new Promise(() => {}); },
+      });
+      assert.equal(result.antigravity.configured, false);
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
