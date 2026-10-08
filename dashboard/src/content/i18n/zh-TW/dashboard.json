@@ -922,5 +922,7 @@
   "cloud.devices.unlimited_self_hosted": "已登記 {{count}} 台同步裝置",
   "cloud.self_host.sync_hint": "上傳發往自部署實例，由營運者管理同步、儲存與保留策略，無需官方 Pro 會員。",
   "instance.connection.destination": "登入目標為 {{host}}，登入憑證會傳送到這個實例。",
-  "cloud.self_host.public_profile_disabled": "這個私有實例未啟用公開 Profile，不會向官方排行榜公開資料。"
+  "cloud.self_host.public_profile_disabled": "這個私有實例未啟用公開 Profile，不會向官方排行榜公開資料。",
+  "cloud.action.open_app": "在 TokenTracker 中開啟",
+  "cloud.checkout.return_app_hint": "回到已登入的桌面應用程式查詢這筆訂單，開通狀態由伺服器確認。"
 }

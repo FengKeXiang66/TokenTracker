@@ -455,5 +455,7 @@
   "dashboard.context_breakdown.heading": "コンテキスト内訳",
   "dashboard.context_breakdown.heading_claude": "Claude コンテキスト内訳",
   "dashboard.context_breakdown.heading_codex": "Codex コンテキスト内訳",
-  "dashboard.context_breakdown.heading_grok": "Grok コンテキスト内訳"
+  "dashboard.context_breakdown.heading_grok": "Grok コンテキスト内訳",
+  "cloud.action.open_app": "TokenTrackerで開く",
+  "cloud.checkout.return_app_hint": "デスクトップアプリにログイン中のアカウントでこの注文を確認します。アクセス権はサーバーが確認します。"
 }

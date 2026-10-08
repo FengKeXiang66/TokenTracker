@@ -1946,3 +1946,5 @@ cloud.self_host.public_profile_disabled,cloud,*,Cloud,text,Public profiles are n
 legal.nav.pricing,ui,*,LegalLinks,pricing,Pro pricing,,active
 legal.nav.terms,ui,*,LegalLinks,terms,Terms of Service,,active
 legal.nav.support,ui,*,LegalLinks,support,Support,,active
+cloud.action.open_app,cloud,CloudCheckoutPage,Cloud,link,Open in TokenTracker,,active
+cloud.checkout.return_app_hint,cloud,CloudCheckoutPage,Cloud,text,Check this order with the account signed in to your desktop app. The server confirms access.,,active

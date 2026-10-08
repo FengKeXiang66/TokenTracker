@@ -455,5 +455,7 @@
   "dashboard.context_breakdown.heading": "컨텍스트 분석",
   "dashboard.context_breakdown.heading_claude": "Claude 컨텍스트 분석",
   "dashboard.context_breakdown.heading_codex": "Codex 컨텍스트 분석",
-  "dashboard.context_breakdown.heading_grok": "Grok 컨텍스트 분석"
+  "dashboard.context_breakdown.heading_grok": "Grok 컨텍스트 분석",
+  "cloud.action.open_app": "TokenTracker에서 열기",
+  "cloud.checkout.return_app_hint": "데스크톱 앱에 로그인한 계정으로 이 주문을 확인하세요. 서버가 이용 권한을 확인합니다."
 }

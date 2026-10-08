@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   signedIn: true,
   userId: "account-1",
   phase: "active",
+  environment: "sandbox",
   providers: { waffo: true, alipay: false, wechat: false, paddle: false },
   getAccessToken: vi.fn(),
   external: vi.fn(),
@@ -74,7 +75,7 @@ vi.mock("../hooks/use-cloud-billing.js", async () => {
   return {
     useCloudCatalog: () => mocks.actualCatalog ? actual.useCloudCatalog() : ({
       catalog: {
-        environment: "sandbox",
+        environment: mocks.environment,
         policy: { phase: mocks.phase, launch_at: "2000-01-01", hosting_mode: mocks.hostingMode },
         prices,
         providers: mocks.providers,
@@ -155,8 +156,10 @@ beforeEach(() => {
   mocks.userId = "account-1";
   mocks.signedIn = true;
   mocks.phase = "active";
+  mocks.environment = "sandbox";
   mocks.providers = { waffo: true, alipay: false, wechat: false, paddle: false };
   window.matchMedia = vi.fn().mockReturnValue({ matches: false });
+  Object.defineProperty(navigator, "maxTouchPoints", { configurable: true, get: () => 0 });
 });
 afterEach(() => {
   cleanup();
@@ -166,6 +169,38 @@ afterEach(() => {
 });
 
 describe("Cloud pricing and checkout", () => {
+  it("lets a signed-out desktop browser return an order reference without claiming payment or calling the order API", () => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Macintosh");
+    vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
+    mocks.environment = "live";
+    mocks.signedIn = false;
+    show(`/billing/checkout?order=${orderId.toUpperCase()}`);
+    expect(screen.getByRole("link", { name: "Open in TokenTracker" })).toHaveAttribute("href",
+      `tokentracker://billing/return?order=${orderId}`);
+    expect(screen.queryByRole("heading", { name: "Your Pro access is ready" })).not.toBeInTheDocument();
+    expect(mocks.request).not.toHaveBeenCalled();
+  });
+  it("keeps the app return available on a Windows touch desktop", () => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Windows NT 10.0");
+    vi.spyOn(navigator, "platform", "get").mockReturnValue("Win32");
+    vi.spyOn(navigator, "maxTouchPoints", "get").mockReturnValue(5);
+    mocks.environment = "live";
+    mocks.signedIn = false;
+    show(`/billing/checkout?order=${orderId}`);
+    expect(screen.getByRole("link", { name: "Open in TokenTracker" })).toHaveAttribute("href",
+      `tokentracker://billing/return?order=${orderId}`);
+  });
+  it.each(["sandbox", "native", "mobile", "tablet", "invalid", "trial", "duplicate"])("does not offer an ordinary app return for %s context", (context) => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(context === "mobile" ? "iPhone" : "Macintosh");
+    vi.spyOn(navigator, "platform", "get").mockReturnValue(context === "mobile" ? "iPhone" : "MacIntel");
+    if (context === "tablet") vi.spyOn(navigator, "maxTouchPoints", "get").mockReturnValue(5);
+    mocks.environment = context === "sandbox" ? "sandbox" : "live";
+    mocks.signedIn = false;
+    if (context === "native") vi.stubGlobal("webkit", { messageHandlers: { nativeBridge: {} } });
+    show(`/billing/checkout?order=${context === "invalid" ? "not-a-uuid" : orderId}${context === "trial" ? "&intent=trial" : context === "duplicate" ? `&order=${orderId}` : ""}`);
+    expect(screen.queryByRole("link", { name: "Open in TokenTracker" })).not.toBeInTheDocument();
+    expect(mocks.request).not.toHaveBeenCalled();
+  });
   it.each([CloudPage, CloudCheckoutPage])("shows a free private-instance state instead of official pricing or checkout", (Page) => {
     mocks.hostingMode = "self_hosted";
     show(Page === CloudPage ? "/cloud" : `/billing/checkout?order=${orderId}`, Page);

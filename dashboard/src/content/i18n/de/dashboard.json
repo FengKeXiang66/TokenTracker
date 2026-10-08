@@ -466,5 +466,7 @@
   "dashboard.context_breakdown.heading": "Kontextaufschlüsselung",
   "dashboard.context_breakdown.heading_claude": "Claude Kontextaufschlüsselung",
   "dashboard.context_breakdown.heading_codex": "Codex Kontextaufschlüsselung",
-  "dashboard.context_breakdown.heading_grok": "Grok Kontextaufschlüsselung"
+  "dashboard.context_breakdown.heading_grok": "Grok Kontextaufschlüsselung",
+  "cloud.action.open_app": "In TokenTracker öffnen",
+  "cloud.checkout.return_app_hint": "Prüfe diese Bestellung mit dem Konto in deiner Desktop-App. Der Server bestätigt den Zugang."
 }

@@ -435,7 +435,7 @@ internal sealed class DashboardWindow : Window
         // Top-level navigations away from the local server go to the system browser.
         core.NavigationStarting += (_, e) =>
         {
-            Log($"nav starting uri={e.Uri}");
+            Log($"nav starting uriPresent={!string.IsNullOrEmpty(e.Uri)} uriLen={e.Uri?.Length ?? 0}");
             if (Uri.TryCreate(e.Uri, UriKind.Absolute, out var uri)
                 && uri.Scheme is "http" or "https"
                 && uri.Host is not ("127.0.0.1" or "localhost"))
@@ -449,7 +449,7 @@ internal sealed class DashboardWindow : Window
         {
             try
             {
-                Log($"nav completed uri={_webView.CoreWebView2.Source}");
+                Log($"nav completed uriPresent={!string.IsNullOrEmpty(_webView.CoreWebView2.Source)} uriLen={_webView.CoreWebView2.Source?.Length ?? 0}");
                 if (_oauthInFlight
                     && Uri.TryCreate(_webView.CoreWebView2.Source, UriKind.Absolute, out var completedUri)
                     && completedUri.AbsolutePath is "/" or "/dashboard")
@@ -470,7 +470,7 @@ internal sealed class DashboardWindow : Window
         // does, so we can observe the callback page's client-side redirect to /dashboard.
         core.HistoryChanged += (_, _) =>
         {
-            try { Log($"history changed uri={_webView.CoreWebView2.Source}"); } catch { }
+            try { Log($"history changed uriPresent={!string.IsNullOrEmpty(_webView.CoreWebView2.Source)} uriLen={_webView.CoreWebView2.Source?.Length ?? 0}"); } catch { }
         };
 
         // The injected script posts setting changes, and the injected title bar
@@ -496,7 +496,7 @@ internal sealed class DashboardWindow : Window
                     if (t.GetString() == "oauth"
                         && doc.RootElement.TryGetProperty("url", out var u) && u.GetString() is { } url)
                     {
-                        Log($"oauth open url={url}");
+                        Log($"oauth open urlPresent={!string.IsNullOrEmpty(url)} urlLen={url.Length}");
                         BeginNativeOAuth();
                         OpenInBrowser(url);
                     }
@@ -1042,11 +1042,18 @@ internal sealed class DashboardWindow : Window
             try
             {
                 var path = await _webView.CoreWebView2.ExecuteScriptAsync("location.pathname");
-                Log($"post-callback path={path} → reloading /?app=1");
+                Log($"post-callback pathPresent={!string.IsNullOrEmpty(path)} pathLen={path?.Length ?? 0}; reloading dashboard");
             }
             catch { /* window closed / page navigating */ }
             NavigateWhenServerReady("/?app=1");
         });
+    }
+
+    public void HandleBillingReturn(Guid order)
+    {
+        Log("HandleBillingReturn type=billing");
+        ShowDashboard();
+        NavigateWhenServerReady(NativeReturnUri.CheckoutPath(order));
     }
 
     /// <summary>Diagnostics → %LOCALAPPDATA%\TokenTracker\windows-host.log (shared with ServerManager).</summary>

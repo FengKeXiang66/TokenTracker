@@ -36,6 +36,8 @@ import {
   saveCloudPurchase,
 } from "../lib/cloud-checkout.js";
 import { copy } from "../lib/copy";
+import { detectOS } from "../lib/os";
+import { isNativeEmbed, isNativeWindowsApp, isNativeLinuxApp } from "../lib/native-bridge.js";
 import { Button } from "../ui/components/Button.jsx";
 import { Card } from "../ui/components/Card.jsx";
 
@@ -110,6 +112,12 @@ export function CloudCheckoutPage() {
   const requestAuth = auth?.getAccessToken;
   const recent = readCloudPurchase(userId);
   const signInUrl = `/login?next=${encodeURIComponent(`/billing/checkout?${params}`)}`;
+  const desktopReturnUrl = catalog?.environment === "live" && !trialIntent &&
+    params.getAll("order").length === 1 && CLOUD_ORDER_ID_PATTERN.test(orderId) &&
+    ["mac", "windows"].includes(detectOS()) &&
+    !(navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) &&
+    !isNativeEmbed() && !isNativeWindowsApp() && !isNativeLinuxApp()
+      ? `tokentracker://billing/return?order=${orderId.toLowerCase()}` : null;
   useEffect(() => {
     mounted.current = true;
     return () => { mounted.current = false; };
@@ -557,7 +565,19 @@ export function CloudCheckoutPage() {
         {paymentConflict ? <div className="mt-5"><CloudPaymentConflictNotice /></div> : null}
 
         <div className="mt-7 grid items-start gap-5 md:grid-cols-[minmax(0,1fr)_18rem]">
-          <Card bodyClassName="sm:p-7">{contentNode}</Card>
+          <Card bodyClassName="sm:p-7">
+            {contentNode}
+            {desktopReturnUrl ? (
+              <div className="mt-5 space-y-3 border-t border-oai-gray-200 pt-5 dark:border-oai-gray-800">
+                <p className="text-sm leading-6 text-oai-gray-500 dark:text-oai-gray-400">
+                  {copy("cloud.checkout.return_app_hint")}
+                </p>
+                <Button as="a" href={desktopReturnUrl} variant="secondary" className="w-full no-underline">
+                  {copy("cloud.action.open_app")}
+                </Button>
+              </div>
+            ) : null}
+          </Card>
 
           <Card>
             <h2 className="text-sm font-semibold">

@@ -863,5 +863,7 @@
   "cloud.devices.unlimited_self_hosted": "已登记 {{count}} 台同步设备",
   "cloud.self_host.sync_hint": "上报发往自部署实例，由运营者管理同步、存储与保留策略，无需官方 Pro 会员。",
   "instance.connection.destination": "登录目标为 {{host}}，登录凭证会发送到这个实例。",
-  "cloud.self_host.public_profile_disabled": "这个私有实例未启用公开 Profile，不会向官方排行榜公开资料。"
+  "cloud.self_host.public_profile_disabled": "这个私有实例未启用公开 Profile，不会向官方排行榜公开资料。",
+  "cloud.action.open_app": "在 TokenTracker 中打开",
+  "cloud.checkout.return_app_hint": "回到已登录的桌面应用中查询该订单，开通状态由服务端确认。"
 }
