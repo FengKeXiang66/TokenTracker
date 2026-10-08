@@ -766,5 +766,8 @@
   "settings.appearance.token_grouping.label": "數字分組",
   "settings.appearance.token_grouping.hint": "精確數字使用 3 位或中文 4 位分組；精簡模式的懸停數值也會使用該設定。",
   "settings.appearance.token_grouping.thousand": "3位",
-  "settings.appearance.token_grouping.wan": "4位"
+  "settings.appearance.token_grouping.wan": "4位",
+  "legal.nav.pricing": "Cloud 價格",
+  "legal.nav.terms": "服務條款",
+  "legal.nav.support": "聯絡客服"
 }
