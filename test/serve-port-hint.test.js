@@ -422,6 +422,18 @@ test("real serve entry exits duplicate cleanly without replacing the first proce
   await waitForLocalAuth(port, CURRENT_PACKAGE_VERSION);
   assert.equal(first.exitCode, null, `first serve exited early: ${firstOutput.stderr}`);
 
+  // Exercise the real serve preflight dispatch, which runs before API routing.
+  for (const [origin, expected] of [["https://untrusted.example.invalid", 403], ["null", 403],
+    [`http://127.0.0.1:${port}`, 204]]) {
+    const response = await fetch(`http://127.0.0.1:${port}/api/auth/refresh`, {
+      method: "OPTIONS", headers: { Origin: origin },
+    });
+    assert.equal(response.status, expected);
+    assert.equal(response.headers.get("access-control-allow-origin"), null);
+    assert.equal(response.headers.get("set-cookie"), null);
+    if (expected === 403) assert.equal((await response.json()).code, "untrusted_auth_origin");
+  }
+
   const second = cp.spawn(process.execPath, args, {
     env,
     stdio: ["ignore", "pipe", "pipe"],

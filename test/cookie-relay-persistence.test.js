@@ -57,6 +57,80 @@ function getCookiePath(home) {
   return path.join(home, ".tokentracker", "tracker", "relay-cookies.json");
 }
 
+test("foreign browser auth requests cannot read or change the persisted session", async () => {
+  await withTempHome(async (home) => {
+    const cookiePath = getCookiePath(home);
+    const original = JSON.stringify({
+      insforge_refresh_token: "insforge_refresh_token=persisted-refresh-token; Path=/; HttpOnly",
+    });
+    await fs.writeFile(cookiePath, original, "utf8");
+    const handler = createLocalApiHandler({ queuePath: path.join(path.dirname(cookiePath), "queue.jsonl") });
+    let upstreamCalls = 0;
+    globalThis.fetch = async () => {
+      upstreamCalls += 1;
+      return new Response('{"accessToken":"leaked-access","refreshToken":"leaked-refresh"}', {
+        headers: { "content-type": "application/json", "access-control-allow-origin": "https://untrusted.example.invalid" },
+      });
+    };
+    const headersList = [
+      { origin: "https://untrusted.example.invalid" },
+      { origin: "http://untrusted.example.invalid" },
+      { origin: "null" },
+      { origin: "http://localhost.untrusted.example.invalid" },
+      { referer: "https://untrusted.example.invalid/" },
+      { origin: "http://127.0.0.1:8791", referer: "https://untrusted.example.invalid/" },
+    ];
+    for (const headers of headersList) {
+      for (const [method, route] of [
+        ["POST", "refresh"], ["OPTIONS", "refresh"], ["POST", "logout"],
+        ["POST", "sign-in"], ["POST", "oauth/exchange"], ["GET", "sessions"],
+      ]) {
+        const res = createResponse();
+        assert.equal(await handler(createRequest({ method, headers, body: "{}" }), res,
+          new URL(`http://127.0.0.1:8791/api/auth/${route}`)), true);
+        assert.equal(res.statusCode, 403);
+        assert.equal(JSON.parse(res.body.toString()).code, "untrusted_auth_origin");
+        assert.equal(res.headers["access-control-allow-origin"], undefined);
+        assert.equal(res.headers["set-cookie"], undefined);
+        assert.equal(await fs.readFile(cookiePath, "utf8"), original);
+      }
+    }
+    assert.equal(upstreamCalls, 0);
+  });
+});
+
+test("local browser and native auth recovery can still use the persisted refresh token", async () => {
+  await withTempHome(async (home) => {
+    const cookiePath = getCookiePath(home);
+    await fs.writeFile(cookiePath, JSON.stringify({
+      insforge_refresh_token: "insforge_refresh_token=persisted-refresh-token; Path=/; HttpOnly",
+    }), "utf8");
+    const handler = createLocalApiHandler({ queuePath: path.join(path.dirname(cookiePath), "queue.jsonl") });
+    let upstreamCalls = 0;
+    globalThis.fetch = async (url, options) => {
+      assert.equal(url, "https://relay.example.test/api/auth/refresh?client_type=mobile");
+      assert.equal(JSON.parse(options.body.toString()).refresh_token, "persisted-refresh-token");
+      upstreamCalls += 1;
+      return new Response("{}", { headers: { "content-type": "application/json" } });
+    };
+    const preflight = createResponse();
+    await handler(createRequest({ method: "OPTIONS", headers: { origin: "http://127.0.0.1:8791" } }), preflight,
+      new URL("http://127.0.0.1:8791/api/auth/refresh"));
+    assert.equal(preflight.statusCode, 204);
+    assert.equal(upstreamCalls, 0);
+    for (const headers of [
+      {}, { origin: "http://127.0.0.1:8791" }, { origin: "http://localhost:8791" },
+      { origin: "http://[::1]:8791" }, { referer: "http://localhost:8791/auth/native-callback" },
+    ]) {
+      const res = createResponse();
+      await handler(createRequest({ method: "POST", headers, body: "{}" }), res,
+        new URL("http://127.0.0.1:8791/api/auth/refresh"));
+      assert.equal(res.statusCode, 200);
+    }
+    assert.equal(upstreamCalls, 5);
+  });
+});
+
 test("auth proxy loads persisted relay cookies into outbound requests", async () => {
   await withTempHome(async (home) => {
     const cookiePath = getCookiePath(home);

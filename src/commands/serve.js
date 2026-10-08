@@ -159,7 +159,7 @@ async function cmdServe(argv) {
       const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
 
       // CORS preflight
-      if (req.method === "OPTIONS") {
+      if (req.method === "OPTIONS" && !url.pathname.startsWith("/api/auth/")) {
         res.writeHead(204, {
           "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type, Authorization",

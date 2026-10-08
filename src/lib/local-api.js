@@ -1769,6 +1769,22 @@ function createLocalApiHandler({ queuePath, serverVersion = null, trackerDataDir
 
   return async function handleLocalApi(req, res, url) {
     const p = url.pathname;
+    // The relay can recover a session without browser cookies. Reject foreign
+    // pages before reading or changing that session, including preflights.
+    if (p.startsWith("/api/auth/")) {
+      if (!hasAllowedLoopbackOrigin(req.headers || {})) {
+        json(res, { code: "untrusted_auth_origin", error: "Authentication requests must come from the local dashboard." }, 403);
+        return true;
+      }
+      if (String(req.method).toUpperCase() === "OPTIONS") {
+        res.writeHead(204, {
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        });
+        res.end();
+        return true;
+      }
+    }
     const selectedRuntime = getRuntime();
     const callerInstance = req.headers?.["x-tokentracker-instance"];
     if (callerInstance && normalizeInstanceBaseUrl(callerInstance) !== selectedRuntime.baseUrl) {
