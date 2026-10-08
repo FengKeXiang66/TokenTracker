@@ -1769,10 +1769,11 @@ function createLocalApiHandler({ queuePath, serverVersion = null, trackerDataDir
 
   return async function handleLocalApi(req, res, url) {
     const p = url.pathname;
-    // The relay can recover a session without browser cookies. Reject foreign
-    // pages before reading or changing that session, including preflights.
-    if (p.startsWith("/api/auth/")) {
-      if (!hasAllowedLoopbackOrigin(req.headers || {})) {
+    // Session recovery and the one-time native callback marker belong to local
+    // clients. Reject foreign requests before consuming either, including preflights.
+    const nativeMarkerRead = p === "/api/auth-bridge/verifier" && String(req.method).toUpperCase() === "GET";
+    if (p.startsWith("/api/auth/") || nativeMarkerRead) {
+      if (!hasAllowedLoopbackOrigin(req.headers || {}) || req.headers?.["sec-fetch-site"] === "cross-site") {
         json(res, { code: "untrusted_auth_origin", error: "Authentication requests must come from the local dashboard." }, 403);
         return true;
       }

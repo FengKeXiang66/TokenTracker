@@ -79,6 +79,7 @@ test("foreign browser auth requests cannot read or change the persisted session"
       { origin: "http://localhost.untrusted.example.invalid" },
       { referer: "https://untrusted.example.invalid/" },
       { origin: "http://127.0.0.1:8791", referer: "https://untrusted.example.invalid/" },
+      { "sec-fetch-site": "cross-site" },
     ];
     for (const headers of headersList) {
       for (const [method, route] of [
@@ -121,13 +122,14 @@ test("local browser and native auth recovery can still use the persisted refresh
     for (const headers of [
       {}, { origin: "http://127.0.0.1:8791" }, { origin: "http://localhost:8791" },
       { origin: "http://[::1]:8791" }, { referer: "http://localhost:8791/auth/native-callback" },
+      { "sec-fetch-site": "same-origin" },
     ]) {
       const res = createResponse();
       await handler(createRequest({ method: "POST", headers, body: "{}" }), res,
         new URL("http://127.0.0.1:8791/api/auth/refresh"));
       assert.equal(res.statusCode, 200);
     }
-    assert.equal(upstreamCalls, 5);
+    assert.equal(upstreamCalls, 6);
   });
 });
 

@@ -433,6 +433,17 @@ test("real serve entry exits duplicate cleanly without replacing the first proce
     assert.equal(response.headers.get("set-cookie"), null);
     if (expected === 403) assert.equal((await response.json()).code, "untrusted_auth_origin");
   }
+  const { token: localToken } = await (await fetch(`http://127.0.0.1:${port}/api/local-auth`)).json();
+  const markerUrl = `http://127.0.0.1:${port}/api/auth-bridge/verifier`;
+  const marked = await fetch(markerUrl, { method: "PUT",
+    headers: { "Content-Type": "application/json", "X-TokenTracker-Local-Auth": localToken },
+    body: JSON.stringify({ native: true }) });
+  assert.equal(marked.status, 200);
+  const foreignMarker = await fetch(markerUrl, { headers: { "Sec-Fetch-Site": "cross-site" } });
+  assert.equal(foreignMarker.status, 403);
+  const localMarker = await fetch(markerUrl);
+  assert.equal((await localMarker.json()).native, true);
+  assert.equal((await (await fetch(markerUrl)).json()).native, false);
 
   const second = cp.spawn(process.execPath, args, {
     env,

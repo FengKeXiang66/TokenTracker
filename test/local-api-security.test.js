@@ -77,6 +77,29 @@ async function getLocalAuthToken(handler) {
   return body.token;
 }
 
+test("foreign pages cannot consume the one-time native OAuth callback marker", async () => {
+  const { createLocalApiHandler } = require("../src/lib/local-api");
+  const handler = createLocalApiHandler({ queuePath: path.join(process.env.HOME, "queue.jsonl") });
+  const token = await getLocalAuthToken(handler);
+  const url = new URL("http://127.0.0.1:7680/api/auth-bridge/verifier");
+  const marked = createResponse();
+  await handler(createRequest({ method: "PUT", headers: { "x-tokentracker-local-auth": token },
+    body: JSON.stringify({ native: true }) }), marked, url);
+  assert.equal(marked.statusCode, 200);
+  for (const headers of [{ origin: "https://untrusted.example.invalid" }, { origin: "null" },
+    { referer: "https://untrusted.example.invalid/" }, { "sec-fetch-site": "cross-site" }]) {
+    const res = createResponse();
+    await handler(createRequest({ headers }), res, url);
+    assert.equal(res.statusCode, 403);
+  }
+  for (const expected of [true, false]) {
+    const res = createResponse();
+    await handler(createRequest({ headers: { referer: "http://127.0.0.1:7680/auth/callback" } }), res, url);
+    assert.equal(res.statusCode, 200);
+    assert.equal(JSON.parse(res.body.toString()).native, expected);
+  }
+});
+
 function loadLocalApiWithSpawn(fakeSpawn) {
   const childProcess = require("node:child_process");
   const cloudAccount = require("../src/lib/cloud-account");
