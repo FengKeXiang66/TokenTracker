@@ -4,6 +4,18 @@
 
 这里需要的是 Windows 客户端测试电脑。官方后端仍使用现有付费 InsForge，付款由 Waffo 处理，不需要 Windows 服务器。
 
+## 2026-10-09 Mac 接续
+
+Windows端工作结束后，Mac已快进整合`e40f47f4`，继续修复本地认证及支付返回。新普通Windows入口仅接受`tokentracker://billing/return?order=<canonical UUID>`，导航到当前本地后端的结账查询页；不从链接授予权益或指定账号/环境。正常OAuth回调保持，导航、history和入口日志不再输出完整URL/code。
+
+这6个Windows文件经独立review；官方.NET8.0.425在Mac ARM64执行117/117单测，Release/win-x64交叉编译零警告、零错误。该结果没有新的Windows GUI或OS协议导航证明，下文63项实机单测及窗口证据仍绑定旧源码。最新前端1129项与后端3818项通过、2项跳过，均为Mac验证。
+
+既有InsForge已增加独立的真实QA网关和HTTPS返回页，身份仍由真实InsForge签发；详见[原生沙盒手册](native-sandbox-gateway-runbook.md)。普通包不自动连接QA网关，也不携带沙盒密码、JWT、刷新token或Waffo私钥。另一台电脑从功能分支重新构建；当前Mac本地测试包仅作交叉打包证据。
+
+最新交叉测试包为`.tmp/waffo/hosted/native/TokenTracker-current-private-cloud-win-x64.zip`，来源代码`60780e40863ca20416641b0c14f9a1151ac2e507`。大小111609766字节，SHA256为`1a36e7a9cc2838ae341d2f980ab3e3b9f9536544268da3707e4d33ea054aa8ba`。975个文件独立解压后逐字节和SHA一致；102份CLI、1份入口、274份Windows网页与各自产物集合相同，609份相关源码与该commit的Git blob一致。
+
+Windows网页按现有发布流程以`TOKENTRACKER_BUILD_PET=1`独立构建，包含`index.html`、`pet.html`、`quota.html`和全部法律页面。未复用Mac无宠物入口的网页产物。使用官方Node22.22.2已校验缓存和.NET8.0.425自包含发布，运行时8.0.31。没有执行Windows、安装器或协议导航；这份包替代下文旧ZIP作为本轮工程测试包，源码与包核对不能代替设备验收。
+
 ## Windows 本机接续记录
 
 构建验收的源码为 `8e45d91e43456d841b02002532cc6135e4a0a84d`，随后已快进至 `df051a64b230836bbc6bc69d1275d8f22dd6ee22`；远端新增提交仅更新三份交接文档，应用源码与测试包保持一致。本轮修改仅涉及 Git 换行约定、构建校验脚本、测试及验收文档；应用版本仍为 1.1.13，没有发布或启用生产收费。

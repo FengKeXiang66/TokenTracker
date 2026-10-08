@@ -47,7 +47,7 @@ node --test test/cloud-native-sandbox-gateway.test.js
 deno check --node-modules-dir=none scripts/cloud-sandbox/native-gateway.ts
 ```
 
-Root first records the existing project/deployment metadata and original function source hashes. The current project has no InsForge frontend deployment. Deploy only the generated standalone source directory for a new test return site; it contains a package, build script, static return page and route/header configuration. Do not deploy the current full Dashboard, copy an env file, buy hosting or create another cloud project. Review the CLI's deployment mutations and resulting stable HTTPS origin before applying it.
+Root first records the existing project/deployment metadata and original function source hashes. Before this acceptance, the project had no frontend deployment. The new standalone QA return site is now ready at `https://srctyff5.insforge.site`. Its source directory contains only the package, build script, static page and route/header configuration. It is separate from the full Dashboard and contains no env or credentials. Do not deploy the full Dashboard or enable production billing as part of this test.
 
 Root configures only sandbox settings: `TOKENTRACKER_SANDBOX_GATEWAY_USER_IDS`, `TOKENTRACKER_SANDBOX_GATEWAY_ORIGINS` (exact approved HTTPS or HTTP loopback origins), and `TOKENTRACKER_SANDBOX_BILLING_SITE_URL` (the new bare HTTPS origin). Ensure each actor is on the existing access roster, eligible actors on the finance roster, and on the actual QA DB allowed-user list. Those changes are server-side. Never add production merchant credentials or change the global billing environment.
 
@@ -71,4 +71,13 @@ If a later separately authorized checkout test opens a provider URL, require exa
 
 ## Evidence and remaining checks
 
-Local tests and Deno checks prove code guards, not native or hosted acceptance. After deployment, record real profile/identity, read-only account/order/device requests, QA token hash/owner/environment lookup and rejection of a live-table token. Native evidence must cover namespace mismatch, actual reload recovery, owned paid-order return, duplicate/unowned/foreign-realm refusal, original sources/policy unchanged, and no secret/personal-data output. Windows operation and its permission window belong to the coordinating parent. Keep those checks pending until actual evidence exists.
+2026-10-09 acceptance has these actual results:
+
+- The gateway source hash is `4c4de1062e43840d634a3fdb78ec235b27bc21c4d31c60181d6fcc45b5b7f679`. Thirteen real HTTPS checks cover identity, actual paid order/account/devices and unsigned/tampered JWT, origin, realm, API-key and environment rejection. One real QA-issued device token resolves to its sandbox owner and is rejected by original live ingest. No new transactions were created.
+- The return HTML, JavaScript and CSS each return HTTP200 and match built sources, with CSP and no-store headers. This proves hosting, not OS dispatch.
+- The isolated Mac QA window displays the actual sandbox actor, paid term, cancellation and refunds. The normal account UI recovers the existing order by ID; after logout and WebView recreation it stays signed out. Its source/binary record is kept separate from later builds.
+- Original23 function metadata and52 RPC definitions remain unchanged; live policy is preview with no launch date and0 orders.
+
+Browser Use explicitly refused the external-protocol click. Do not attempt the same navigation through another browser, CLI or GUI surface. Browser→OS→App remains a manual-device acceptance step; the internal order recovery does not prove it. A human should click the QA page's return button while the owned QA run is signed in. The engineer then checks the actor/realm/order and the unchanged real ledger. This requires no repeat purchase or refund.
+
+The ordinary app has a separate order-only `tokentracker://billing/return?order=<UUID>` parser on Mac and Windows. It opens the current local order page and has no sandbox realm or entitlement logic. Latest Windows parser tests run on Mac; the existing older Windows window evidence does not prove the new OS return path or installer. Keep those device steps pending until actually observed.
