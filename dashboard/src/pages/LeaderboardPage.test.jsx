@@ -495,6 +495,7 @@ describe("LeaderboardPage window-session cache reuse", () => {
     });
   });
 
+  // Two full-table userEvent transitions can exceed 5s on Windows under load.
   it("does not show old context data after period changes, but reuses matching cached context when returning", async () => {
     const user = userEvent.setup();
     const totalContextKey = getLeaderboardPreloadContextKey({
@@ -544,7 +545,7 @@ describe("LeaderboardPage window-session cache reuse", () => {
     });
 
     expect(screen.getAllByText("Preloaded User").length).toBeGreaterThan(0);
-  });
+  }, 15000);
 
   it("clears the visible rows instead of rendering stale data when switching to an uncached context", async () => {
     const user = userEvent.setup();

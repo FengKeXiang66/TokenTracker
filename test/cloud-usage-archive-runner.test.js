@@ -84,7 +84,9 @@ test('CLI apply checkpoints before preparing and respects its one-day bound', as
   assert.equal(await count('tokentracker_hourly', f.user), 2);
   assert.equal(await count('tokentracker_usage_archive_manifest', f.user), 1);
   assert.ok(!JSON.stringify(checkpoint).includes(key)); assert.ok(!result.stdout.includes(key));
-  assert.equal((await fs.stat(f.checkpoint)).mode & 0o777, 0o600);
+  // Windows reports synthetic mode bits; chmod does not model NTFS ACLs.
+  if (process.platform !== 'win32')
+    assert.equal((await fs.stat(f.checkpoint)).mode & 0o777, 0o600);
   await assert.rejects(cli(f, ['--apply', '--limit', '1']), error => /Checkpoint already exists/.test(error.stderr));
 });
 

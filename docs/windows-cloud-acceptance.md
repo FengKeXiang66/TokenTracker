@@ -1,10 +1,50 @@
 # Windows 客户端验收交接
 
-2026-10-08 13:08 UTC 更新。按用户要求，Windows 实机验收等测试电脑准备好后接续，不阻塞 Web 和 InsForge 后端工作。
+2026-10-08（Asia/Shanghai）更新。已从远端拉取 `feat/cloud-subscriptions`，在 Windows 完成本地构建、原生窗口和浏览器交接验证。完整登录、沙盒支付返回和安装器生命周期仍待验收。
 
 这里需要的是 Windows 客户端测试电脑。官方后端仍使用现有付费 InsForge，付款由 Waffo 处理，不需要 Windows 服务器。
 
-## 已完成
+## Windows 本机接续记录
+
+构建验收的源码为 `8e45d91e43456d841b02002532cc6135e4a0a84d`，随后已快进至 `df051a64b230836bbc6bc69d1275d8f22dd6ee22`；远端新增提交仅更新三份交接文档，应用源码与测试包保持一致。本轮修改仅涉及 Git 换行约定、构建校验脚本、测试及验收文档；应用版本仍为 1.1.13，没有发布或启用生产收费。
+
+环境：Windows 11 专业版 10.0.22000、官方 .NET SDK 8.0.425、Windows Node 22.22.2（官方 SHA256 校验通过）、WebView2 Runtime 120.0.2210.133、WebView2 SDK 1.0.4258.31。系统浏览器交接请求的 UA 为 Chrome 154。
+
+| 项目 | 本机结果 |
+| --- | --- |
+| 自包含发布 | `dotnet publish -c Release -r win-x64 --self-contained true` 成功 |
+| 原生单测 | 63/63 通过，TRX 保存在本地证据目录 |
+| 前端全量 | 135 个文件、1120/1120 通过 |
+| Cloud / 自部署 / 同步 / Windows 目标组 | 456 项通过、1 项跳过、0 失败 |
+| 校验及类型检查 | copy、locale、UI hardcode、guardrails、versions、bot frames、Dashboard typecheck 均通过；架构及 bot parity 共 13 项通过 |
+| 函数构建 | 18 个 Cloud 函数、14 个自部署函数在 Windows 构建成功；未部署 |
+| 发布 DLL 原生集成测试 | 29 项通过。通过 WPF 调用本次 `publish/TokenTracker.dll` 的真实 `ServerManager` 和 `DashboardWindow`，不是浏览器中模拟 native bridge |
+| 嵌入运行时 | 实际 Windows Node 启动本地动态端口；首页、runtime config、pet、quota、pricing、terms、privacy 均 HTTP 200 |
+| WebView2 | 本地用量、Pro、自部署、设置、结账页面实际渲染并保存截图；无整页横向溢出；关闭后隐藏，重新打开复用原 WebView2 |
+| 系统浏览器 | `openURL` 消息触发系统浏览器访问临时 loopback 测试页，实际收到 HTTP 请求；带用户名密码的 URL 未到达测试端点。没有创建支付订单 |
+| 嵌入源码一致性 | 105 个 CLI/入口/依赖清单文件、275 个 Dashboard 产物与本机源文件逐字节一致 |
+| Portable ZIP | 独立解压，982/982 文件 SHA256 一致；115695913 字节 |
+
+测试使用独立的 CLI 数据和 WebView2 profile。调用系统浏览器时使用已有浏览器配置，避免隔离 AppData 触发浏览器首次启动；没有登录或提交付款。窗口集成测试结束后停止其本地服务。
+
+本机测试包为 `.tmp/windows-cloud/TokenTracker-cloud-subscriptions-win-x64.zip`，SHA256：`4f5e2217f9cce06813a9be7a9ed29d3db0d19d0007a0971eed74fc341b6fc905`。构建和验证证据统一保存在 `.tmp/windows-cloud/`：`native-smoke.json`、`native-*.png`、`embedded-parity.json`、`package-verification.json`、`dashboard-verified.log`、`cloud-verified.log`、`test-results/windows-native.trx`。原生集成测试的本地工程保存在 `smoke/`。
+
+### 本轮修复
+
+- 新增 `.gitattributes`，文本检出统一为 LF，保留 Windows command 脚本的 CRLF 和 Inno 翻译文件原始字节。原 `core.autocrlf=true` 会使 SQL 函数重写报 `Account pricing SQL shape drift`，也会使按 LF 匹配的源码校验失败。规范化后应用源码 Git blob 没有变化。
+- 帧生成校验使用 esbuild API，避免 Windows 上直接执行不存在的 `node_modules/.bin/esbuild`。
+- 英文结账测试固定英文数字格式，避免中文 Windows 默认输出 `US$` 而使 `$` 断言失败；未改变产品中的货币格式。
+- POSIX `0600` mode 断言仅在支持该语义的平台执行，Windows 的合成 mode bits 不能证明 NTFS ACL。checkpoint 的生产写入逻辑没有改变。
+- 空队列迁移用例限定为隔离 Codex 来源，避免扫描真实 AppData 历史；榜单双向切换用例保留完整 userEvent 校验并给予 15 秒预算，解决 Windows 负载下的 5 秒超时。
+
+### 本轮边界与待验收
+
+- 一次全仓 Windows 复测为 3656 通过、83 失败、20 取消、34 跳过，**全仓未全绿**。该快照早于最后的空队列测试修复；其后的完整目标组已通过。Ark / Claude Science / WSL 相关的 10 项失败在独立 `origin/main` 快照中同样复现（49 通过、10 失败），不能据此认定其他失败全部为既有问题。完整输出为 `full-fixed.log`，基线输出为 `main-baseline-tests.log`。
+- 公开正式账单路由的无登录探测返回 HTTP 404；结账页实际显示“服务可用前不能付款”。普通包仍走正式路由，当前没有本机可用的专用沙盒账号及重新配置的供应商返回通道。真实 OAuth 登录、换账号、付款拒绝/重试/成功、退款后状态及支付返回恢复未完成。
+- 没有执行 Inno Setup 安装、升级或卸载。本轮 ZIP 校验不能代替安装器验收。
+- 完整托盘程序启动、单实例与 Job Object 清理的额外验证步骤被自动审批审核拒绝，返回 `blocked by policy`，未提供更详细原因，该步骤没有执行。原生窗口集成测试不覆盖 `Program.Main` 的协议注册和完整托盘入口。
+
+## 之前的交叉编译 checkpoint
 
 | 项目 | 证据 |
 | --- | --- |

@@ -16,6 +16,8 @@ import { CloudCheckoutPage } from "./CloudCheckoutPage.jsx";
 import { CloudPage } from "./CloudPage.jsx";
 import { readCloudPurchase, saveCloudPurchase } from "../lib/cloud-checkout.js";
 
+const NumberFormat = Intl.NumberFormat;
+
 const mocks = vi.hoisted(() => ({
   request: vi.fn(),
   refresh: vi.fn(),
@@ -134,6 +136,10 @@ function show(path, Page = CloudCheckoutPage) {
 
 beforeEach(() => {
   setCopyLocale("en");
+  // English copy assertions must not inherit the Windows host's currency locale.
+  vi.spyOn(Intl, "NumberFormat").mockImplementation(
+    (locale, options) => new NumberFormat(locale ?? "en-US", options),
+  );
   localStorage.clear();
   vi.stubGlobal("crypto", webcrypto);
   mocks.request.mockReset();
@@ -154,6 +160,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });

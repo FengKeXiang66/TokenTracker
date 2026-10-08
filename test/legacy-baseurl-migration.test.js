@@ -674,7 +674,9 @@ test("a partial non-auth upload failure resumes after the committed offset", asy
 test("sync does not persist an unverified replacement when the replay queue is empty", async () => {
   await withTempHome(async (home) => {
     const trackerDir = await writeTrackerState(home, {});
-    await cmdSync(["--auto"]);
+    // Restrict parsing to the isolated Codex root; other Windows providers may
+    // discover real history under AppData even when the fixture home is empty.
+    await cmdSync(["--auto", "--from-notify", "--source", "codex"]);
 
     await writeTrackerState(home, {
       config: {
@@ -690,7 +692,7 @@ test("sync does not persist an unverified replacement when the replay queue is e
     global.fetch = successfulFetch(() => {
       ingestCalls += 1;
     });
-    await cmdSync(["--auto"]);
+    await cmdSync(["--auto", "--from-notify", "--source", "codex"]);
 
     const config = await readJsonFile(path.join(trackerDir, "config.json"));
     assert.equal(config.baseUrl, LEGACY_BASE_URL);

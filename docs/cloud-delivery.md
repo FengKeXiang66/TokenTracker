@@ -4,6 +4,8 @@
 
 已按用户授权提交并推送到 [feat/cloud-subscriptions](https://github.com/xiufengsun/TokenTracker/tree/feat/cloud-subscriptions)。`fb792a53` 包含 Pro/Waffo、自部署及主干 `4e225c31` 的审核页面，远端 SHA 已独立核对。工作树干净，stash 安全快照仍保留。正式收费、促销和公开 PR 仍关闭。
 
+2026-10-08 Windows 接续：`8e45d91e` 已在 Windows 11 上构建、自包含打包及实际 WebView2 渲染，原生单测 63/63、前端 1120/1120、Cloud/同步/Windows 目标组 456 通过且 1 跳过。系统浏览器 loopback 交接通过，ZIP 独立解压 982/982 一致。本轮兼容性修复见该分支；全仓 Windows 仍未全绿，完整托盘入口、真实登录/支付返回及安装器仍待验收。最新结果、测试包 hash 和本地证据见 [Windows 验收记录](windows-cloud-acceptance.md)，下文旧 Windows 记录为此前 checkpoint。
+
 ## 产品与体验
 
 - 本地核心功能、导出和排行榜继续免费。上线方案中的免费社区上传每天限选定的 1 台设备，会员到期后可选设备继续参与。当前正式后端仍使用原同步、排行榜路径，没有启用这些新限制；排名公式不因会员等级改变。
