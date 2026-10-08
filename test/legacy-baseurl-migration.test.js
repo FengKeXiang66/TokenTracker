@@ -50,6 +50,9 @@ async function withTempHome(fn) {
     delete process.env.TOKENTRACKER_INSFORGE_ANON_KEY;
     delete process.env.DSH_HOME;
     delete process.env.TOKENTRACKER_DSH_HOME;
+    const trackerDir = path.join(home, ".tokentracker", "tracker");
+    await fs.mkdir(trackerDir, { recursive: true });
+    await fs.writeFile(path.join(trackerDir, "cloud-sync-pref.json"), JSON.stringify({ enabled: true }));
     return await fn(home);
   } finally {
     global.fetch = savedFetch;
@@ -256,6 +259,15 @@ test("sync preserves the legacy device token and replays the queue to the curren
       "utf8",
     );
     await cmdSync(["--auto", "--publish-account"]);
+    const held = await readJsonFile(path.join(trackerDir, "queue.state.json"));
+    assert.equal(held.offset, Buffer.byteLength(queue), "a native automatic tick honors the new fifteen-minute interval");
+    assert.equal(ingestCalls.length, 1);
+    const throttlePath = path.join(trackerDir, "upload.throttle.json");
+    const deadline = await readJsonFile(throttlePath);
+    deadline.lastSuccessMs = Date.now() - 17 * 60_000;
+    deadline.nextAllowedAtMs = deadline.lastSuccessMs + 15 * 60_000;
+    await fs.writeFile(throttlePath, JSON.stringify(deadline), "utf8");
+    await cmdSync(["--auto", "--publish-account"]);
     const after = await readJsonFile(path.join(trackerDir, "queue.state.json"));
     assert.equal(after.offset, Buffer.byteLength(queue) + Buffer.byteLength(pendingLine));
     assert.equal(after.note, "manual");
@@ -388,6 +400,13 @@ test("sync removes an unchanged legacy anon key after a concurrent login updates
     await fs.appendFile(path.join(trackerDir, "queue.jsonl"), pendingLine, "utf8");
     await cmdSync(["--auto", "--publish-account"]);
 
+    assert.equal(ingestCalls.length, 1, "new pending rows stay queued through the automatic cooldown");
+    const throttlePath = path.join(trackerDir, "upload.throttle.json");
+    const deadline = await readJsonFile(throttlePath);
+    deadline.lastSuccessMs = Date.now() - 17 * 60_000;
+    deadline.nextAllowedAtMs = deadline.lastSuccessMs + 15 * 60_000;
+    await fs.writeFile(throttlePath, JSON.stringify(deadline), "utf8");
+    await cmdSync(["--auto", "--publish-account"]);
     assert.equal(ingestCalls.length, 2);
     assert.equal(ingestCalls[1].headers.apikey, DEFAULT_ANON_KEY);
     assert.equal(ingestCalls[1].headers.Authorization, "Bearer current-login-token");

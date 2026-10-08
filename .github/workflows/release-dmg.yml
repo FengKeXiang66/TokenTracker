@@ -442,8 +442,10 @@ jobs:
 
       # Same public client-side values as the macOS job: absent at build time
       # Vite inlines empty strings, breaking the leaderboard and cloud OAuth.
+      # TOKENTRACKER_BUILD_PET adds pet.html, the floating pet's page, as on Windows.
       - name: Build dashboard
         env:
+          TOKENTRACKER_BUILD_PET: "1"
           VITE_INSFORGE_BASE_URL: https://srctyff5.us-east.insforge.app
           VITE_INSFORGE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3OC0xMjM0LTU2NzgtOTBhYi1jZGVmMTIzNDU2NzgiLCJlbWFpbCI6ImFub25AaW5zZm9yZ2UuY29tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNDU5NDd9.T0auta_IrVIh0uXW1bob5QSnzvsnJmN28r5XkSGEuQY
         run: npm run dashboard:build
@@ -501,7 +503,8 @@ jobs:
             for required in \
               "tokentracker/bin/tracker.js" \
               "tokentracker/package.json" \
-              "tokentracker/dashboard/dist/index.html"
+              "tokentracker/dashboard/dist/index.html" \
+              "tokentracker/dashboard/dist/pet.html"
             do
               if [ ! -e "$(dirname "$node_bin")/$required" ]; then
                 echo "::error::$label is missing EmbeddedServer/$required"
@@ -518,6 +521,19 @@ jobs:
               echo "::error::$label bundled Node is not executable"
               exit 1
             fi
+          }
+
+          # The .deb and .rpm install the GNOME top-bar extension system-wide;
+          # the AppImage can't put anything outside itself.
+          verify_gnome_extension() {
+            local label="$1" dir="$2/usr/share/gnome-shell/extensions/tokentracker@tokentracker.cc"
+            local file
+            for file in metadata.json extension.js stylesheet.css; do
+              if [ ! -f "$dir/$file" ]; then
+                echo "::error::$label is missing the GNOME extension's $file"
+                exit 1
+              fi
+            done
           }
 
           # The browser returns OAuth sign-in through tokentracker://. deb and rpm
@@ -566,6 +582,7 @@ jobs:
           mkdir -p "$workdir/deb"
           dpkg-deb -x "$deb" "$workdir/deb"
           verify_payload "deb" "$workdir/deb"
+          verify_gnome_extension "deb" "$workdir/deb"
           verify_scheme_handler "deb" "$workdir/deb"
           cp "$deb" "dist-linux/TokenTracker-linux-x86_64.deb"
 
@@ -582,6 +599,7 @@ jobs:
             echo "::warning::RPM extraction returned a non-zero status; checking the extracted payload"
           fi
           verify_payload "rpm" "$workdir/rpm"
+          verify_gnome_extension "rpm" "$workdir/rpm"
           verify_scheme_handler "rpm" "$workdir/rpm"
           cp "$rpm_pkg" "dist-linux/TokenTracker-linux-x86_64.rpm"
 

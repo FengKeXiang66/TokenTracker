@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-28T18:10:04.552Z",
+  "generatedAt": "2026-10-06T11:12:14.401Z",
   "root": "dashboard/src",
   "rules": {
     "colors": "hex/rgb(a) literals",
@@ -7,7 +7,7 @@
   },
   "totals": {
     "colors": 404,
-    "rawText": 161
+    "rawText": 162
   },
   "files": {
     "dashboard/src/components/InsforgeUserHeaderControls.jsx": {
@@ -503,6 +503,13 @@
         "en",
         "zh",
         "zh-tw"
+      ]
+    },
+    "dashboard/src/ui/foundation/__tests__/TokenFormatProvider.test.jsx": {
+      "colors": 0,
+      "rawText": 1,
+      "rawTextTokens": [
+        "grouping"
       ]
     },
     "dashboard/src/ui/marketing/MarketingLanding.jsx": {

@@ -3,8 +3,38 @@ const { EventEmitter } = require("node:events");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { test } = require("node:test");
+const { beforeEach, test } = require("node:test");
 const { DEFAULT_BASE_URL } = require("../src/lib/runtime-config");
+const crypto = require("node:crypto");
+const publicAnon = [Buffer.from('{"alg":"HS256"}').toString("base64url"),
+  Buffer.from('{"role":"anon"}').toString("base64url"), "test-signature"].join(".");
+
+function bindTestInstance(trackerDir, baseUrl = "https://cloud.example") {
+  fs.writeFileSync(path.join(trackerDir, "config.json"), JSON.stringify({ machineId: "machine-abcdef12", baseUrl, anonKey: publicAnon }));
+  fs.writeFileSync(path.join(trackerDir, "runtime-instance.json"), JSON.stringify({
+    fingerprint: crypto.createHash("sha256").update(`${baseUrl}\0${publicAnon}`).digest("hex"),
+  }));
+}
+
+beforeEach((t) => {
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), "tt-local-api-security-"));
+  const prevHome = process.env.HOME;
+  const prevUserProfile = process.env.USERPROFILE;
+  process.env.HOME = tmpHome;
+  process.env.USERPROFILE = tmpHome;
+  // Upload security cases require an explicit opt-in and must not read the
+  // developer's saved preference. Opt-out cases use their own nested fixture.
+  const trackerDir = path.join(tmpHome, ".tokentracker", "tracker");
+  fs.mkdirSync(trackerDir, { recursive: true });
+  fs.writeFileSync(path.join(trackerDir, "cloud-sync-pref.json"), JSON.stringify({ enabled: true }));
+  t.after(() => {
+    if (prevHome === undefined) delete process.env.HOME;
+    else process.env.HOME = prevHome;
+    if (prevUserProfile === undefined) delete process.env.USERPROFILE;
+    else process.env.USERPROFILE = prevUserProfile;
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  });
+});
 
 function createRequest({ method = "GET", headers = {}, body } = {}) {
   const req = new EventEmitter();
@@ -55,12 +85,24 @@ function loadLocalApiWithSpawn(fakeSpawn) {
   childProcess.spawn = fakeSpawn;
   delete require.cache[require.resolve("../src/lib/local-api")];
   const mod = require("../src/lib/local-api");
+  const factory = mod.createLocalApiHandler;
+  const generated = [];
+  mod.createLocalApiHandler = options => {
+    const queuePath = path.dirname(options.queuePath) === process.cwd()
+      ? path.join(fs.mkdtempSync(path.join(os.tmpdir(), "tt-local-api-spawn-")), "queue.jsonl") : options.queuePath;
+    if (queuePath !== options.queuePath) generated.push(path.dirname(queuePath));
+    if (queuePath !== options.queuePath && process.env.TOKENTRACKER_INSFORGE_BASE_URL) {
+      bindTestInstance(path.dirname(queuePath), process.env.TOKENTRACKER_INSFORGE_BASE_URL);
+    }
+    return factory({ ...options, queuePath, trackerDataDir: path.dirname(queuePath), syncContext: { scanSources: [] } });
+  };
   return {
     mod,
     restore() {
       childProcess.spawn = originalSpawn;
       cloudAccount.__resetCloudAccountCacheForTests();
       delete require.cache[require.resolve("../src/lib/local-api")];
+      for (const directory of generated) fs.rmSync(directory, { recursive: true, force: true });
     },
   };
 }
@@ -95,7 +137,7 @@ test("local auth reports the serve runtime version when provided", async (t) => 
 
 function createSuccessfulSpawn(calls) {
   return (cmd, args, options) => {
-    calls.push({ cmd, args, options });
+    calls.push({ cmd, args: args[0] === "-e" ? [path.join(process.cwd(), "bin/tracker.js"), "sync", ...args.slice(3)] : args, options });
     const child = new EventEmitter();
     child.stdout = new EventEmitter();
     child.stderr = new EventEmitter();
@@ -110,7 +152,7 @@ function createSuccessfulSpawn(calls) {
 
 function createBusySpawn(calls) {
   return (cmd, args, options) => {
-    calls.push({ cmd, args, options });
+    calls.push({ cmd, args: args[0] === "-e" ? [path.join(process.cwd(), "bin/tracker.js"), "sync", ...args.slice(3)] : args, options });
     const child = new EventEmitter();
     child.stdout = new EventEmitter();
     child.stderr = new EventEmitter();
@@ -148,7 +190,7 @@ function createRelayedLoginFixture(prefix, { cloudSyncEnabled = true, includeRef
   const trackerDir = path.join(tmpHome, ".tokentracker", "tracker");
   fs.mkdirSync(trackerDir, { recursive: true });
   fs.writeFileSync(path.join(trackerDir, "cloud-sync-pref.json"), JSON.stringify({ enabled: cloudSyncEnabled }));
-  fs.writeFileSync(path.join(trackerDir, "config.json"), JSON.stringify({ machineId: "machine-abcdef12" }));
+  bindTestInstance(trackerDir);
   if (includeRefreshToken) {
     fs.writeFileSync(
       path.join(trackerDir, "relay-cookies.json"),
@@ -185,7 +227,6 @@ test("local sync rejects arbitrary insforgeBaseUrl overrides", async () => {
       method: "POST",
       headers: { "x-tokentracker-local-auth": localAuthToken },
       body: JSON.stringify({
-        deviceToken: "device-token",
         insforgeBaseUrl: "https://evil.example",
       }),
     });
@@ -224,7 +265,7 @@ test("local sync preserves the SYNC_BUSY failure code", async () => {
     const req = createRequest({
       method: "POST",
       headers: { "x-tokentracker-local-auth": localAuthToken },
-      body: JSON.stringify({ drain: true, deviceToken: "device-token" }),
+      body: JSON.stringify({ drain: true }),
     });
     const res = createResponse();
 
@@ -261,7 +302,6 @@ test("local sync accepts the configured insforgeBaseUrl override", async () => {
       method: "POST",
       headers: { "x-tokentracker-local-auth": localAuthToken },
       body: JSON.stringify({
-        deviceToken: "device-token",
         insforgeBaseUrl: "https://allowed.example/",
       }),
     });
@@ -298,7 +338,6 @@ test("local sync drain request runs sync with --drain", async () => {
       method: "POST",
       headers: { "x-tokentracker-local-auth": localAuthToken },
       body: JSON.stringify({
-        deviceToken: "device-token",
         drain: true,
       }),
     });
@@ -497,7 +536,6 @@ test("local sync only treats boolean true as background or lightweight", async (
         method: "POST",
         headers: { "x-tokentracker-local-auth": localAuthToken },
         body: JSON.stringify({
-          deviceToken: "device-token",
           auto: true,
           ...body,
         }),
@@ -513,11 +551,10 @@ test("local sync only treats boolean true as background or lightweight", async (
       assert.equal(handled, true);
       assert.equal(res.statusCode, 200);
       assert.equal(calls.length, 1);
-      assert.deepEqual(calls[0].args.slice(-4), [
+      assert.deepEqual(calls[0].args.slice(-3), [
         path.join(process.cwd(), "bin/tracker.js"),
         "sync",
         "--auto",
-        "--wait-for-lock",
       ]);
     } finally {
       restore();
@@ -544,7 +581,6 @@ test("local sync only treats boolean true as drain", async () => {
         method: "POST",
         headers: { "x-tokentracker-local-auth": localAuthToken },
         body: JSON.stringify({
-          deviceToken: "device-token",
           ...body,
         }),
       });
@@ -559,10 +595,9 @@ test("local sync only treats boolean true as drain", async () => {
       assert.equal(handled, true);
       assert.equal(res.statusCode, 200);
       assert.equal(calls.length, 1);
-      assert.deepEqual(calls[0].args.slice(-3), [
+      assert.deepEqual(calls[0].args.slice(-2), [
         path.join(process.cwd(), "bin/tracker.js"),
         "sync",
-        "--wait-for-lock",
       ]);
     } finally {
       restore();
@@ -904,14 +939,12 @@ test("local sync scopes relayed device token cache by InsForge base URL", async 
       await handler(secondReq, secondRes, new URL("http://127.0.0.1/functions/tokentracker-local-sync")),
       true,
     );
-    assert.equal(secondRes.statusCode, 200);
+    assert.equal(secondRes.statusCode, 400);
 
-    assert.equal(calls.length, 2);
+    assert.equal(calls.length, 1);
     assert.equal(calls[0].options.env.TOKENTRACKER_DEVICE_TOKEN, "cloud-device-token");
-    assert.equal(calls[1].options.env.TOKENTRACKER_DEVICE_TOKEN, "default-device-token");
-    assert.equal(calls[1].options.env.TOKENTRACKER_INSFORGE_BASE_URL, defaultRoot);
-    assert.equal(fetchCalls.filter((c) => c.url.endsWith("/api/auth/refresh?client_type=mobile")).length, 2);
-    assert.equal(fetchCalls.filter((c) => c.url.endsWith("/tokentracker-device-token-issue")).length, 2);
+    assert.equal(fetchCalls.filter((c) => c.url.endsWith("/api/auth/refresh?client_type=mobile")).length, 1);
+    assert.equal(fetchCalls.filter((c) => c.url.endsWith("/tokentracker-device-token-issue")).length, 1);
   } finally {
     restore();
     global.fetch = prevFetch;
@@ -1025,7 +1058,7 @@ test("local sync remints relayed device token after active refresh token changes
   }
 });
 
-test("local sync non-drain request keeps explicit device token without relayed minting", async () => {
+test("local sync non-drain request rejects an unproved explicit device token without relayed minting", async () => {
   const calls = [];
   const fixture = createRelayedLoginFixture("tt-local-sync-explicit-token-");
   const prevFetch = global.fetch;
@@ -1055,14 +1088,9 @@ test("local sync non-drain request keeps explicit device token without relayed m
     );
 
     assert.equal(handled, true);
-    assert.equal(res.statusCode, 200);
-    assert.equal(calls.length, 1);
-    assert.deepEqual(calls[0].args.slice(-3), [
-      path.join(process.cwd(), "bin/tracker.js"),
-      "sync",
-      "--wait-for-lock",
-    ]);
-    assert.equal(calls[0].options.env.TOKENTRACKER_DEVICE_TOKEN, "explicit-device-token");
+    assert.equal(res.statusCode, 409);
+    assert.equal(JSON.parse(res.body.toString("utf8")).code, "auth_session_required");
+    assert.equal(calls.length, 0);
   } finally {
     restore();
     global.fetch = prevFetch;
@@ -1213,7 +1241,7 @@ test("local sync drain request mints a device token from relayed login when none
   const trackerDir = path.join(tmpHome, ".tokentracker", "tracker");
   fs.mkdirSync(trackerDir, { recursive: true });
   fs.writeFileSync(path.join(trackerDir, "cloud-sync-pref.json"), JSON.stringify({ enabled: true }));
-  fs.writeFileSync(path.join(trackerDir, "config.json"), JSON.stringify({ machineId: "machine-abcdef12" }));
+  bindTestInstance(trackerDir);
   fs.writeFileSync(
     path.join(trackerDir, "relay-cookies.json"),
     JSON.stringify({
@@ -1302,7 +1330,7 @@ test("local sync drain request fails when relayed device token cannot be issued"
   const trackerDir = path.join(tmpHome, ".tokentracker", "tracker");
   fs.mkdirSync(trackerDir, { recursive: true });
   fs.writeFileSync(path.join(trackerDir, "cloud-sync-pref.json"), JSON.stringify({ enabled: true }));
-  fs.writeFileSync(path.join(trackerDir, "config.json"), JSON.stringify({ machineId: "machine-abcdef12" }));
+  bindTestInstance(trackerDir);
   fs.writeFileSync(
     path.join(trackerDir, "relay-cookies.json"),
     JSON.stringify({

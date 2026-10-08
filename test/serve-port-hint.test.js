@@ -395,6 +395,7 @@ test("real serve entry exits duplicate cleanly without replacing the first proce
   const trackerDir = path.join(home, ".tokentracker", "tracker");
   fs.mkdirSync(trackerDir, { recursive: true });
   fs.writeFileSync(path.join(trackerDir, "cursors.json"), "{}\n");
+  fs.writeFileSync(path.join(trackerDir, "config.json"), JSON.stringify({ proxy: { mode: "off" }, telemetry: false }));
 
   const port = await getFreePort();
   const entry = path.join(__dirname, "..", "bin", "tracker.js");
@@ -403,6 +404,9 @@ test("real serve entry exits duplicate cleanly without replacing the first proce
     HOME: home,
     USERPROFILE: home,
     TOKENTRACKER_SKIP_LOCAL_RUNTIME_COPY: "1",
+    // The port contract owns the direct child. Proxy relaunch is covered
+    // separately; killing its wrapper would leave inherited pipes open.
+    TOKENTRACKER_PROXY_ENV_APPLIED: "1",
   };
   const args = [entry, "serve", "--port", String(port), "--no-sync", "--no-open"];
 

@@ -5,15 +5,18 @@ import { copy } from "../../lib/copy";
 import { useAccountProfileSettings } from "./useAccountProfileSettings.js";
 import { PublicProfileFields, SignedOutAccountSection } from "./AccountSectionParts.jsx";
 import { SectionCard, SettingsRow, ToggleSwitch } from "./Controls.jsx";
+import { CloudMembershipCard } from "../cloud/CloudMembershipCard.jsx";
+import { CloudContextualPrompt, useCloudPromptState } from "../cloud/CloudContextualPrompt.jsx";
+import { clearCloudPromptIntent, recordCloudPromptIntent } from "../../lib/cloud-prompt-policy.js";
 
 export function AccountSection() {
   const settings = useAccountProfileSettings();
 
   if (!settings.enabled) return null;
-  if (!settings.signedIn) return <SignedOutAccountSection />;
+  if (!settings.signedIn) return <div className="space-y-4"><SignedOutAccountSection /><CloudMembershipCard /></div>;
 
   return (
-    <SectionCard
+    <div className="space-y-4"><SectionCard
       title={copy("settings.section.account")}
       subtitle={settings.email || (settings.name.customDisplayName || settings.name.displayName)}
       action={<SignOutButton onSignOut={settings.signOut} />}
@@ -22,11 +25,12 @@ export function AccountSection() {
       <CloudSyncRow settings={settings} />
       <PublicProfileToggleRow
         checked={settings.publicProfileOn}
-        disabled={settings.profileLoading || settings.profileSaving}
+        disabled={settings.profileLoading || settings.profileSaving || settings.publicProfileAvailable === false}
         onChange={settings.handlePublicProfileToggle}
+        unavailable={settings.publicProfileAvailable === false}
       />
       <PublicProfileDetails visible={settings.publicProfileOn} name={settings.name} github={settings.github} />
-    </SectionCard>
+    </SectionCard><CloudMembershipCard /></div>
   );
 }
 
@@ -82,27 +86,42 @@ function SignOutButton({ onSignOut }) {
 }
 
 function CloudSyncRow({ settings }) {
+  const promptState = useCloudPromptState(settings.userId);
+  const selfHosted = promptState.membership?.status === "self_hosted";
   if (!settings.showLocalCloudSync) return null;
   return (
+    <>
     <SettingsRow
       label={copy("settings.account.cloudSync")}
-      hint={copy("settings.account.cloudSyncHint")}
+      hint={copy(selfHosted ? "cloud.self_host.sync_hint" : "settings.account.cloudSyncHint")}
       control={
+        <span className="tt-cloud-theme tt-cloud-sync-control inline-flex">
         <ToggleSwitch
           checked={settings.cloudSyncOn}
-          onChange={settings.handleCloudSyncToggle}
+          onChange={() => {
+            if (settings.cloudSyncOn) clearCloudPromptIntent(settings.userId);
+            else recordCloudPromptIntent(settings.userId, "sync");
+            return settings.handleCloudSyncToggle();
+          }}
           ariaLabel={copy("settings.account.cloudSync")}
         />
+        </span>
       }
     />
+      <CloudContextualPrompt userId={settings.userId} panel="sync" localHost className="py-3"
+        onContinueLocal={() => {
+          clearCloudPromptIntent(settings.userId);
+          if (settings.cloudSyncOn) void settings.handleCloudSyncToggle();
+        }} />
+    </>
   );
 }
 
-function PublicProfileToggleRow({ checked, disabled, onChange }) {
+function PublicProfileToggleRow({ checked, disabled, onChange, unavailable }) {
   return (
     <SettingsRow
       label={copy("settings.account.publicProfile")}
-      hint={copy("settings.account.publicProfileHint")}
+      hint={copy(unavailable ? "cloud.self_host.public_profile_disabled" : "settings.account.publicProfileHint")}
       control={
         <ToggleSwitch
           checked={checked}

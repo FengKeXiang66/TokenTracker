@@ -3,6 +3,8 @@ const os = require("node:os");
 const path = require("node:path");
 const fs = require("node:fs/promises");
 const { test } = require("node:test");
+const publicAnon = [Buffer.from('{"alg":"HS256"}').toString("base64url"),
+  Buffer.from('{"role":"anon"}').toString("base64url"), "test-signature"].join(".");
 
 // These tests only exercise hook/config/notify wiring, never the copied runtime
 // or a real first sync. Skip both so each cmdInit doesn't copy ~10 MB and spawn
@@ -1161,8 +1163,10 @@ test("init preserves existing config fields and custom URLs", async () => {
         {
           installedAt: "2026-04-01T00:00:00.000Z",
           baseUrl: "https://self-hosted.example",
+          anonKey: publicAnon,
           dashboardUrl: "https://dashboard.example",
           deviceToken: "device-token",
+          deviceTokenBaseUrl: "https://self-hosted.example",
           deviceId: "device-id",
           customFlag: true,
         },
@@ -1220,7 +1224,7 @@ test("init then uninstall restores original Codex notify (when pre-existing noti
     await fs.writeFile(codexConfigPath, originalNotify, "utf8");
 
     process.stdout.write = () => true;
-    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid"]);
+    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid", "--anon-key", publicAnon]);
 
     const installed = await fs.readFile(codexConfigPath, "utf8");
     assert.match(installed, /^notify\s*=\s*\[.+\]\s*$/m);
@@ -1285,7 +1289,7 @@ test("init refreshes stale Codex backup when current notify is external", async 
     await fs.writeFile(codexConfigPath, `notify = ${JSON.stringify(externalNotify)}\n`, "utf8");
 
     process.stdout.write = () => true;
-    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid"]);
+    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid", "--anon-key", publicAnon]);
 
     const original = JSON.parse(
       await fs.readFile(path.join(trackerDir, "codex_notify_original.json"), "utf8"),
@@ -1337,7 +1341,7 @@ test("init clears stale Codex backup when current notify is absent", async () =>
     await fs.writeFile(codexConfigPath, "model = \"gpt-5\"\n", "utf8");
 
     process.stdout.write = () => true;
-    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid"]);
+    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid", "--anon-key", publicAnon]);
 
     const original = JSON.parse(await fs.readFile(notifyOriginalPath, "utf8"));
     assert.equal(original.notify, null);
@@ -1391,7 +1395,7 @@ test("init then uninstall removes notify when none existed", async () => {
     await fs.writeFile(codexConfigPath, "# empty\n", "utf8");
 
     process.stdout.write = () => true;
-    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid"]);
+    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid", "--anon-key", publicAnon]);
 
     const installed = await fs.readFile(codexConfigPath, "utf8");
     assert.match(installed, /^notify\s*=\s*\[.+\]\s*$/m);
@@ -1476,7 +1480,7 @@ test("init skips Codex notify when config is missing", async () => {
     process.env.OPENCODE_CONFIG_DIR = path.join(tmp, ".config", "opencode");
 
     process.stdout.write = () => true;
-    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid"]);
+    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid", "--anon-key", publicAnon]);
 
     const codexConfigPath = path.join(process.env.CODEX_HOME, "config.toml");
     await assert.rejects(fs.stat(codexConfigPath), /ENOENT/);
@@ -1521,7 +1525,7 @@ test("init then uninstall restores original Every Code notify (when config exist
     await fs.writeFile(codeConfigPath, originalNotify, "utf8");
 
     process.stdout.write = () => true;
-    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid"]);
+    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid", "--anon-key", publicAnon]);
 
     const installed = await fs.readFile(codeConfigPath, "utf8");
     assert.match(installed, /notify\s*=\s*\[[^\n]*notify\.cjs[^\n]*--source=every-code[^\n]*\]/);
@@ -1574,7 +1578,7 @@ test("init then uninstall restores original Acode notify", async () => {
     await fs.writeFile(acodeConfigPath, 'notify = ["echo", "hello-acode"]\n', "utf8");
 
     process.stdout.write = () => true;
-    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid"]);
+    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid", "--anon-key", publicAnon]);
 
     const installed = await fs.readFile(acodeConfigPath, "utf8");
     assert.match(installed, /notify\s*=\s*\[[^\n]*notify\.cjs[^\n]*--source=acode[^\n]*\]/);
@@ -1633,7 +1637,7 @@ test("init clears stale Every Code backup when current notify is absent", async 
     await fs.writeFile(codeConfigPath, "model = \"gpt-5\"\n", "utf8");
 
     process.stdout.write = () => true;
-    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid"]);
+    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid", "--anon-key", publicAnon]);
 
     const original = JSON.parse(await fs.readFile(notifyOriginalPath, "utf8"));
     assert.equal(original.notify, null);
@@ -1693,7 +1697,7 @@ test("init refreshes stale Every Code backup when current notify is external", a
     await fs.writeFile(codeConfigPath, `notify = ${JSON.stringify(externalNotify)}\n`, "utf8");
 
     process.stdout.write = () => true;
-    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid"]);
+    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid", "--anon-key", publicAnon]);
 
     const original = JSON.parse(await fs.readFile(notifyOriginalPath, "utf8"));
     assert.deepEqual(original.notify, externalNotify);
@@ -1739,7 +1743,7 @@ test("init skips Every Code notify when config is missing", async () => {
     await fs.writeFile(codexConfigPath, "# empty\n", "utf8");
 
     process.stdout.write = () => true;
-    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid"]);
+    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid", "--anon-key", publicAnon]);
 
     const codeConfigPath = path.join(process.env.CODE_HOME, "config.toml");
     await assert.rejects(fs.stat(codeConfigPath), /ENOENT/);
@@ -1880,7 +1884,7 @@ test("init then uninstall manages Claude hooks without removing existing hooks",
     await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf8");
 
     process.stdout.write = () => true;
-    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid"]);
+    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid", "--anon-key", publicAnon]);
 
     const installedRaw = await fs.readFile(settingsPath, "utf8");
     const installed = JSON.parse(installedRaw);
@@ -1970,7 +1974,7 @@ test("init then uninstall manages Gemini hooks without removing existing hooks",
     await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf8");
 
     process.stdout.write = () => true;
-    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid"]);
+    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid", "--anon-key", publicAnon]);
 
     const installedRaw = await fs.readFile(settingsPath, "utf8");
     const installed = JSON.parse(installedRaw);
@@ -2041,7 +2045,7 @@ test("init skips Gemini hooks when config directory is missing", async () => {
     await fs.writeFile(codexConfigPath, "# empty\n", "utf8");
 
     process.stdout.write = () => true;
-    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid"]);
+    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid", "--anon-key", publicAnon]);
 
     await assert.rejects(fs.stat(process.env.GEMINI_HOME), /ENOENT/);
   } finally {
@@ -2083,7 +2087,7 @@ test("init creates Gemini settings when directory exists but file is missing", a
     const settingsPath = path.join(process.env.GEMINI_HOME, "settings.json");
 
     process.stdout.write = () => true;
-    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid"]);
+    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid", "--anon-key", publicAnon]);
 
     const createdRaw = await fs.readFile(settingsPath, "utf8");
     const created = JSON.parse(createdRaw);
@@ -2133,7 +2137,7 @@ test("init then uninstall manages Opencode plugin without removing other plugins
     await fs.writeFile(existingPluginPath, "// existing\n", "utf8");
 
     process.stdout.write = () => true;
-    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid"]);
+    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid", "--anon-key", publicAnon]);
 
     const pluginPath = path.join(pluginDir, "tokentracker.js");
     const installed = await fs.readFile(pluginPath, "utf8");
@@ -2176,7 +2180,7 @@ test("init installs Opencode plugin when config dir is missing", async () => {
     await fs.writeFile(codexConfigPath, "# empty\n", "utf8");
 
     process.stdout.write = () => true;
-    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid"]);
+    await cmdInit(["--yes", "--no-auth", "--no-open", "--base-url", "https://example.invalid", "--anon-key", publicAnon]);
 
     const pluginPath = path.join(process.env.OPENCODE_CONFIG_DIR, "plugin", "tokentracker.js");
     const installed = await fs.readFile(pluginPath, "utf8");

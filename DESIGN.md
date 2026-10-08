@@ -10,6 +10,19 @@ Derived from `dashboard/src/styles.css` + `dashboard/tailwind.config.cjs`. Tailw
 - Never `#000`/`#fff`: base black `#0a0a0a`, white `#fafafa`.
 - Per-provider category colors come from `getProviderColor()` (data-viz only, in distribution bars/charts).
 
+### Cloud surfaces
+
+Cloud plans, checkout, self-host guidance, and the membership card use a scoped
+`.tt-cloud-theme` graphite palette. Primary actions remain black in light mode
+and off-white in dark mode. Borders, savings badges, links, hover states, and
+avatar fallbacks use neutral grays. Focus uses a visible two-pixel outline in
+both themes. Existing dashboard and provider colors remain unchanged.
+
+Cloud benefits describe implemented account-wide analysis, hosted history, and
+managed synchronization. Self-host is a separate free software option with
+server costs and operations handled by the user; its complete deployment flow
+is labeled as a technical preview until it has been verified on a fresh VPS.
+
 ## Typography
 
 - **Sans**: `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, …` (system stack, `font-oai`). One family carries everything.

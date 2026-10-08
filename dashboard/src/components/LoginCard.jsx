@@ -57,6 +57,8 @@ export function LoginCard({
   useLocale();
   const {
     enabled,
+    configurationError,
+    connectionHost,
     signedIn,
     refreshUser,
     signInWithPassword,
@@ -133,6 +135,10 @@ export function LoginCard({
   // browser then lands on the dashboard root with a code nobody exchanges.
   const oauthRedirectUrl = useCallback(() => {
     if (typeof window === "undefined") return "";
+    const next = new URLSearchParams(window.location.search).get("next");
+    if (!getNativeOAuthBridge() && /^\/(cloud|billing\/checkout)(\?|$)/.test(next || "")) {
+      return `${window.location.origin}/login?next=${encodeURIComponent(next)}`;
+    }
     return getNativeOAuthBridge()
       ? `${window.location.origin}/auth/callback`
       : `${window.location.origin}/`;
@@ -273,7 +279,13 @@ export function LoginCard({
     [code, confirmPassword, email, exchangeResetPasswordToken, password, resetPassword, tokenFromUrl],
   );
 
-  if (!enabled) return null;
+  if (!enabled) {
+    return configurationError ? (
+    <p role="alert" className="p-4 text-sm leading-6 text-oai-gray-700 dark:text-oai-gray-300">
+      {copy("instance.configuration.invalid")}
+    </p>
+    ) : null;
+  }
 
   const isResetMode = mode === "reset_email" || mode === "reset_confirm";
 
@@ -329,6 +341,11 @@ export function LoginCard({
       </div>
 
       {/* Banner */}
+      {connectionHost ? (
+        <p className="mb-4 text-center text-sm leading-6 text-oai-gray-600 dark:text-oai-gray-300">
+          {copy("instance.connection.destination", { host: connectionHost })}
+        </p>
+      ) : null}
       {banner && (!isResetMode || complete) && (
         <div className="mb-4 rounded-lg border border-oai-gray-200 dark:border-oai-gray-800 bg-oai-gray-50 dark:bg-oai-gray-900/50 px-3 py-2 text-xs text-oai-gray-700 dark:text-oai-gray-300">
           {banner}

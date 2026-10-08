@@ -340,7 +340,7 @@ test("signed-in users cannot trigger expensive month, total, or all-period leade
     source,
     /if \(authorization === "signed-in" && body\.period !== "week"\)\s*return json\(\{ error: "signed-in users may only refresh week" \}, 403\);/u,
   );
-  assert.match(clientSource, /body: JSON\.stringify\(\{ period: "week", source \}\)/u);
+  assert.doesNotMatch(clientSource, /tokentracker-leaderboard-refresh/u, "ordinary synchronization must leave public refresh scheduling to the server");
 });
 
 test("the unauthenticated public reads cannot reach any refresh write path", () => {
@@ -537,7 +537,7 @@ test("leaderboard bans block token issuance and usage ingestion", () => {
 
   assert.ok(
     tokenIssue.indexOf("if (isLeaderboardBlockedUser(userId))")
-      < tokenIssue.indexOf("// Device identity resolution"),
+      < tokenIssue.indexOf('cloudRpc(dbClient, "cloud_issue_device_token"'),
     "normal token issuance must reject the account before mutating a device",
   );
   assert.ok(
@@ -547,7 +547,7 @@ test("leaderboard bans block token issuance and usage ingestion", () => {
   );
   assert.ok(
     ingest.indexOf("if (isLeaderboardBlockedUser(userId))")
-      < ingest.indexOf('.from("tokentracker_hourly")'),
+      < ingest.indexOf('cloudRpc(client, "cloud_ingest_usage"'),
     "ingest must reject the account before writing usage",
   );
 
@@ -593,15 +593,18 @@ test("telemetry heartbeat uses one atomic database upsert RPC", () => {
 });
 
 test("device creation absorbs concurrent unique-key races without database errors", () => {
+  const migration=read("migrations/20261004120000_cloud-machine-access.sql");
   for (const file of ["tokentracker-device-token-issue.ts", "tokentracker-device-flow-poll.ts"]) {
     const source = read(`dashboard/edge-patches/${file}`);
     assert.match(
       source,
-      /\.upsert\([\s\S]{0,180}machine_id: machineId[\s\S]{0,80}\{ ignoreDuplicates: true \}/u,
-      `${file} must use INSERT ON CONFLICT DO NOTHING before selecting the winner`,
+      /cloudRpc\([^,]+, "cloud_issue_device_token"/u,
+      `${file} must serialize device admission through the shared transaction`,
     );
-    assert.doesNotMatch(source, /\.insert\([\s\S]{0,180}ignoreDuplicates/u);
+    assert.doesNotMatch(source, /\.from\("tokentracker_devices"\)\.insert/u);
   }
+  assert.match(migration,/pg_advisory_xact_lock/u);
+  assert.match(migration,/INSERT INTO public\.tokentracker_devices[\s\S]{0,450}ON CONFLICT DO NOTHING/u);
 });
 
 test("desktop auto refresh does not poll cloud account aggregates every 30 seconds", () => {

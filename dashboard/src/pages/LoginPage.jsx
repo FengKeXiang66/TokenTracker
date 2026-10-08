@@ -17,6 +17,7 @@ export function LoginPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const {
     enabled,
+    configurationError,
     loading: authLoading,
     signedIn,
     refreshUser,
@@ -24,6 +25,11 @@ export function LoginPage() {
 
   const nextPath = useMemo(() => parseNext(searchParams.toString()), [searchParams]);
   const [banner, setBanner] = useState(null);
+
+  useEffect(() => {
+    if (!/^\/(cloud|billing\/checkout)(\?|$)/.test(nextPath)) return;
+    try { window.sessionStorage.setItem("tt.cloud.return", nextPath); } catch { /* next query still survives password sign-in. */ }
+  }, [nextPath]);
 
   useEffect(() => {
     const status = searchParams.get("insforge_status");
@@ -47,6 +53,7 @@ export function LoginPage() {
         window.location.href = "/auth/native-callback";
         return;
       }
+      try { window.sessionStorage.removeItem("tt.cloud.return"); } catch { /* ignore */ }
       navigate(nextPath, { replace: true });
     }
   }, [enabled, authLoading, signedIn, navigate, nextPath, isNativeLogin]);
@@ -90,7 +97,9 @@ export function LoginPage() {
           </Link>
         </header>
         <main className="flex-1 flex items-center justify-center px-4">
-          <p className="text-oai-gray-400 text-center max-w-md">{copy("login.cloud_only")}</p>
+          <p className="text-oai-gray-400 text-center max-w-md" role={configurationError ? "alert" : undefined}>
+            {configurationError ? copy("instance.configuration.invalid") : copy("login.cloud_only")}
+          </p>
         </main>
       </div>
     );
@@ -135,6 +144,7 @@ export function LoginPage() {
                 if (isNativeLogin) {
                   window.location.href = "/auth/native-callback";
                 } else {
+                  try { window.sessionStorage.removeItem("tt.cloud.return"); } catch { /* ignore */ }
                   navigate(nextPath, { replace: true });
                 }
               }}

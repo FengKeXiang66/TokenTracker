@@ -19,6 +19,7 @@ import {
   Sun,
   Moon,
   Monitor,
+  Cloud,
 } from "lucide-react";
 import { copy } from "../../lib/copy";
 import { cn } from "../../lib/cn";
@@ -60,6 +61,7 @@ export function getNavGroups() {
       id: "account",
       label: copy("nav.group.account"),
       items: [
+        { id: "cloud", to: "/cloud", icon: Cloud, label: copy("cloud.nav") },
         { id: "settings", to: "/settings", icon: SettingsIcon, label: copy("nav.settings") },
       ],
     },

@@ -1,5 +1,17 @@
 import Foundation
 
+/// A manual renewal bar alone must not expose an empty quota explanation.
+/// Reset-bank and service-status content still belongs to the provider section.
+enum SubscriptionSectionPolicy {
+    static func usesSubscriptionOnly(
+        hasQuotaRows: Bool,
+        hasResetContent: Bool,
+        hasServiceStatus: Bool
+    ) -> Bool {
+        !hasQuotaRows && !hasResetContent && !hasServiceStatus
+    }
+}
+
 // MARK: - SubscriptionRecord
 
 struct SubscriptionRecord: Codable, Equatable, Identifiable {

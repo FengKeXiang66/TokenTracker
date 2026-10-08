@@ -309,6 +309,11 @@
   "dashboard.island.settings_link": "設定で確認",
   "dashboard.island.enabled_toast": "ダイナミックアイランドをオンにしました。ノッチを見上げてみてください",
   "dashboard.island.dismiss_aria": "ダイナミックアイランドのヒントを閉じる",
+  "dashboard.linux_pet.title": "デスクトップペットに会おう",
+  "dashboard.linux_pet.hint": "デスクトップの小さな相棒。ホバーで今日のトークン・費用・上限を表示、どこへでもドラッグできます。",
+  "dashboard.linux_pet.show": "ペットを表示",
+  "dashboard.linux_pet.settings_link": "ペット設定",
+  "dashboard.linux_pet.dismiss_aria": "デスクトップペットのヒントを閉じる",
   "settings.labs.qpd.label": "PR費用対効果の分析",
   "settings.labs.qpd.hint": "マージされたPRとAI帰属コミットから、各モデルの平均開発コストと有効Tokenを分析します。",
   "settings.labs.qpd.aria": "PR費用対効果の分析の切り替え",
@@ -574,5 +579,9 @@
   "settings.section.labs": "Labs",
   "limits.alert.blocked": "通知がオフです — システム設定で許可してください",
   "settings.limits.showSubscriptions": "サブスクを制限表示に表示",
-  "settings.limits.showSubscriptionsHint": "手動登録した更新日バーを制限と一緒に表示します。"
+  "settings.limits.showSubscriptionsHint": "手動登録した更新日バーを制限と一緒に表示します。",
+  "settings.appearance.token_grouping.label": "数値の区切り",
+  "settings.appearance.token_grouping.hint": "正確な数値は 3 桁または中国語の 4 桁区切りを使用します。コンパクト表示のツールチップにも適用されます。",
+  "settings.appearance.token_grouping.thousand": "3桁",
+  "settings.appearance.token_grouping.wan": "4桁"
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useInsforgeAuth } from "../../contexts/InsforgeAuthContext.jsx";
 import { resolveAuthAccessTokenWithRetry } from "../../lib/auth-token";
 import { getPublicVisibility, setPublicVisibility } from "../../lib/api";
@@ -10,12 +10,14 @@ import {
 } from "../../lib/cloud-sync-prefs";
 import { copy } from "../../lib/copy";
 import { normalizeGithubProfileUrl, pickDisplayName, pickEmail } from "./AccountSectionUtils.js";
+import { clearCloudPromptFailure, recordCloudPromptFailure, readCloudPromptState, subscribeCloudPrompts, cloudPromptRevision } from "../../lib/cloud-prompt-policy.js";
+import { isOfficialInsforgeInstance } from "../../lib/insforge-config";
 
 function warnSettingsAction(label, error) {
   console.warn(`[tokentracker] settings ${label}:`, error);
 }
 
-function useCloudSyncControl(getAccessToken, enabled, signedIn) {
+function useCloudSyncControl(getAccessToken, enabled, signedIn, userId) {
   const [cloudSyncOn, setCloudSyncOn] = useState(() => getCloudSyncEnabled());
   const showLocalCloudSync = enabled && signedIn && isLocalDashboardHost();
 
@@ -26,10 +28,12 @@ function useCloudSyncControl(getAccessToken, enabled, signedIn) {
     if (!next) return;
     try {
       await runCloudUsageSyncNow(() => getAccessToken());
+      clearCloudPromptFailure(userId, "cloud-sync");
     } catch (error) {
+      recordCloudPromptFailure(userId, error?.code, error?.membership, "cloud-sync");
       warnSettingsAction("cloud sync", error);
     }
-  }, [cloudSyncOn, getAccessToken]);
+  }, [cloudSyncOn, getAccessToken, userId]);
 
   return { cloudSyncOn, handleCloudSyncToggle, showLocalCloudSync };
 }
@@ -119,9 +123,9 @@ function useProfileLoad(getAccessToken, signedIn, state) {
   }, [getAccessToken, signedIn, state]);
 }
 
-function useProfileMutation(getAccessToken, state) {
+function useProfileMutation(getAccessToken, state, available) {
   return useCallback(async (payload, { label, onError, onSuccess } = {}) => {
-    if (state.profileSaving) return false;
+    if (!available || state.profileSaving) return false;
     state.setProfileSaving(true);
     try {
       const token = await resolveAuthAccessTokenWithRetry({ getAccessToken });
@@ -136,7 +140,7 @@ function useProfileMutation(getAccessToken, state) {
     } finally {
       state.setProfileSaving(false);
     }
-  }, [getAccessToken, state]);
+  }, [getAccessToken, state, available]);
 }
 
 function buildNameProps(state, actions) {
@@ -267,10 +271,14 @@ function useGithubActions(state, mutateProfile) {
 
 export function useAccountProfileSettings() {
   const auth = useInsforgeAuth();
+  useSyncExternalStore(subscribeCloudPrompts, cloudPromptRevision, () => 0);
+  const promptState = readCloudPromptState(auth.user?.id);
+  const selfHosted = promptState.membership?.status === "self_hosted" || promptState.catalog?.policy?.hosting_mode === "self_hosted";
+  const publicProfileAvailable = !selfHosted && (isOfficialInsforgeInstance() || promptState.membership?.hosting_mode === "hosted");
   const state = useProfileState(auth.user);
-  const cloudSync = useCloudSyncControl(auth.getAccessToken, auth.enabled, auth.signedIn);
-  useProfileLoad(auth.getAccessToken, auth.signedIn, state.loadSetters);
-  const mutateProfile = useProfileMutation(auth.getAccessToken, state);
+  const cloudSync = useCloudSyncControl(auth.getAccessToken, auth.enabled, auth.signedIn, auth.user?.id);
+  useProfileLoad(auth.getAccessToken, auth.signedIn && publicProfileAvailable, state.loadSetters);
+  const mutateProfile = useProfileMutation(auth.getAccessToken, state, publicProfileAvailable);
   const visibilityActions = useVisibilityActions(state, mutateProfile);
   const nameActions = useNameActions(state, mutateProfile, auth.refreshDisplayName);
   const githubActions = useGithubActions(state, mutateProfile);
@@ -285,6 +293,7 @@ export function useAccountProfileSettings() {
     github: buildGithubProps(state, githubActions),
     profileLoading: state.profileLoading,
     profileSaving: state.profileSaving,
-    publicProfileOn: state.publicProfileOn,
+    publicProfileOn: publicProfileAvailable && state.publicProfileOn,
+    publicProfileAvailable,
   };
 }

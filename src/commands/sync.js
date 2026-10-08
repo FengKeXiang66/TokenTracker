@@ -156,7 +156,7 @@ const {
   parseRetryAfterMs,
 } = require("../lib/upload-throttle");
 const AUTO_UPLOAD_CONFIG = {
-  intervalMs: 5 * 60_000,
+  intervalMs: 15 * 60_000,
   batchSize: 200,
   maxBatchesSmall: 5,
   maxBatchesLarge: 5,
@@ -180,6 +180,7 @@ const {
   openCursorStore,
 } = require("../lib/cursor-store");
 const { resolveTrackerPaths } = require("../lib/tracker-paths");
+const { readCloudSyncEnabled } = require("../lib/cloud-sync-prefs");
 const {
   appendUniqueDirs,
   extraScanRootPaths,
@@ -506,6 +507,7 @@ async function clearSyncSkip(trackerDir) {
 }
 
 async function cmdSync(argv, context = {}) {
+  context = context && typeof context === "object" ? context : {};
   const opts = parseArgs(argv);
   const diagnostics = context && typeof context === "object" ? context.diagnostics : null;
   const cursorStoreOptions = context && typeof context === "object"
@@ -527,8 +529,13 @@ async function cmdSync(argv, context = {}) {
     ? context.cursorSyncDeps
     : {};
   const syncDiagnostics = diagnostics && typeof diagnostics === "object" ? diagnostics : null;
-  const home = os.homedir();
-  const { trackerDir } = await resolveTrackerPaths({ home });
+  const home = context.home || os.homedir();
+  const trackerDir = context.trackerDataDir || (await resolveTrackerPaths({ home })).trackerDir;
+  // Manual CLI sync is a one-time upload request, without changing the toggle.
+  // Hooks, native publication and detached retries must honor the saved opt-in.
+  const requiresCloudSyncPref = opts.auto || opts.background || opts.fromRetry || opts.fromNotify || opts.fromOpenclaw ||
+    Boolean(process.env.TOKENTRACKER_LOCAL_SYNC_ATTEMPT_ID);
+  const canUpload = () => !requiresCloudSyncPref || readCloudSyncEnabled(trackerDir);
 
   await ensureDir(trackerDir);
   if (opts.fromOpenclaw) {
@@ -563,7 +570,7 @@ async function cmdSync(argv, context = {}) {
     // Native publication owns backlog and failure-backoff retries on its next
     // five-minute tick. Remove any legacy detached retry marker immediately so
     // an already-sleeping retry process observes the missing marker and exits.
-    if (opts.publishAccount) {
+    if (opts.publishAccount || !canUpload()) {
       await clearAutoRetry(trackerDir);
     }
 
@@ -583,7 +590,8 @@ async function cmdSync(argv, context = {}) {
     // token unless the local API has already minted a replacement from the
     // user's current login session and passed it through the environment.
     // Ingest is a whole-row upsert per bucket key, making replay idempotent.
-    if (config && isLegacyInsforgeBaseUrl(config.baseUrl)) {
+    if (config && isLegacyInsforgeBaseUrl(config.baseUrl) &&
+        !Object.hasOwn(process.env, "TOKENTRACKER_LOCAL_SYNC_DEVICE_TOKEN")) {
       const priorQueueState = (await readJson(queueStatePath)) || {};
       // Prepare the replay exactly once. The note survives successful batches,
       // so retryable failures retain both their committed offset and backoff
@@ -702,6 +710,7 @@ async function cmdSync(argv, context = {}) {
     const isBackgroundAllLocalSync = isBackgroundLightweightSync && opts.allLocalSources;
     const isFullSourceScan = !autoSourceScope && !isBackgroundLightweightSync;
     const sourceAllowed = (...sources) => {
+      if (Array.isArray(context.scanSources) && !sources.some(source => context.scanSources.includes(source))) return false;
       if (isBackgroundLightweightSync) {
         if (autoSourceScope) {
           return (
@@ -1328,17 +1337,13 @@ async function cmdSync(argv, context = {}) {
       });
 
       const parseOpencodeForInstall = async (options) => {
-        const { storageDir, dbDir, cursors } = options;
+        const { dbDir, cursors, messageFiles } = options;
         let filesResult = { filesProcessed: 0, eventsAggregated: 0, bucketsQueued: 0 };
-        if (storageDir) {
-          const storagePath = path.join(storageDir, "storage");
-          const messageFiles = await listOpencodeMessageFiles(storagePath);
-          if (messageFiles.length > 0) {
-            filesResult = await parseOpencodeIncremental({
-              ...options,
-              messageFiles,
-            });
-          }
+        if (messageFiles.length > 0) {
+          filesResult = await parseOpencodeIncremental({
+            ...options,
+            messageFiles,
+          });
         }
 
         let dbResult = { messagesProcessed: 0, eventsAggregated: 0, bucketsQueued: 0 };
@@ -1354,6 +1359,7 @@ async function cmdSync(argv, context = {}) {
               dbMessages: dbRead.messages,
               dbCursor: dbRead.cursor,
               dbPath,
+              opencodeCursorStore: cursorStore,
             });
           }
         }
@@ -1369,26 +1375,57 @@ async function cmdSync(argv, context = {}) {
         native: storagePaths.native || dbPaths.native,
         wsl: storagePaths.wsl || dbPaths.wsl,
       };
+      const installKeys = Object.keys(opencodePaths).filter((key) => opencodePaths[key]);
+      const messageFilesByInstall = {};
+      for (const key of installKeys) {
+        messageFilesByInstall[key] = storagePaths[key]
+          ? await listOpencodeMessageFiles(path.join(storagePaths[key], "storage"))
+          : [];
+      }
+      const storedOpencode = cursors.opencode;
+      const storedNamespaced = Boolean(
+        storedOpencode &&
+        typeof storedOpencode === "object" &&
+        (storedOpencode.native !== undefined || storedOpencode.wsl !== undefined),
+      );
+      if (
+        storedNamespaced !== (installKeys.length > 1) ||
+        Object.values(messageFilesByInstall).some((files) => files.length > 0)
+      ) {
+        await cursorStore.materializeAllOpencodeState();
+      }
 
-      const multiResult = await multiInstallParse({
-        paths: opencodePaths,
-        parserFn: parseOpencodeForInstall,
-        providerName: "opencode",
-        cursors,
-        queuePath,
-        projectQueuePath,
-        getParams: (p, key) => ({ storageDir: storagePaths[key], dbDir: dbPaths[key] }),
-        onProgress: (p) => {
-          if (!progress?.enabled) return;
-          const pct = p.total > 0 ? p.index / p.total : 1;
-          progress.update(
-            `Parsing Opencode (${p.install || "default"}) ${renderBar(pct)} ${formatNumber(
-              p.index,
-            )}/${formatNumber(p.total)} | buckets ${formatNumber(p.bucketsQueued)}`,
-          );
-        },
-        source: "opencode",
-      });
+      let multiResult;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          multiResult = await multiInstallParse({
+            paths: opencodePaths,
+            parserFn: parseOpencodeForInstall,
+            providerName: "opencode",
+            cursors,
+            queuePath,
+            projectQueuePath,
+            getParams: (_p, key) => ({
+              dbDir: dbPaths[key],
+              messageFiles: messageFilesByInstall[key] || [],
+              opencodeCursorNamespace: installKeys.length > 1 ? key : "flat",
+            }),
+            onProgress: (p) => {
+              if (!progress?.enabled) return;
+              const pct = p.total > 0 ? p.index / p.total : 1;
+              progress.update(
+                `Parsing Opencode (${p.install || "default"}) ${renderBar(pct)} ${formatNumber(
+                  p.index,
+                )}/${formatNumber(p.total)} | buckets ${formatNumber(p.bucketsQueued)}`,
+              );
+            },
+            source: "opencode",
+          });
+          break;
+        } catch (error) {
+          if (!isCursorStoreRetry(error) || attempt > 0) throw error;
+        }
+      }
 
       opencodeResult = {
         filesProcessed: multiResult.recordsProcessed,
@@ -3339,7 +3376,7 @@ async function cmdSync(argv, context = {}) {
     }
     // An authenticated local API supplies this capability for this upload.
     // Keep a separately configured CLI account from overriding its owner.
-    const runtime = resolveRuntimeConfig({
+    const resolvedRuntime = resolveRuntimeConfig({
       cli: {
         deviceToken: process.env.TOKENTRACKER_LOCAL_SYNC_DEVICE_TOKEN,
         ...(process.env.TOKENTRACKER_LOCAL_SYNC_DEVICE_TOKEN ? {
@@ -3351,11 +3388,17 @@ async function cmdSync(argv, context = {}) {
       env: process.env,
     });
 
+    // Empty is an explicit local-server denial, so it cannot fall back to a
+    // separately configured CLI account when the browser is signed out.
+    const runtime = Object.hasOwn(process.env, "TOKENTRACKER_LOCAL_SYNC_DEVICE_TOKEN")
+      ? { ...resolvedRuntime, deviceToken: resolvedRuntime.configurationError ? null : process.env.TOKENTRACKER_LOCAL_SYNC_DEVICE_TOKEN }
+      : resolvedRuntime;
+
     let uploadResult = { inserted: 0, skipped: 0 };
     let uploadAttempted = false;
     let autoUploadDecision = null;
 
-    if ((opts.auto || opts.publishAccount) && runtime.deviceToken && runtime.baseUrl &&
+    if (canUpload() && (opts.auto || opts.publishAccount) && runtime.deviceToken && runtime.baseUrl &&
         (!isBackgroundLightweightSync || opts.publishAccount)) {
       const uploadStateBefore = (await readJson(queueStatePath)) || { offset: 0 };
       const queueSizeBefore = await safeStatSize(queuePath);
@@ -3363,22 +3406,25 @@ async function cmdSync(argv, context = {}) {
         0,
         queueSizeBefore - Number(uploadStateBefore.offset || 0),
       );
-      // Native publication owns a five-minute timer. Drains and a pending
-      // backend migration also bypass the success interval, but all automatic
-      // producers must respect a failed upload's retry deadline.
-      const bypassSuccessInterval = opts.publishAccount || opts.drain || legacyBaseUrlMigration;
+      // Automatic producers honor success and failure deadlines. A verified
+      // manual recheck may probe changed membership; the server decides access.
+      const bypassSuccessInterval = (!opts.auto && opts.drain) || legacyBaseUrlMigration;
       const lastSuccessMs = Number(uploadThrottleState.lastSuccessMs || 0);
       const successDeadline = lastSuccessMs > 0
-        ? Math.min(Number(uploadThrottleState.nextAllowedAtMs || 0),
-          lastSuccessMs + AUTO_UPLOAD_CONFIG.intervalMs + AUTO_UPLOAD_DEFAULTS.jitterMsMax)
+        ? Math.max(Number(uploadThrottleState.serverNextAllowedAtMs || 0), Math.min(Number(uploadThrottleState.nextAllowedAtMs || 0),
+          lastSuccessMs + AUTO_UPLOAD_CONFIG.intervalMs + AUTO_UPLOAD_DEFAULTS.jitterMsMax))
         : Number(uploadThrottleState.nextAllowedAtMs || 0);
+      const recheckCloudAccess = opts.drain && process.env.TOKENTRACKER_CLOUD_RECHECK === "1" &&
+        Boolean(process.env.TOKENTRACKER_LOCAL_SYNC_DEVICE_TOKEN?.trim());
+      const storedBackoff = recheckCloudAccess ? 0 : Number(uploadThrottleState.backoffUntilMs || 0);
       autoUploadDecision = decideAutoUpload({
         nowMs: Date.now(),
         pendingBytes: pendingBytesBefore,
         state: {
           ...uploadThrottleState,
-          nextAllowedAtMs: bypassSuccessInterval
-            ? Number(uploadThrottleState.backoffUntilMs || 0)
+          backoffUntilMs: storedBackoff,
+          nextAllowedAtMs: recheckCloudAccess ? 0 : bypassSuccessInterval
+            ? Math.max(storedBackoff, Number(uploadThrottleState.serverNextAllowedAtMs || 0))
             : successDeadline,
         },
         config: AUTO_UPLOAD_CONFIG,
@@ -3391,7 +3437,7 @@ async function cmdSync(argv, context = {}) {
       }
     }
 
-    if (runtime.deviceToken && runtime.baseUrl &&
+    if (canUpload() && runtime.deviceToken && runtime.baseUrl &&
         (!isBackgroundLightweightSync || opts.publishAccount) &&
         (!autoUploadDecision || autoUploadDecision.allowed)) {
       uploadAttempted = true;
@@ -3415,6 +3461,7 @@ async function cmdSync(argv, context = {}) {
             queueStatePath,
             maxBatches: opts.drain ? 100 : (autoUploadDecision?.maxBatches || 5),
             batchSize: autoUploadDecision?.batchSize || 200,
+            canUpload,
           });
         try {
           uploadResult = await drainWithToken(successfulDeviceToken);
@@ -3423,6 +3470,7 @@ async function cmdSync(argv, context = {}) {
           const replacementDeviceToken = legacyBaseUrlMigration?.replacementDeviceToken;
           const stateAfterFailure = (await readJson(queueStatePath)) || { offset: 0 };
           const canFallbackWithoutSplittingHistory =
+            !Object.hasOwn(process.env, "TOKENTRACKER_LOCAL_SYNC_DEVICE_TOKEN") &&
             (error?.status === 401 || error?.status === 403) &&
             replacementDeviceToken &&
             fallbackDeviceToken &&
@@ -3461,12 +3509,16 @@ async function cmdSync(argv, context = {}) {
         }
         // Record success so the exponential backoff step resets — otherwise
         // a single past failure keeps us pessimistically throttled forever.
-        uploadThrottleState = recordUploadSuccess({
-          nowMs: Date.now(),
-          state: uploadThrottleState,
-          config: AUTO_UPLOAD_CONFIG,
-        });
-        await writeJson(uploadThrottlePath, uploadThrottleState);
+        if (uploadResult.batches > 0) {
+          uploadThrottleState = recordUploadSuccess({
+            nowMs: Date.now(),
+            state: uploadThrottleState,
+            config: AUTO_UPLOAD_CONFIG,
+            cloudAccess: uploadResult.cloudAccess,
+            attemptId: process.env.TOKENTRACKER_LOCAL_SYNC_ATTEMPT_ID,
+          });
+          await writeJson(uploadThrottlePath, uploadThrottleState);
+        }
       } catch (e) {
         // Persist a backoff on 429 / 5xx so the next auto-sync waits instead
         // of retrying immediately and making the rate-limit worse. The
@@ -3496,7 +3548,7 @@ async function cmdSync(argv, context = {}) {
     // and can keep auto retry alive even after cloud sync has drained.
     const pendingBytes = Math.max(0, queueSize - Number(afterState.offset || 0));
 
-    if (pendingBytes <= 0) {
+    if (pendingBytes <= 0 || !canUpload()) {
       await clearAutoRetry(trackerDir);
     } else if (opts.auto && uploadAttempted && !opts.publishAccount) {
       const retryAtMs = Number(uploadThrottleState?.nextAllowedAtMs || 0);
@@ -4150,12 +4202,14 @@ const AUTO_RETRY_MAX_DELAY_MS = 2 * 60 * 60 * 1000;
 const INGEST_SLUG = "tokentracker-ingest";
 const MAX_INGEST_BUCKETS = 500;
 
-async function drainQueueToCloud({ baseUrl, anonKey, deviceToken, queuePath, queueStatePath, maxBatches = 5, batchSize = 200 }) {
+async function drainQueueToCloud({ baseUrl, anonKey, deviceToken, queuePath, queueStatePath, maxBatches = 5, batchSize = 200, canUpload = () => true }) {
   const state = (await readJson(queueStatePath)) || { offset: 0 };
   let offset = Number(state.offset || 0);
   let inserted = 0;
   let skipped = 0;
   let batches = 0;
+  let cloudAccess = null;
+  const uploadId = crypto.randomUUID();
 
   const queueSize = await safeStatSize(queuePath);
   const limit = Math.min(Math.max(1, Math.floor(Number(batchSize || 200))), MAX_INGEST_BUCKETS);
@@ -4175,10 +4229,13 @@ async function drainQueueToCloud({ baseUrl, anonKey, deviceToken, queuePath, que
       Authorization: `Bearer ${deviceToken}`,
     };
     if (anonKey) headers.apikey = anonKey;
+    // Re-read after parsing/each batch so switching off stops an active drain.
+    if (!canUpload()) break;
     const res = await fetchFunctionResponse(functionUrlFor(root, INGEST_SLUG), {
       method: "POST",
       headers,
       body: JSON.stringify({
+        upload_id: uploadId,
         hourly: result.buckets,
         ...(result.sessionStates.length > 0
           ? { account_session_states: result.sessionStates }
@@ -4193,14 +4250,15 @@ async function drainQueueToCloud({ baseUrl, anonKey, deviceToken, queuePath, que
       const err = new Error(`HTTP ${res.status}: ${rawText.substring(0, 500)}`);
       err.status = res.status;
       err.code = res.status === 401 ? "CLOUD_DEVICE_TOKEN_REJECTED"
-        : res.status === 403 ? "CLOUD_UPLOAD_FORBIDDEN"
-          : "CLOUD_UPLOAD_FAILED";
+        : typeof data?.code === "string" ? data.code
+          : res.status === 403 ? "CLOUD_UPLOAD_FORBIDDEN" : "CLOUD_UPLOAD_FAILED";
       const retryAfter = res.headers?.get?.("Retry-After") ?? null;
       const retryAfterMs = parseRetryAfterMs(retryAfter);
       if (retryAfterMs !== null) err.retryAfterMs = retryAfterMs;
       throw err;
     }
 
+    cloudAccess = data;
     inserted += Number(data?.inserted || 0);
     skipped += Number(data?.skipped || 0);
     batches += 1;
@@ -4211,7 +4269,7 @@ async function drainQueueToCloud({ baseUrl, anonKey, deviceToken, queuePath, que
     await writeJson(queueStatePath, state);
   }
 
-  return { inserted, skipped, batches };
+  return { inserted, skipped, batches, ...(cloudAccess?.next_allowed_at ? { cloudAccess } : {}) };
 }
 
 async function readQueueBatch(queuePath, startOffset, maxBuckets) {

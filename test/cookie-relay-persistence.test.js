@@ -6,6 +6,7 @@ const { test } = require("node:test");
 
 const { createLocalApiHandler } = require("../src/lib/local-api");
 const { withHome } = require("./helpers/with-home");
+const { publicAnonFor, bindPublicInstance } = require("./helpers/public-instance-fixture");
 
 function createRequest({ method = "GET", headers = {}, body } = {}) {
   return {
@@ -40,7 +41,8 @@ async function withTempHome(run) {
 
   try {
     restoreHome = withHome(tmp);
-    process.env.TOKENTRACKER_INSFORGE_BASE_URL = "https://example.invalid";
+    process.env.TOKENTRACKER_INSFORGE_BASE_URL = "https://relay.example.test";
+    await bindPublicInstance(path.join(tmp, ".tokentracker", "tracker"), process.env.TOKENTRACKER_INSFORGE_BASE_URL, publicAnonFor("relay"));
     await run(tmp);
   } finally {
     globalThis.fetch = prevFetch;
@@ -73,7 +75,7 @@ test("auth proxy loads persisted relay cookies into outbound requests", async ()
       return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
     };
 
-    const handler = createLocalApiHandler({ queuePath: path.join(home, "queue.jsonl") });
+    const handler = createLocalApiHandler({ queuePath: path.join(home, ".tokentracker", "tracker", "queue.jsonl") });
     const req = createRequest({ headers: {} });
     const res = createResponse();
 
@@ -98,7 +100,7 @@ test("auth proxy captures set-cookie headers and persists them under an isolated
         },
       });
 
-    const handler = createLocalApiHandler({ queuePath: path.join(home, "queue.jsonl") });
+    const handler = createLocalApiHandler({ queuePath: path.join(home, ".tokentracker", "tracker", "queue.jsonl") });
     const req = createRequest({ headers: {} });
     const res = createResponse();
 
@@ -127,7 +129,7 @@ test("empty in-memory relay cookies do not wipe an existing on-disk session file
         },
       });
 
-    const handler = createLocalApiHandler({ queuePath: path.join(home, "queue.jsonl") });
+    const handler = createLocalApiHandler({ queuePath: path.join(home, ".tokentracker", "tracker", "queue.jsonl") });
     const req = createRequest({ headers: {} });
     const res = createResponse();
 
@@ -169,7 +171,7 @@ test("refresh requests without browser auth context use the persisted refresh to
       );
     };
 
-    const handler = createLocalApiHandler({ queuePath: path.join(home, "queue.jsonl") });
+    const handler = createLocalApiHandler({ queuePath: path.join(home, ".tokentracker", "tracker", "queue.jsonl") });
     const req = createRequest({ method: "POST", headers: {} });
     const res = createResponse();
 
@@ -177,7 +179,7 @@ test("refresh requests without browser auth context use the persisted refresh to
 
     assert.equal(handled, true);
     assert.equal(res.statusCode, 200);
-    assert.equal(proxiedUrl, "https://example.invalid/api/auth/refresh?client_type=mobile");
+    assert.equal(proxiedUrl, "https://relay.example.test/api/auth/refresh?client_type=mobile");
     assert.deepEqual(proxiedBody, { refresh_token: "persisted-refresh-token" });
     assert.equal(proxiedCookieHeader, "");
     const saved = JSON.parse(await fs.readFile(cookiePath, "utf8"));
@@ -194,6 +196,7 @@ test("refresh requests with csrf context still receive persisted relay cookies",
       cookiePath,
       JSON.stringify({
         refresh: "refresh=valid-token; Path=/; HttpOnly",
+        insforge_csrf_token: "insforge_csrf_token=csrf-123; Path=/; SameSite=Lax",
       }),
       "utf8",
     );
@@ -204,7 +207,7 @@ test("refresh requests with csrf context still receive persisted relay cookies",
       return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
     };
 
-    const handler = createLocalApiHandler({ queuePath: path.join(home, "queue.jsonl") });
+    const handler = createLocalApiHandler({ queuePath: path.join(home, ".tokentracker", "tracker", "queue.jsonl") });
     const req = createRequest({
       method: "POST",
       headers: {
@@ -242,7 +245,7 @@ test("refresh requests prefer persisted relay auth over stale client cookies", a
       return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
     };
 
-    const handler = createLocalApiHandler({ queuePath: path.join(home, "queue.jsonl") });
+    const handler = createLocalApiHandler({ queuePath: path.join(home, ".tokentracker", "tracker", "queue.jsonl") });
     const req = createRequest({
       method: "POST",
       headers: {
@@ -295,7 +298,7 @@ test("cookie-less refresh takes the mobile fallback even when a relay csrf token
       );
     };
 
-    const handler = createLocalApiHandler({ queuePath: path.join(home, "queue.jsonl") });
+    const handler = createLocalApiHandler({ queuePath: path.join(home, ".tokentracker", "tracker", "queue.jsonl") });
     const req = createRequest({ method: "POST", headers: {} });
     const res = createResponse();
 
@@ -303,7 +306,7 @@ test("cookie-less refresh takes the mobile fallback even when a relay csrf token
 
     assert.equal(handled, true);
     assert.equal(res.statusCode, 200);
-    assert.equal(proxiedUrl, "https://example.invalid/api/auth/refresh?client_type=mobile");
+    assert.equal(proxiedUrl, "https://relay.example.test/api/auth/refresh?client_type=mobile");
     assert.deepEqual(proxiedBody, { refresh_token: "persisted-refresh-token" });
     const saved = JSON.parse(await fs.readFile(cookiePath, "utf8"));
     assert.match(saved.insforge_refresh_token, /^insforge_refresh_token=rotated-refresh-token;/);
@@ -354,7 +357,7 @@ test("403 invalid csrf on the cookie path is rescued via the mobile flow", async
       );
     };
 
-    const handler = createLocalApiHandler({ queuePath: path.join(home, "queue.jsonl") });
+    const handler = createLocalApiHandler({ queuePath: path.join(home, ".tokentracker", "tracker", "queue.jsonl") });
     const req = createRequest({
       method: "POST",
       headers: {
@@ -369,7 +372,7 @@ test("403 invalid csrf on the cookie path is rescued via the mobile flow", async
     assert.equal(handled, true);
     assert.equal(res.statusCode, 200);
     assert.equal(proxiedUrls.length, 2);
-    assert.equal(proxiedUrls[1], "https://example.invalid/api/auth/refresh?client_type=mobile");
+    assert.equal(proxiedUrls[1], "https://relay.example.test/api/auth/refresh?client_type=mobile");
     assert.match(JSON.parse(res.body.toString("utf8")).accessToken, /^rescued-access-token$/);
     const saved = JSON.parse(await fs.readFile(cookiePath, "utf8"));
     assert.match(saved.insforge_refresh_token, /^insforge_refresh_token=rescued-refresh-token;/);
@@ -399,7 +402,7 @@ test("deletion set-cookies on error responses do not destroy the persisted relay
         },
       });
 
-    const handler = createLocalApiHandler({ queuePath: path.join(home, "queue.jsonl") });
+    const handler = createLocalApiHandler({ queuePath: path.join(home, ".tokentracker", "tracker", "queue.jsonl") });
     const req = createRequest({
       method: "POST",
       headers: { cookie: "some_cookie=1" },
@@ -433,7 +436,7 @@ test("stale refresh csrf errors do not clear relay cookies when no relay cookies
         headers: { "content-type": "application/json" },
       });
 
-    const handler = createLocalApiHandler({ queuePath: path.join(home, "queue.jsonl") });
+    const handler = createLocalApiHandler({ queuePath: path.join(home, ".tokentracker", "tracker", "queue.jsonl") });
     const req = createRequest({ method: "POST", headers: {} });
     const res = createResponse();
 

@@ -1,6 +1,6 @@
 {
   "name": "tokentracker-cli",
-  "version": "1.1.10",
+  "version": "1.1.13",
   "description": "Local-first AI coding token usage and cost tracker for 43 tools, with a dashboard, desktop pet, widgets, achievements, and native macOS/Windows apps.",
   "main": "src/cli.js",
   "bin": {
@@ -25,7 +25,7 @@
     "copy:pull": "node scripts/copy-sync.cjs pull",
     "copy:push": "node scripts/copy-sync.cjs push",
     "dashboard:build": "npm --prefix dashboard run build",
-    "linux:bundle": "npm run dashboard:build && npm --prefix TokenTrackerLinux run bundle:node",
+    "linux:bundle": "TOKENTRACKER_BUILD_PET=1 npm run dashboard:build && npm --prefix TokenTrackerLinux run bundle:node",
     "linux:build": "npm run linux:bundle && npm --prefix TokenTrackerLinux run build",
     "linux:package:local": "npm --prefix TokenTrackerLinux run package:local",
     "dashboard:dev": "npm --prefix dashboard run dev",
@@ -52,14 +52,19 @@
   "dependencies": {
     "@journeyapps/wa-sqlite": "2.0.6",
     "@mongodb-js/zstd": "^2.0.1",
+    "smol-toml": "^1.9.0",
     "undici": "8.11.2",
     "yauzl": "^3.4.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@sourcegraph/scip-typescript": "^0.4.0",
+    "@waffo/pancake-ts": "0.25.0",
+    "alipay-sdk": "4.14.0",
     "esbuild": "0.28.2",
     "pngjs": "^7.0.0",
-    "sql.js": "1.14.2"
+    "sql.js": "1.14.2",
+    "urllib": "4.9.1"
   },
   "repository": {
     "type": "git",

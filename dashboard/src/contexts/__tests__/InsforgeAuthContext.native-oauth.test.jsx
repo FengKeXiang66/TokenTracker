@@ -12,6 +12,13 @@ const client = {
 vi.mock("../../lib/insforge-config", () => ({
   getOrCreateInsforgeClient: () => client,
   isCloudInsforgeConfigured: () => true,
+  getInsforgeConfigurationError: () => null,
+  getInsforgeConnectionHost: () => null,
+  isOfficialInsforgeInstance: () => true,
+  INSFORGE_INSTANCE_CHANGED_EVENT: "tt.insforgeInstanceChanged",
+  isCurrentInsforgeClient: () => true,
+  shouldRestoreInsforgeSession: () => true,
+  allowInsforgeSessionRestore: vi.fn(),
 }));
 vi.mock("../../lib/insforge-session-recovery.mjs", () => ({
   restoreInsforgeUser: async () => ({ data: { user: null }, error: null }),

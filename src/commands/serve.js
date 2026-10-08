@@ -179,12 +179,12 @@ async function cmdServe(argv) {
       }
 
       // Static files
-      const served = await serveStaticFile(dashboardDir, url.pathname, res);
+      const served = await serveStaticFile(dashboardDir, url.pathname, res, { localRuntimeConfig: true });
       if (served) return;
 
       // SPA fallback
       if (shouldServeSpaFallback(req, url)) {
-        await serveStaticFile(dashboardDir, "/index.html", res);
+        await serveStaticFile(dashboardDir, "/index.html", res, { localRuntimeConfig: true });
         return;
       }
 

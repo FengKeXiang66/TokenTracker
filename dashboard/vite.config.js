@@ -8,6 +8,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
 import os from "node:os";
 import { copyRegistryPlugin } from "./scripts/copy-registry-plugin.mjs";
+import { validateInsforgeBuildEnv } from "./src/lib/insforge-deployment-config.mjs";
 
 const COPY_REQUIRED_KEYS = [
   "landing.meta.title",
@@ -1263,6 +1264,9 @@ function localDataApiPlugin() {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, ROOT_DIR, "VITE_");
+  const backendConfiguration = validateInsforgeBuildEnv(env);
+  if (backendConfiguration.errorCode)
+    throw new Error(`InsForge frontend configuration rejected: ${backendConfiguration.errorCode}. Values were not logged.`);
   const fallbackVersion = loadAppVersion();
   const define = {};
 
@@ -1270,9 +1274,9 @@ export default defineConfig(({ mode }) => {
     define["import.meta.env.VITE_APP_VERSION"] = JSON.stringify(fallbackVersion);
   }
 
-  // Build inputs. The Windows tray app's floating-pet page (pet.html) is an
+  // Build inputs. The Windows and Linux apps' floating-pet page (pet.html) is an
   // OPT-IN extra entry, enabled only when TOKENTRACKER_BUILD_PET=1 (set by the
-  // Windows build). Adding a rollup entry reshuffles shared chunks, so keeping it
+  // Windows and Linux builds). Adding a rollup entry reshuffles shared chunks, so keeping it
   // off by default makes the macOS + web builds byte-identical to a no-pet build —
   // this matters because this project has a history of chunk-split changes subtly
   // breaking the native OAuth callback (see CLAUDE.md). macOS never loads pet.html.

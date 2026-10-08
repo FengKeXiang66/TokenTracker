@@ -218,6 +218,8 @@ const TrendBar = React.memo(function TrendBar({
   totalBars,
   onMouseEnter,
   onMouseLeave,
+  onSelect,
+  label,
 }) {
   const shouldReduceMotion = useReducedMotion();
   const kind = getBarKind(row, value);
@@ -256,6 +258,16 @@ const TrendBar = React.memo(function TrendBar({
       style={{ originY: 1 }}
       onMouseEnter={(e) => onMouseEnter(e, row, value, segments, kind, displayValue)}
       onMouseLeave={onMouseLeave}
+      role="button"
+      tabIndex={0}
+      aria-label={label}
+      onClick={(e) => onSelect(e, row, value, segments, kind, displayValue)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect(e, row, value, segments, kind, displayValue);
+        }
+      }}
     >
       {/* 纵向整列 Hover 引导条 */}
       <div className="absolute inset-x-0 top-0 bottom-0 bg-oai-gray-100/70 dark:bg-white/[0.08] opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none" />
@@ -389,6 +401,46 @@ export function computeInterpolatedSeries(rawValues) {
   return out;
 }
 
+const TOOLTIP_GAP_PX = 10;
+const TOOLTIP_EDGE_MARGIN_PX = 8;
+
+// The vertical band (viewport coordinates) the tooltip may occupy: the window,
+// narrowed by every ancestor that clips or scrolls (the app's main pane, modal
+// bodies). A tooltip kept inside this band can never extend the scroll height
+// of the container that hosts the chart.
+function getTrendTooltipBand(el) {
+  let top = 0;
+  let bottom = document.documentElement.clientHeight || window.innerHeight;
+  for (let node = el; node && node !== document.body; node = node.parentElement) {
+    const overflowY = window.getComputedStyle(node).overflowY;
+    if (!overflowY || overflowY === "visible") continue;
+    const rect = node.getBoundingClientRect();
+    top = Math.max(top, rect.top);
+    bottom = Math.min(bottom, rect.bottom);
+  }
+  return { top: top + TOOLTIP_EDGE_MARGIN_PX, bottom: bottom - TOOLTIP_EDGE_MARGIN_PX };
+}
+
+// Below the chart is the preferred side. When the visible area below can't
+// hold the tooltip it moves above the chart instead of overflowing: content
+// hanging past the bottom grows the scroll height, so scrolling into it moves
+// the bar out from under the cursor, the tooltip unmounts, the scroll height
+// snaps back and the bar lands under the cursor again — an endless loop.
+// `prefer: "above"` keeps a sweep above once it has moved there, so adjacent
+// bars with different model counts don't alternate sides.
+export function chooseTrendTooltipPlacement({ columnTop, columnBottom, height, band, prefer = null }) {
+  const needed = height + TOOLTIP_GAP_PX;
+  const spaceBelow = band.bottom - columnBottom;
+  const spaceAbove = columnTop - band.top;
+  if (prefer === "above" && spaceAbove >= needed) return { side: "above", maxHeight: null };
+  if (spaceBelow >= needed) return { side: "below", maxHeight: null };
+  if (spaceAbove >= needed) return { side: "above", maxHeight: null };
+  // Neither side fits: use the roomier one and cap the height to stay visible.
+  const side = spaceBelow >= spaceAbove ? "below" : "above";
+  const space = side === "below" ? spaceBelow : spaceAbove;
+  return { side, maxHeight: Math.max(0, Math.floor(space - TOOLTIP_GAP_PX)) };
+}
+
 export function TrendMonitor({
   rows,
   from,
@@ -449,76 +501,117 @@ export function TrendMonitor({
   );
 
   const [hoveredBar, setHoveredBar] = React.useState(null);
-  const [tooltipPos, setTooltipPos] = React.useState({ x: 0, y: 0, shiftX: 0, flipDown: false });
+  const [tooltipPos, setTooltipPos] = React.useState({ x: 0, y: 0, shiftX: 0, flipDown: false, maxHeight: null });
+  const [pinned, setPinned] = React.useState(false);
+  const tooltipRef = React.useRef(null);
+  const tooltipBoxRef = React.useRef(null);
+  const anchorBarRef = React.useRef(null);
+  const sweepSideRef = React.useRef(null);
+  const selectedBarRef = React.useRef(null);
   const [isZoomOpen, setIsZoomOpen] = React.useState(false);
   const containerRef = React.useRef(null);
-  const hideTimeoutRef = React.useRef(null);
-
-  const handleBarMouseEnter = React.useCallback((e, row, value, segments, kind, displayValue) => {
-    if (hideTimeoutRef.current) {
-      clearTimeout(hideTimeoutRef.current);
-      hideTimeoutRef.current = null;
-    }
-
-    const timeLabel = formatBucketRange(row, granularity, locale);
-    setHoveredBar({
-      row,
-      value,
-      segments,
-      timeLabel,
-      kind,
-      displayValue,
-    });
-
-    // 优先寻找真实柱状图定位，以防外层 hover 容器导致 top 坐标上移
-    // 注意：data-trend-bar="true" 绑定在子级 segment 上，它的 parentElement 才是整根柱子的实体容器包装 div
-    const barEl = e.currentTarget.querySelector('[data-trend-bar="true"]');
-    const rect = barEl && barEl.parentElement
-      ? barEl.parentElement.getBoundingClientRect()
-      : e.currentTarget.getBoundingClientRect();
+  const showBar = React.useCallback((e, row, value, segments, kind, displayValue) => {
+    setHoveredBar({ row, value, segments, timeLabel: formatBucketRange(row, granularity, locale), kind, displayValue });
+    const rect = e.currentTarget.getBoundingClientRect();
     const container = containerRef.current;
     if (!container) return;
-
+    anchorBarRef.current = e.currentTarget;
     const containerRect = container.getBoundingClientRect();
     const x = rect.left - containerRect.left + rect.width / 2;
-    const y = rect.top - containerRect.top;
+    const halfWidth = Math.min(140, containerRect.width / 2);
+    const shiftX = Math.max(halfWidth, Math.min(x, containerRect.width - halfWidth)) - x;
+    // Anchor to the full-height column rather than the variable bar top.
+    // Keep zoom details inside its scrollable chart pane. Elsewhere start below
+    // the chart; the layout effect below may move it above once measured.
+    setTooltipPos({ x, y: (isZoom ? rect.top : rect.bottom) - containerRect.top, shiftX, flipDown: true, maxHeight: null });
+  }, [granularity, locale, isZoom]);
 
-    // 自适应横向防溢出
-    const halfWidth = 140;
-    let shiftX = 0;
-    if (x < halfWidth) {
-      shiftX = halfWidth - x;
-    } else if (x > containerRect.width - halfWidth) {
-      shiftX = (containerRect.width - halfWidth) - x;
-    }
+  // Runs before paint, so the user never sees the unmeasured placement.
+  React.useLayoutEffect(() => {
+    if (!hoveredBar || isZoom) return;
+    const anchor = anchorBarRef.current;
+    const container = containerRef.current;
+    const box = tooltipBoxRef.current;
+    if (!anchor || !container || !box) return;
+    const rect = anchor.getBoundingClientRect();
+    const { side, maxHeight } = chooseTrendTooltipPlacement({
+      columnTop: rect.top,
+      columnBottom: rect.bottom,
+      height: box.offsetHeight,
+      band: getTrendTooltipBand(container),
+      prefer: sweepSideRef.current,
+    });
+    sweepSideRef.current = side;
+    const y = (side === "below" ? rect.bottom : rect.top) - container.getBoundingClientRect().top;
+    const flipDown = side === "below";
+    setTooltipPos((prev) =>
+      prev.y === y && prev.flipDown === flipDown && prev.maxHeight === maxHeight
+        ? prev
+        : { ...prev, y, flipDown, maxHeight },
+    );
+  }, [hoveredBar, isZoom]);
 
-    // Flip the tooltip below the bar when there isn't room above it. Tall zoom
-    // bars sit near the top of the chart, so an upward tooltip would be clipped
-    // by the chart container. `y` is the bar top relative to the container top.
-    const estTooltipHeight =
-      96 + (isZoom ? 22 : 0) + (segments.length ? Math.min(segments.length * 30 + 24, 174) : 0);
-    const flipDown = y < estTooltipHeight + 12;
+  const handleChartMouseLeave = React.useCallback(() => {
+    sweepSideRef.current = null;
+  }, []);
 
-    setTooltipPos({ x, y, shiftX, flipDown });
-  }, [isZoom, granularity, locale]);
-
+  const handleBarMouseEnter = React.useCallback((...args) => {
+    if (!pinned) showBar(...args);
+  }, [pinned, showBar]);
   const handleBarMouseLeave = React.useCallback(() => {
-    if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
-    hideTimeoutRef.current = setTimeout(() => {
+    if (!pinned) setHoveredBar(null);
+  }, [pinned]);
+  const handleBarSelect = React.useCallback((e, ...args) => {
+    if (pinned && selectedBarRef.current === e.currentTarget) {
+      setPinned(false);
       setHoveredBar(null);
-    }, 150);
-  }, []);
-
-  const handleTooltipMouseEnter = React.useCallback(() => {
-    if (hideTimeoutRef.current) {
-      clearTimeout(hideTimeoutRef.current);
-      hideTimeoutRef.current = null;
+      return;
     }
-  }, []);
+    selectedBarRef.current = e.currentTarget;
+    showBar(e, ...args);
+    setPinned(true);
+  }, [pinned, showBar]);
 
-  const handleTooltipMouseLeave = React.useCallback(() => {
-    handleBarMouseLeave();
-  }, [handleBarMouseLeave]);
+  // Geometry is measured when a bar is selected. Once an ancestor scrolls or
+  // the viewport resizes, that placement may overflow again (including pinned
+  // details). Close it rather than retaining a stale anchor. Scrolling inside
+  // the details themselves must keep the pinned panel open.
+  React.useEffect(() => {
+    if (!hoveredBar || isZoom) return;
+    const dismissStalePlacement = (event) => {
+      if (event.type === "scroll" && event.target instanceof Node && tooltipRef.current?.contains(event.target)) return;
+      setPinned(false);
+      setHoveredBar(null);
+      sweepSideRef.current = null;
+    };
+    window.addEventListener("resize", dismissStalePlacement);
+    window.addEventListener("scroll", dismissStalePlacement, true);
+    return () => {
+      window.removeEventListener("resize", dismissStalePlacement);
+      window.removeEventListener("scroll", dismissStalePlacement, true);
+    };
+  }, [hoveredBar, isZoom]);
+
+  React.useEffect(() => {
+    if (!pinned) return;
+    const dismiss = (event) => {
+      if (event.type === "keydown" ? event.key !== "Escape" :
+        tooltipRef.current?.contains(event.target) || selectedBarRef.current?.contains(event.target)) return;
+      setPinned(false);
+      setHoveredBar(null);
+    };
+    document.addEventListener("pointerdown", dismiss);
+    document.addEventListener("keydown", dismiss);
+    return () => {
+      document.removeEventListener("pointerdown", dismiss);
+      document.removeEventListener("keydown", dismiss);
+    };
+  }, [pinned]);
+
+  React.useEffect(() => {
+    setPinned(false);
+    setHoveredBar(null);
+  }, [series, granularity, locale]);
 
   return (
     <div
@@ -565,7 +658,10 @@ export function TrendMonitor({
               />
             ))}
           </div>
-          <div className={cn("flex items-end gap-0.5 relative z-0", chartHeightClass)}>
+          <div
+            className={cn("flex items-end gap-0.5 relative z-0", chartHeightClass)}
+            onMouseLeave={handleChartMouseLeave}
+          >
             {seriesValues.length > 0 ? (
               seriesValues.map((value, index) => {
                 const row = series[index];
@@ -587,6 +683,8 @@ export function TrendMonitor({
                     totalBars={seriesValues.length}
                     onMouseEnter={handleBarMouseEnter}
                     onMouseLeave={handleBarMouseLeave}
+                    onSelect={handleBarSelect}
+                    label={formatBucketRange(row, granularity, locale)}
                   />
                 );
               })
@@ -646,24 +744,28 @@ export function TrendMonitor({
       {hoveredBar && (
         <div
           data-trend-tooltip="true"
-          onMouseEnter={handleTooltipMouseEnter}
-          onMouseLeave={handleTooltipMouseLeave}
-          className="absolute z-[9999] w-0 h-0 transition-all duration-100 ease-out"
+          ref={tooltipRef}
+          data-pinned={pinned}
+          className={cn("absolute z-[9999] w-0 h-0", pinned ? "pointer-events-auto" : "pointer-events-none")}
           style={{
             left: `${tooltipPos.x}px`,
             top: `${tooltipPos.y}px`,
           }}
         >
-          {/* Tooltip 玻璃外框（底边固定在柱子上方） */}
+          {/* Tooltip 玻璃外框（默认在图表下方；下方可见空间不足时移到图表上方，见 chooseTrendTooltipPlacement） */}
           <div
+            ref={tooltipBoxRef}
             className={cn(
               "absolute left-0 backdrop-blur-md bg-white/95 dark:bg-oai-gray-900/95 border border-oai-gray-200/50 dark:border-oai-gray-800/50 shadow-xl rounded-xl p-3.5 max-w-[280px] min-w-[220px] flex flex-col gap-2 animate-in fade-in zoom-in-95 duration-100",
               tooltipPos.flipDown ? "top-[10px]" : "bottom-[10px]",
+              tooltipPos.maxHeight != null && "overflow-y-auto",
             )}
             style={{
               transform: `translateX(calc(-50% + ${tooltipPos.shiftX}px))`,
+              ...(tooltipPos.maxHeight != null && { maxHeight: `${tooltipPos.maxHeight}px` }),
             }}
           >
+            {!pinned && <p className="text-[10px] text-oai-gray-400">{copy("trend.monitor.pin_hint")}</p>}
             {/* 顶栏 */}
             <div className="flex items-center justify-between border-b border-oai-gray-100 dark:border-oai-gray-800/80 pb-1.5">
               <span className="text-[11px] font-semibold text-oai-gray-500 dark:text-oai-gray-400">
