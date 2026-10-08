@@ -231,7 +231,8 @@ struct NativeQAProfile: Codable {
         configuration.connectionProxyDictionary = ["HTTPEnable": 0, "HTTPSEnable": 0, "SOCKSEnable": 0, "ProxyAutoConfigEnable": 0]
         configuration.httpCookieStorage = nil
         configuration.urlCache = nil
-        configuration.timeoutIntervalForRequest = 5
+        configuration.timeoutIntervalForRequest = 15
+        configuration.timeoutIntervalForResource = 20
         let session = URLSession(configuration: configuration, delegate: NativeQAIdentityDelegate(), delegateQueue: nil)
         defer { session.invalidateAndCancel() }
         do {

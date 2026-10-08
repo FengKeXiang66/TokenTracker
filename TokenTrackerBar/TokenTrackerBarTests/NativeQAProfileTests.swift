@@ -134,6 +134,33 @@ final class NativeQAProfileTests: XCTestCase {
         }
     }
 
+    func testDelayedValidLoopbackApprovalCompletesBothOwnershipChecks() throws {
+        try withProfile { profile, file in
+            let script = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+                .deletingLastPathComponent().appendingPathComponent("test/fixtures/native-qa-approval-delay.cjs")
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+            process.arguments = ["node", script.path, profile.runDirectory]
+            let output = Pipe()
+            process.standardOutput = output
+            try process.run()
+            defer { if process.isRunning { process.terminate(); process.waitUntilExit() } }
+            let response = try JSONSerialization.jsonObject(with: output.fileHandleForReading.availableData) as! [String: Any]
+            let port = try XCTUnwrap(response["port"] as? Int)
+            let actual = NativeQAProfile(version: profile.version, runID: profile.runID, origin: "http://127.0.0.1:\(port)",
+                                         runDirectory: profile.runDirectory, serverChallenge: profile.serverChallenge,
+                                         realm: profile.realm, ownedOrderIDs: profile.ownedOrderIDs)
+            try JSONEncoder().encode(actual).write(to: file)
+            let finished = expectation(description: "Delayed order and current actor approved through actual loopback HTTP")
+            Task {
+                let approved = await actual.approveOwnedOrder(order)
+                XCTAssertTrue(approved)
+                finished.fulfill()
+            }
+            wait(for: [finished], timeout: 20)
+        }
+    }
+
     func testWebKitNumbersAndBooleansRetainTheirDistinctBridgeTypes() throws {
         try withProfile { profile, _ in
             XCTAssertTrue(profile.permitsNativeMessage(["type": "setSetting", "key": "exchangeRate", "value": NSNumber(value: 1.0)]))
