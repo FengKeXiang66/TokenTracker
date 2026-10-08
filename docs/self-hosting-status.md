@@ -1,6 +1,6 @@
 # Self-hosting implementation status
 
-Public source inventory reviewed on 2026-10-04; local private-backend implementation verified on 2026-10-08. This is an engineering inventory, not VPS deployment acceptance. Public-source counts were read from `origin/main` commit `17247d9d0c9e40eb958b03e638fc4a3978b52a83`; new Cloud code remains on the local `feat/cloud-subscriptions` branch.
+Public source inventory reviewed on 2026-10-04; actual private-backend platform verified on 2026-10-08. This is an engineering inventory, not public VPS acceptance. The historical inventory counts below came from `17247d9d`; current Pro/self-host code is pushed on `feat/cloud-subscriptions` at `fb792a53`, including main `4e225c31`.
 
 ## Verified now
 
@@ -15,12 +15,12 @@ Public source inventory reviewed on 2026-10-04; local private-backend implementa
 
 The core `tokentracker_devices`, `tokentracker_device_tokens`, `tokentracker_hourly`, `tokentracker_device_machine`, profile and device-code tables have no matching complete creation baseline in the public migration directory. The first migration directly alters an existing badges table. `20260821060000_ban-confirmed-leaderboard-manipulation.sql` additionally requires a precise production evidence cohort and aborts if it is absent. These are concrete reasons not to run `db migrations up --all` for a fresh install.
 
-The local branch now adds a clean **private-backend** installer under `scripts/self-host/`, explicit free instance policy, and a 14-function deployment manifest. It does not install public profile/leaderboard services or enable archival. Independent PGlite installation twice and real bundled-handler/SDK HTTP tests pass; the InsForge platform, real VPS and packaged clients still need acceptance. [Backend installation and local evidence](self-hosting-backend.md)
+The branch adds a clean private-backend installer, explicit free instance policy and 14-function deployment manifest. It does not install public profile/leaderboard services or enable archival. The official v2.3.3 Linux stack now passes actual auth/RLS, all 13 install steps, unchanged reinstall, 14 HTTP flows, source parity and two-user private access. Database/storage recovery and standard browser session restore are closing; public VPS HTTPS and native-client routing still need their own acceptance. [Backend installation and evidence](self-hosting-backend.md)
 
 ## Required before supported release
 
 - [x] Produce a clean private schema/RPC/trigger/RLS baseline, free of production users, credentials, transaction records and operator-specific data repairs. Keep platform auth separate. Record installation steps and checksums; unchanged reinstall preserves data and altered steps fail explicitly. A future upgrade still requires its own reviewed manifest.
-- [ ] Pin and validate an InsForge release, images and Deno/SDK compatibility. Verify `auth.uid()`, JWT claims and the `anon`, `authenticated` and `project_admin` privilege paths using real self-hosted sessions.
+- [x] Pin and validate official InsForge v2.3.3 images, actual PostgreSQL15.18/Deno2.0.6 and SDK1.4.5. Actual signup/signin, `auth.uid()`, ownership RLS, foreign keys and anon/authenticated/project_admin privilege checks pass. CommonJS and locked dependency compatibility are verified by all14 HTTP200, not only deployment status.
 - [x] Add explicit free `self_hosted` access behavior under instance-owner control. Private reads/uploads remain authenticated; client-role RPC/table access stays denied. Device quotas and hosted history windows do not apply, and no fake payment or preview entitlement is required.
 - [x] Make the self-hosted device-authorize build use the selected dashboard origin and verify its grant/poll/upload flow locally.
 - [ ] Align CLI persistent config, local API auth/account proxy, dashboard SDK/functions URLs and native callback targets. Verify that all requests stay on the chosen instance.
@@ -30,7 +30,7 @@ The local branch now adds a clean **private-backend** installer under `scripts/s
 - [ ] Document and verify bounded schedules, backups, restore and upgrades. Run archive activation checks separately before moving any history.
 - [ ] Execute fresh-install, two-device sync, account isolation, duplicate/correction, timezone, backup/restore and upgrade tests on a real isolated VPS. Test supported native clients against that instance.
 
-Local SQL installation and private-function verification are implemented. They do not install Docker, acquire a VPS, deploy an instance or alter production schema. Actual InsForge sessions, VPS HTTPS, native routing, storage and recovery remain deployment gates.
+Application installation and actual private functions are verified in an isolated official local Linux stack. Two fresh platform instances reject each other's JWT, anonymous key and refresh cookie. Backup recovery is being verified separately after making the second instance a restore target. The original paid InsForge project remains unchanged by this local lab. Public VPS HTTPS, standard browser restore, native routing and recovery gates remain distinct.
 
 ## Reproduce the source checks
 

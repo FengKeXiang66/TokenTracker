@@ -1,6 +1,6 @@
 # Windows 客户端验收交接
 
-2026-10-08。按用户要求，Windows 实机验收等测试电脑准备好后接续，不阻塞 Web 和 InsForge 后端工作。
+2026-10-08 13:08 UTC 更新。按用户要求，Windows 实机验收等测试电脑准备好后接续，不阻塞 Web 和 InsForge 后端工作。
 
 这里需要的是 Windows 客户端测试电脑。官方后端仍使用现有付费 InsForge，付款由 Waffo 处理，不需要 Windows 服务器。
 
@@ -11,16 +11,14 @@
 | 编译 | 官方 .NET SDK 8.0.425，符合 CI 的 `8.0.x`；Release/win-x64，0 warnings、0 errors |
 | 单测 | 上轮 63/63 通过；本轮原生源码未变，未重复运行 |
 | 发布 | `dotnet publish -r win-x64 --self-contained true` 退出码 0 |
-| 嵌入运行时 | Windows Node 22.22.2 的官方 SHA256 再次校验通过；102 个 CLI 源文件、1 个入口、269 个 Windows Dashboard 文件及两份依赖清单逐文件一致 |
-| Portable ZIP | 112260178 字节，独立解压 970/970 文件大小与 SHA256 一致 |
+| 嵌入运行时 | Windows Node 22.22.2 的官方 SHA256 再次校验通过；102 个 CLI 源文件、1 个入口、273 个 Windows Dashboard 文件及两份依赖清单逐文件一致 |
+| Portable ZIP | 112272521 字节，独立解压 974/974 文件大小与 SHA256 一致 |
 
-当前本地包位于 `.tmp/waffo/hosted/native/pro-refresh/TokenTracker-private-pro-win-x64.zip`。完整证据以 `.tmp/waffo/hosted/native/` 为根目录，包含 `native-acceptance.json` 和 `pro-refresh/` 内的 `windows-publish-parity.json`、`windows-zip-readback.json`、`source-snapshot.json`。
+当前本地包位于 `.tmp/waffo/hosted/native/head-fb792a53/TokenTracker-private-pro-win-x64.zip`。完整证据以 `.tmp/waffo/hosted/native/` 为根目录，包含 `native-acceptance.json` 和 `head-fb792a53/` 内的 `windows-publish-parity.json`、`windows-zip-readback.json`、`source-head-binding.json`。
 
-ZIP SHA256 为 `c2e690041d98bc8f6c4ce79f931e20ec106f7047dda2650ab6879d11f39fe3d2`。这个包来自 `feat/cloud-subscriptions` 的本轮源码快照，版本号 1.1.13 不能单独证明包包含收费改动；以包 hash 和构建证据为准。CLI 或 Dashboard 改动后须重新构建核对。
+ZIP SHA256 为 `c09b7b269effc413f40aec59e352df219f0f59f505a17b5aa7c30793b36932f5`。源码来自已推送的 `feat/cloud-subscriptions` commit `fb792a531139e5e3578a04da1748e0ce97df5890`。872 个相关受控文件与该 commit 的 Git blob 一致，构建完成后再次读回无变化。版本号 1.1.13 不能单独证明包包含本轮改动；以来源 commit、包 hash 和构建证据为准。CLI 或 Dashboard 改动后须重新构建核对。
 
-当前 ZIP 已包含 InsForge 的 40/64 位 opaque 匿名公钥兼容性、Pro 头像与标识、中性灰榜单高亮及分页置顶会员标识修复。旧 `TokenTracker-private-cloud-win-x64.zip` 早于这些改动，不能作为本轮测试包。以上证明包含打包与源码一致性；Windows Node、WebView2 窗口及支付返回仍待实机验证。
-
-该包记录本轮 Pro checkpoint，尚未包含随后新增的 `origin/main` `4e225c31` 法律与静态定价页面。主干整合后须刷新 Dashboard、内嵌资源和 ZIP，并更新这里的包 hash。
+当前 ZIP 已包含 InsForge 的 40/64 位 opaque 匿名公钥兼容性、Pro 头像与标识、中性灰榜单高亮及分页置顶会员标识修复，也包含新主干的 `pricing.html`、`terms.html`、`privacy.html`、`legal.css` 和 LegalLinks 入口。旧 `TokenTracker-private-cloud-win-x64.zip` 及 `pro-refresh/` 内的 checkpoint 包均早于完整主干整合，不能作为本轮测试包。以上证明包含打包与源码一致性；Windows Node、WebView2 窗口及支付返回仍待实机验证。
 
 ## 测试电脑到位后的工程步骤
 
@@ -34,5 +32,7 @@ ZIP SHA256 为 `c2e690041d98bc8f6c4ce79f931e20ec106f7047dda2650ab6879d11f39fe3d2
 每条记录 Windows/WebView2/Node 版本、实际 HTTP 状态与请求目的地、服务端账本或权限读回和关键截图。禁止用“编译通过”代替窗口或付款返回验证。
 
 ## 接续入口
+
+在另一台电脑上使用已推送的 `feat/cloud-subscriptions` 分支及本页包 hash 接续。不要从 `main` 的普通发行包推断已包含本轮 Pro 代码。本地 ZIP 未作为正式 Release 发布，可由工程侧转交并校验，或在 Windows 从该分支重新构建。
 
 继续读取 [交付清单](cloud-delivery.md)、[收款运维手册](cloud-billing-operations.md) 和 `tasks/todo.md`。用户已授权提交和推送 `feat/cloud-subscriptions`，由主任务统一执行；仍不发布公开 PR、收费公告或启用生产收费。商户审核已通过，正式凭据、生产部署和真实结算门槛独立保留。
