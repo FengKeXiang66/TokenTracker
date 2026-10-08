@@ -226,5 +226,7 @@ test("self-host billing preserves the installed payment dependency locks and the
     assert.ok(code.includes('await import("npm:undici@'+undici+'")'));
     assert.ok(code.includes("File: mod.File || globalThis.File"));
     assert.ok(code.includes('const Buffer = __selfHostModules["node:buffer"].Buffer'));
+    await buildFunctions(directory);
+    assert.equal(await fs.readFile(path.join(directory,"tokentracker-billing.js"),"utf8"),code);
   } finally {await fs.rm(directory,{recursive:true,force:true});}
 });

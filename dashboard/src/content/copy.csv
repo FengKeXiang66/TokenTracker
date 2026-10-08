@@ -1943,3 +1943,6 @@ cloud.devices.unlimited_self_hosted,cloud,*,Cloud,text,{{count}} registered sync
 cloud.self_host.sync_hint,cloud,*,Cloud,text,"Uploads go to this self-hosted instance. Its operator manages synchronization, storage and retention without an official Pro membership.",,active
 instance.connection.destination,cloud,*,Cloud,text,Sign in to {{host}}. Your credentials will be sent to this instance.,,active
 cloud.self_host.public_profile_disabled,cloud,*,Cloud,text,Public profiles are not enabled on this private instance. Nothing is published to the official leaderboard.,,active
+legal.nav.pricing,ui,*,LegalLinks,pricing,Pro pricing,,active
+legal.nav.terms,ui,*,LegalLinks,terms,Terms of Service,,active
+legal.nav.support,ui,*,LegalLinks,support,Support,,active

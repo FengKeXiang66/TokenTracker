@@ -79,7 +79,7 @@ async function buildFunctions(directory) {
     const output=await build({entryPoints:[source],write:false,bundle:true,format:"iife",globalName:"__selfHostHandler",
       platform:"neutral",target:"es2022",plugins:[ownDashboard],logLevel:"silent"});
     if(slug==="tokentracker-billing")runtimeImports.add("node:buffer");
-    const imports=Array.from(runtimeImports,specifier=>`${JSON.stringify(specifier)}: ${specifier==="node:buffer"
+    const imports=Array.from(runtimeImports).sort().map(specifier=>`${JSON.stringify(specifier)}: ${specifier==="node:buffer"
       ? '(mod => ({ __esModule: true, ...mod, File: mod.File || globalThis.File }))(await import("node:buffer"))'
       : `{ __esModule: true, ...await import(${JSON.stringify(specifier)}) }`}`).join(",\n");
     const code=`module.exports = async function(req) {

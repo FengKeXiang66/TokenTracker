@@ -14,6 +14,7 @@ import { CloudContextualPrompt } from "./components/cloud/CloudContextualPrompt.
 import { clearCloudPromptIntent } from "./lib/cloud-prompt-policy.js";
 import { setCloudSyncEnabled } from "./lib/cloud-sync-prefs";
 import { AppLayout } from "./ui/components/Sidebar.jsx";
+import { LegalLinks } from "./ui/components/LegalLinks.jsx";
 import { ToastProvider } from "./ui/components/Toast.jsx";
 import {
   getLeaderboardPreloadContextKey,
@@ -337,6 +338,7 @@ export default function App() {
   }
 
   let content = null;
+  let hasLandingFooter = false;
   if (normalizedPath === "/auth/callback" || normalizedPath === "/auth/native-callback") {
     content = <NativeAuthCallbackPage />;
   } else if (normalizedPath === "/login") {
@@ -354,6 +356,7 @@ export default function App() {
     content = <WrappedPage />;
   } else if (gate === "landing") {
     content = <LandingPage signInUrl="/login" signUpUrl="/login" />;
+    hasLandingFooter = true;
   } else {
     const pageNode = (<>
       {insforge.configurationError ? (
@@ -384,7 +387,12 @@ export default function App() {
       />
     </>);
     if (showSidebar) {
-      content = <AppLayout>{pageNode}</AppLayout>;
+      content = (
+        <AppLayout>
+          {pageNode}
+          {!isLocalMode && <footer className="px-4 py-6"><LegalLinks /></footer>}
+        </AppLayout>
+      );
     } else {
       content = pageNode;
     }
@@ -399,6 +407,9 @@ export default function App() {
         <ToastProvider>
           <LoginModalProvider>
             <Suspense fallback={null}>{content}</Suspense>
+            {!isLocalMode && !showSidebar && !hasLandingFooter && (
+              <footer className="px-4 py-6"><LegalLinks /></footer>
+            )}
             <Suspense fallback={null}>
               {showSidebar ? <CommandPalette /> : null}
               <LoginModal />
