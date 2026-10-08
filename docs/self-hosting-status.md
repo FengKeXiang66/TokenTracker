@@ -15,7 +15,7 @@ Public source inventory reviewed on 2026-10-04; actual private-backend platform 
 
 The core `tokentracker_devices`, `tokentracker_device_tokens`, `tokentracker_hourly`, `tokentracker_device_machine`, profile and device-code tables have no matching complete creation baseline in the public migration directory. The first migration directly alters an existing badges table. `20260821060000_ban-confirmed-leaderboard-manipulation.sql` additionally requires a precise production evidence cohort and aborts if it is absent. These are concrete reasons not to run `db migrations up --all` for a fresh install.
 
-The branch adds a clean private-backend installer, explicit free instance policy and 14-function deployment manifest. It does not install public profile/leaderboard services or enable archival. The official v2.3.3 Linux stack now passes actual auth/RLS, all 13 install steps, unchanged reinstall, 14 HTTP flows, source parity and two-user private access. Database/storage recovery and standard browser session restore are closing; public VPS HTTPS and native-client routing still need their own acceptance. [Backend installation and evidence](self-hosting-backend.md)
+The branch adds a clean private-backend installer, explicit free instance policy and 14-function deployment manifest. It does not install public profile/leaderboard services or enable archival. The official v2.3.3 Linux stack passes actual auth/RLS, all13 install steps, unchanged reinstall,14 HTTP flows, source parity, two-user private access, full database/storage restore and six real-browser session recovery checks. Public VPS HTTPS and native-client routing still need their own acceptance. [Backend installation and evidence](self-hosting-backend.md)
 
 ## Required before supported release
 
@@ -27,10 +27,10 @@ The branch adds a clean private-backend installer, explicit free instance policy
 - [ ] Define an instance-switch flow that preserves local data, clears old account/token caches and prevents replaying credentials against another instance. Test both directions independently.
 - [x] Provide a deployment manifest for the private backend's 14 required functions, including device-flow authorization and rename. Bundle local imports and pin InsForge SDK 1.4.5. This is a separate manifest from `scripts/build-cloud-functions.cjs`; public-community and payment webhook deployment are excluded.
 - [ ] Configure private storage policies, optional OAuth/email, HTTPS/cookies/CORS and SPA callback routes. Disable official-community publishing on self-hosted clients by default.
-- [ ] Document and verify bounded schedules, backups, restore and upgrades. Run archive activation checks separately before moving any history.
+- [x] Verify unchanged reinstall and a full database/configuration/storage backup restore in the official local stack. PostgreSQL15 tools restore15.18 successfully;7 devices/4hourly/8auth/13step fields match, actual sign-in/private260/70 and40byte file match. Future upgrades and optional archive schedules remain separate reviewed changes.
 - [ ] Execute fresh-install, two-device sync, account isolation, duplicate/correction, timezone, backup/restore and upgrade tests on a real isolated VPS. Test supported native clients against that instance.
 
-Application installation and actual private functions are verified in an isolated official local Linux stack. Two fresh platform instances reject each other's JWT, anonymous key and refresh cookie. Backup recovery is being verified separately after making the second instance a restore target. The original paid InsForge project remains unchanged by this local lab. Public VPS HTTPS, standard browser restore, native routing and recovery gates remain distinct.
+Application installation and actual private functions are verified in an isolated official local Linux stack. Two fresh instances reject each other's JWT, anonymous key and refresh cookie. The second then becomes a backup replica; the complete restore preserves recorded fields and authenticates both users. Real-browser official SDK1.4.5 login/fresh-client/reload keeps the correct identity and private totals for each account. The original paid InsForge project remains unchanged by this lab. Public VPS HTTPS/OAuth, native routing and physical-device checks remain distinct.
 
 ## Reproduce the source checks
 
