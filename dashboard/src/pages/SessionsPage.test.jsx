@@ -525,7 +525,8 @@ describe("SessionsPage", () => {
     render(<SessionsPage />);
     const overnight = (await screen.findByRole("button", { name: "View statistics for Overnight run" })).closest("li");
     const morning = screen.getByRole("button", { name: "View statistics for Morning run" }).closest("li");
-    const day = started.toLocaleDateString(undefined, { day: "numeric" });
+    // Match the mocked UI locale, rather than the Windows host's default.
+    const day = started.toLocaleDateString("en", { day: "numeric" });
     expect(within(overnight).getByText((text) => text.includes(day) && /\d{4}/.test(text))).toBeInTheDocument();
     expect(within(morning).queryByText(/\d{4}/)).not.toBeInTheDocument();
   });
