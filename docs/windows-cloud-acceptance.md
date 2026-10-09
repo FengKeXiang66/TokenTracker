@@ -1,12 +1,20 @@
 # Windows 客户端验收交接
 
-## 后续安全修复候选：等待新 CI 与安装包验收
+## 第二批安全修复候选：等待新的完整 CI、安全门禁与包验收
 
-已修复 Bearer 前缀解析的重叠正则、静态文件 stat/读取路径竞态，以及 gift admin 的私有凭据与 resume 文件 lstat/读取路径竞态。解析改为仅匹配前缀；静态资源通过同一打开的 descriptor 检查和读取；gift 文件用 O_NOFOLLOW/O_NONBLOCK、owner/mode/类型与大小检查，并从同一 descriptor 限量读取和关闭。Windows 私有文件入口仍按原 ACL 门槛关闭。支付测试 URL 条件改为精确 origin 判断。
+第二批改动使设备身份修复的配置写入通过随机 wx/0600 临时文件原子替换；WorkBuddy trace 从同一打开的 descriptor 检查和读取；Bot 帧生成使用独立 mkdtemp 目录，成功和失败均只清理自己创建的文件；Windows 包清单大小/hash 从同一 buffer 获取。代理初始化与连接错误只返回限长首行或通用信息，不再调用未知异常的 toString。Windows 的 POSIX mode 不作为 NTFS ACL 证明。
 
-新 Windows Node22 目标回归：96 项、89 通过、0 失败、0 取消、7 条件跳过，11 秒；九份源码/测试文件运行前后 hash 一致。新增三项 POSIX 私有文件竞态/权限回归在 Windows 明确跳过，必须由 macOS/Linux CI 实际执行，不能按本机验证写通过。旧静态服务器在同一替换回归实际失败；旧 Bearer 表达式对长空格加两个换行的畸形值在隔离进程超出 1.5 秒预算，修复后完成。纯空格值没有复现超时，且 Node HTTP parser 本身拒绝含换行的 HTTP header，未把畸形值探针写为已证实可远程利用的 HTTP 攻击。
+本机实际 Node22 目标回归：12 文件、415 项，**414 通过、0 失败、0 取消、1 条件跳过**，92.246 秒自然结束；十份源码/测试文件运行前后 hash 一致。文件符号链接用例因本机权限跳过，须在 CI 实际执行。旧版本 Bot 临时文件与 WorkBuddy 路径替换都在相同新增回归中复现失败；修复后通过。证据 acceptance-windows-security-second-combined.json/log、acceptance-bot-engine-temp-before.json、acceptance-workbuddy-trace-before.json。
 
-该 src 安全改动尚待新的完整 CI、CodeQL 实际安全门禁及候选包核对；下文 29b02f5a / 应用 896baa52 的全量与包证据只证明改动前源码。正式收费、会员限制、归档和实际资金门槛保持未启用/未通过。证据 acceptance-windows-security-final-fixes.json/log、acceptance-security-before-fixes.json。
+前一安全源码 **d9c0226f4f94c11ecec36ce2798cade1a61abef9** 的 [CI 37976934613](https://github.com/xiufengsun/TokenTracker/actions/runs/37976934613) 四个 job 已全部通过：Windows Node24 与实际打包 Node22 均 3844 通过/40 条件跳过，.NET 117/117；Linux Node 3874 通过/8 跳过，macOS Node 3878 通过/4 跳过及 239 项原生测试通过。三个新增 POSIX 私有文件权限/竞态回归在 Linux/macOS 实际执行通过。无失败或取消，证据 acceptance-security-first-ci.json 和对应 job log。
+
+同一 d9c0226f 的 CodeQL workflow 完成，但实际 PR 安全门禁 113978608011 仍失败：20 条注释（8 high、12 medium），分支 35 条 open。比前一轮少 7 条不代表其余已通过或全部可利用；第二批修复尚待扫描，不人工批量忽略告警。新的完整 CI、安全门禁和实际候选安装包读回仍待完成；下文 29b02f5a/896baa52 的包证据只证明其来源源码。正式收费、会员限制、归档与真实资金门槛保持未启用/未通过。
+
+## 第一批安全修复：CI 已通过，安全门禁与新包待验收
+
+第一批已修复 Bearer 前缀解析的重叠正则、静态文件检查/读取竞态，以及 gift admin 的私有凭据与 resume 文件校验/读取竞态。Windows 私有文件入口仍按原 ACL 门槛关闭。支付测试 URL 条件改为精确 origin 判断。
+
+对应 Windows Node22 目标回归 89 通过/7 条件跳过、无失败或取消，九份变更与提交 blob 一致。旧静态服务器替换回归实际失败；旧 Bearer 表达式对长空格加两个换行的畸形值在隔离进程超出 1.5 秒预算，修复后完成。纯空格值未复现超时，Node HTTP parser 本身拒绝含换行的 header，未声称已经证实可远程利用的 HTTP 攻击。证据 acceptance-windows-security-final-fixes.json/log、acceptance-security-before-fixes.json；其后完整跨平台 CI 结果见上。
 
 2026-10-10（Asia/Shanghai）更新。上一已核验应用候选为 **1.3.0 / 896baa52**，修复 Node22 中文目录递归复制的原生崩溃；实际 Node22 完整本机回归已通过：363 文件、3830 通过、0 失败、0 取消、47 条件跳过。最新受审 head 29b02f5a 的四平台 CI、新包核对、30 项原生窗口及 18 项包内专项已通过；CodeQL workflow 成功，但 PR 安全门禁有 27 条注释需工程审查/修复。前一 60b8935b 的 CI/982 文件候选包/107 嵌入源码核对及 30 项原生窗口检查仅证明旧源码。正常邮箱登录与换账号证据亦保留原始来源。完整托盘、系统协议付款返回和安装器生命周期仍待验收。
 

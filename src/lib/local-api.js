@@ -15,6 +15,7 @@ const { getOrCreateMachineId, computeStableMachineId } = require("./machine-id")
 const { functionUrlFor, fetchFunctionResponse } = require("./function-url");
 const { createCloudDeviceTokenStore } = require("./cloud-device-token");
 const { parseBearerToken } = require("./bearer-token");
+const { writeJsonAtomicSync } = require("./atomic-json");
 
 const SYNC_TIMEOUT_MS = 120_000;
 // A failed account-view request should not stall every dashboard refresh
@@ -1228,7 +1229,7 @@ function createLocalApiHandler({ queuePath, serverVersion = null, trackerDataDir
         if (["deviceToken", "deviceId", "user_id"].some(key => config?.[key]) &&
             normalizeInstanceBaseUrl(config.deviceTokenBaseUrl) !== runtime.baseUrl) {
           config = clearDeviceIdentity(config);
-          fs.writeFileSync(runtimeConfigPath, JSON.stringify(config, null, 2), { mode: 0o600 });
+          writeJsonAtomicSync(runtimeConfigPath, config);
           runtime.deviceToken = null;
         }
       }

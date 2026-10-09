@@ -1,6 +1,6 @@
 # Cloud 交付与托管沙盒验收
 
-2026-10-10 后续安全源码候选已修复 Bearer 重叠回溯、静态资源检查/读取竞态和 gift 私有文件校验/读取竞态；Windows Node22 目标组 89 通过/7 条件跳过/无失败或取消。POSIX 新用例仍需 CI 实际执行，新全量/安全门禁/安装包尚待读回。以下 29b02f5a 的已核验包属于改动前源码，不替代新候选。具体来源、失败探针边界和剩余工程/Owner 门槛见 [总表](cloud-release-readiness.md)。
+2026-10-10 第二批安全候选已修复设备身份配置原子写入、WorkBuddy trace descriptor 读取、Bot 临时构建目录隔离、包清单同 buffer 核验及代理异常信息输出。Windows 实际 Node22 目标组 414 通过/1 符号链接权限跳过/无失败或取消，十份变更 hash 保持一致；新完整 CI、安全门禁与实际包验收尚待完成。前一 d9c0226f 的四平台 CI 已全部通过，三个新增 POSIX 私有文件用例在 Linux/macOS 实际运行通过；其实际 CodeQL 安全门禁仍为 20 条注释、分支 35 open，不能按扫描 workflow 完成记为安全通过。下文 29b02f5a 的包仅证明旧源码。具体来源和工程/Owner 门槛见 [总表](cloud-release-readiness.md)。
 
 2026-10-10 应用来源 **1.3.0 / 896baa52**、受审 head **29b02f5a** 的四平台 CI 全通过。Windows Node24 与实际包内 Node22 的全量均 3840 通过/37 跳过/无失败或取消，.NET 117/117；新包 982 文件/107 嵌入源码/hash/四项密钥字节扫描匹配，实际新 CI DLL/EmbeddedServer 的 30 项原生窗口和 18 项包内专项通过。CodeQL workflow 执行成功，但 PR 安全门禁仍有 27 条注释（分支全部 open 42、主干 open 23），工程继续逐项判定/修复，不能称正式收费发布验收完成。精确来源/hash、宿主失败记录与独立上线门槛见 [总表](cloud-release-readiness.md)。
 

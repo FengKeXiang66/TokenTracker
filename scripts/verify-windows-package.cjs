@@ -45,8 +45,11 @@ const report = {
   sourceSha: execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim(),
   version: JSON.parse(fs.readFileSync(path.join(runtime, "package.json"), "utf8")).version,
   matchedInputs: matched,
-  files: packageFiles.map(file => ({ path: path.relative(publish, file).replaceAll("\\", "/"),
-    bytes: fs.statSync(file).size, sha256: crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex") })),
+  files: packageFiles.map(file => {
+    const bytes = fs.readFileSync(file);
+    return { path: path.relative(publish, file).replaceAll("\\", "/"),
+      bytes: bytes.length, sha256: crypto.createHash("sha256").update(bytes).digest("hex") };
+  }),
 };
 if (reportPath) fs.writeFileSync(reportPath, JSON.stringify(report, null, 2) + "\n");
 console.log(JSON.stringify({ sourceSha: report.sourceSha, version: report.version,

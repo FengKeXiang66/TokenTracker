@@ -10829,19 +10829,23 @@ async function parseWorkbuddyIncremental({
     const entry = traceFiles[fileIdx];
     const filePath = entry.path;
     let stat;
-    try { stat = fssync.statSync(filePath); } catch { continue; }
-    const prevEntry = fileOffsets[filePath] || {};
-    const prevSize = Number(prevEntry.size) || 0;
-    const prevIno = prevEntry.ino;
-    const inodeChanged = typeof prevIno === "number" && prevIno !== stat.ino;
-    const startOffset = stat.size < prevSize || inodeChanged ? 0 : prevSize;
-    if (stat.size <= startOffset) continue;
-
     let traceDoc;
+    let traceFd;
     try {
-      traceDoc = JSON.parse(fssync.readFileSync(filePath, "utf8"));
+      traceFd = fssync.openSync(filePath, "r");
+      stat = fssync.fstatSync(traceFd);
+      if (!stat.isFile()) continue;
+      const prevEntry = fileOffsets[filePath] || {};
+      const prevSize = Number(prevEntry.size) || 0;
+      const prevIno = prevEntry.ino;
+      const inodeChanged = typeof prevIno === "number" && prevIno !== stat.ino;
+      const startOffset = stat.size < prevSize || inodeChanged ? 0 : prevSize;
+      if (stat.size <= startOffset) continue;
+      traceDoc = JSON.parse(fssync.readFileSync(traceFd, "utf8"));
     } catch {
       continue;
+    } finally {
+      if (traceFd !== undefined) fssync.closeSync(traceFd);
     }
     const trace = traceDoc && typeof traceDoc === "object" && traceDoc.trace && typeof traceDoc.trace === "object"
       ? traceDoc.trace
