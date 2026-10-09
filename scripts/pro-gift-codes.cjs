@@ -97,6 +97,25 @@ function validateBatch(batch, options, baseUrl) {
   return batch;
 }
 
+async function readPrivateFile(file, maxBytes, message) {
+  // Check and read the same opened inode. A path-based lstat followed by
+  // readFile could otherwise follow a replacement link or different file.
+  const handle = await fs.open(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
+  try {
+    const info = await handle.stat();
+    if (!info.isFile() || info.size > maxBytes || info.mode & 0o077 || info.uid !== process.getuid()) throw Error(message);
+    const bytes = Buffer.alloc(maxBytes + 1);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const { bytesRead } = await handle.read(bytes, offset, bytes.length - offset, null);
+      if (!bytesRead) break;
+      offset += bytesRead;
+    }
+    if (offset > maxBytes) throw Error(message);
+    return bytes.subarray(0, offset).toString('utf8');
+  } finally { await handle.close(); }
+}
+
 async function privatePath(value, writing = false) {
   if (process.platform === 'win32') throw Error('Private raw-code files require the verified macOS/Linux owner-only storage path');
   const file = path.resolve(value);
@@ -118,9 +137,7 @@ async function privatePath(value, writing = false) {
     catch { throw Error('Raw code files inside a repository must be ignored'); }
   }
   if (!writing) {
-    const info = await fs.lstat(file);
-    if (!info.isFile() || info.isSymbolicLink() || info.size > 1048576 ||
-        process.platform !== 'win32' && (info.mode & 0o077 || info.uid !== process.getuid())) throw Error('Saved codes require a private owner-only file');
+    await readPrivateFile(file, 1048576, 'Saved codes require a private owner-only file');
   }
   return file;
 }
@@ -129,10 +146,7 @@ async function connection(options, env) {
   if (options['project-file']) {
     if (process.platform === 'win32') throw Error('Use server-side environment credentials; Windows configuration-file ACL has not been verified');
     const file = path.resolve(options['project-file']);
-    const info = await fs.lstat(file);
-    if (!info.isFile() || info.isSymbolicLink() || info.size > 65536 ||
-        process.platform !== 'win32' && (info.mode & 0o077 || info.uid !== process.getuid())) throw Error('Project configuration must be private');
-    const value = JSON.parse(await fs.readFile(file, 'utf8'));
+    const value = JSON.parse(await readPrivateFile(file, 65536, 'Project configuration must be private'));
     if (typeof value.api_key !== 'string' || !value.api_key) throw Error('Project configuration lacks its server key');
     return { baseUrl: origin(value.oss_host), key: value.api_key };
   }
@@ -159,7 +173,7 @@ function createRpcClient(baseUrl, key, request = fetch) {
 async function run(options, config, rpc) {
   if (options.action === 'generate') {
     const file = await privatePath(options.resume || options.out, !options.resume);
-    const batch = options.resume ? validateBatch(JSON.parse(await fs.readFile(file, 'utf8')), options, config.baseUrl) : createBatch(options, config.baseUrl);
+    const batch = options.resume ? validateBatch(JSON.parse(await readPrivateFile(file, 1048576, 'Saved codes require a private owner-only file')), options, config.baseUrl) : createBatch(options, config.baseUrl);
     if (!options.resume) await fs.writeFile(file, JSON.stringify(batch, null, 2) + '\n', { mode: 0o600, flag: 'wx' });
     const result = await rpc('cloud_create_gift_batch', { p_environment: batch.environment, p_batch_id: batch.batchId,
       p_duration_days: batch.durationDays, p_redeem_before: batch.redeemBefore, p_label: batch.label,

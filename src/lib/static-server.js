@@ -1,4 +1,3 @@
-const fs = require("node:fs");
 const fsPromises = require("node:fs/promises");
 const path = require("node:path");
 
@@ -34,8 +33,10 @@ async function serveStaticFile(baseDir, pathname, res, { localRuntimeConfig = fa
   // prevent directory traversal
   if (!filePath.startsWith(baseDir)) return false;
 
+  let handle;
   try {
-    const stat = await fsPromises.stat(filePath);
+    handle = await fsPromises.open(filePath, "r");
+    const stat = await handle.stat();
     if (!stat.isFile()) return false;
 
     const ext = path.extname(filePath).toLowerCase();
@@ -43,7 +44,7 @@ async function serveStaticFile(baseDir, pathname, res, { localRuntimeConfig = fa
     const isHtml = ext === ".html";
 
     if (isHtml && localRuntimeConfig && path.basename(filePath) === "index.html") {
-      const source = await fsPromises.readFile(filePath, "utf8");
+      const source = await handle.readFile("utf8");
       const content = source.replace(/<head(?:\s[^>]*)?>/i,
         "$&\n<script>window.__TOKENTRACKER_RUNTIME_CONFIG__={configurationError:\"runtime_config_unavailable\"};</script>\n<script src=\"/api/runtime-config.js\"></script>");
       res.writeHead(200, { "Content-Type": contentType, "Content-Length": Buffer.byteLength(content), "Cache-Control": "no-store" });
@@ -57,11 +58,16 @@ async function serveStaticFile(baseDir, pathname, res, { localRuntimeConfig = fa
       "Cache-Control": isHtml ? "no-cache" : "public, max-age=31536000, immutable",
     });
 
-    const stream = fs.createReadStream(filePath);
+    const stream = handle.createReadStream();
+    handle = null; // The stream owns and closes this descriptor.
+    stream.on("error", (error) => res.destroy(error));
+    res.on("close", () => stream.destroy());
     stream.pipe(res);
     return true;
   } catch (_e) {
     return false;
+  } finally {
+    if (handle) await handle.close();
   }
 }
 

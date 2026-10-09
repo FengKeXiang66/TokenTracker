@@ -623,7 +623,7 @@ test("expiry while validating a product cannot bypass the SQL checkout claim", a
   await db.query("UPDATE tokentracker_cloud_orders SET expires_at=$2 WHERE id=$1", [row.id, new Date(Date.now() + 500).toISOString()]);
   const restore = globalThis.fetch; const before = sessionCount; const attempts = sdkKeys.length;
   globalThis.fetch = async (input, init) => {
-    if (String(input).startsWith("https://api.waffo.ai") && JSON.parse(init.body).query?.includes("subscriptionProduct(id:")) {
+    if (new URL(String(input)).origin === "https://api.waffo.ai" && JSON.parse(init.body).query?.includes("subscriptionProduct(id:")) {
       await new Promise(resolve => setTimeout(resolve, 800));
     }
     return restore(input, init);

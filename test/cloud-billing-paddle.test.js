@@ -86,7 +86,7 @@ test("only the verified owner's customer portal is opened and cancellation retai
     assert.deepEqual(JSON.parse(init.body),{subscription_ids:["sub_test"]});
     return Response.json({data:{customer_id:"ctm_test",urls:{general:{overview:"https://sandbox-customer-portal.paddle.com/cpl_test?token=test-only"}}}});
   });
-  assert.match(portal,/sandbox-customer-portal\.paddle\.com/);
+  assert.equal(new URL(portal).origin, "https://sandbox-customer-portal.paddle.com");
   const canceled=await cancelPaddleSubscription(order,"sub_test",config,async(url,init)=>{
     if(init.method === "GET")return Response.json({data:subscription});
     assert.equal(url,"https://sandbox-api.paddle.com/subscriptions/sub_test/cancel");

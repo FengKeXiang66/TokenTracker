@@ -1,10 +1,18 @@
 # Cloud / Pro 上线前交接总表
 
+## 后续安全修复候选：等待新 CI 与安装包验收
+
+已修复 Bearer 前缀解析的重叠正则、静态文件 stat/读取路径竞态，以及 gift admin 的私有凭据与 resume 文件 lstat/读取路径竞态。解析改为仅匹配前缀；静态资源通过同一打开的 descriptor 检查和读取；gift 文件用 O_NOFOLLOW/O_NONBLOCK、owner/mode/类型与大小检查，并从同一 descriptor 限量读取和关闭。Windows 私有文件入口仍按原 ACL 门槛关闭。支付测试 URL 条件改为精确 origin 判断。
+
+新 Windows Node22 目标回归：96 项、89 通过、0 失败、0 取消、7 条件跳过，11 秒；九份源码/测试文件运行前后 hash 一致。新增三项 POSIX 私有文件竞态/权限回归在 Windows 明确跳过，必须由 macOS/Linux CI 实际执行，不能按本机验证写通过。旧静态服务器在同一替换回归实际失败；旧 Bearer 表达式对长空格加两个换行的畸形值在隔离进程超出 1.5 秒预算，修复后完成。纯空格值没有复现超时，且 Node HTTP parser 本身拒绝含换行的 HTTP header，未把畸形值探针写为已证实可远程利用的 HTTP 攻击。
+
+该 src 安全改动尚待新的完整 CI、CodeQL 实际安全门禁及候选包核对；下文 29b02f5a / 应用 896baa52 的全量与包证据只证明改动前源码。正式收费、会员限制、归档和实际资金门槛保持未启用/未通过。证据 acceptance-windows-security-final-fixes.json/log、acceptance-security-before-fixes.json。
+
 2026-10-10（Asia/Shanghai）核对。Owner 已确认全球未税基础价 **USD4.99/月、USD39.99/年**，自动续费与固定期同价。工程已完成下列生产准备；**尚未达到正式收费发布标准**，实际资金、结算和原生设备门槛必须有真实证据。生产 policy 仍为 preview，launch_at 为 NULL，收费、会员限制、促销和生产归档均未启用。
 
-## 当前候选：Node22 中文路径兼容修复
+## 已核验 checkpoint：Node22 中文路径兼容修复
 
-最新应用 checkpoint 为 **1.3.0 / 896baa52b060dac3f7d34ce22312a0f184a87fcd**。补查安装包实际使用的 Node22.22.2 发现递归复制中文目录会原生终止，退出码 3221226505；此前同应用源码的完整 Node22 结果为 3825 通过、1 个文件失败、47 跳过，缺少该崩溃文件内另外三项结果，不能按完整用例通过计数。隔离目录的 native copy 复现相同退出码，而保留全部条目的 JS 遍历能成功；[Node 官方问题记录](https://github.com/nodejs/node/issues/59636)有同类 Windows Unicode copy 退出。
+上一已核验应用 checkpoint 为 **1.3.0 / 896baa52b060dac3f7d34ce22312a0f184a87fcd**。补查安装包实际使用的 Node22.22.2 发现递归复制中文目录会原生终止，退出码 3221226505；此前同应用源码的完整 Node22 结果为 3825 通过、1 个文件失败、47 跳过，缺少该崩溃文件内另外三项结果，不能按完整用例通过计数。隔离目录的 native copy 复现相同退出码，而保留全部条目的 JS 遍历能成功；[Node 官方问题记录](https://github.com/nodejs/node/issues/59636)有同类 Windows Unicode copy 退出。
 
 技能导入与链接失败的复制分支现在为 Windows 的 fs.cpSync 添加恒真 filter，选择 Node 的 JS 目录遍历；不跳过文件，保留同步调用、嵌套路径 guard 和链接处理。新回归用隔离子进程实际复制中文用户目录、嵌套 UTF-8 文件，并强制 EPERM 覆盖链接 fallback；不操作用户技能。TRAE trim fixture 使用同一 Windows 遍历方式，继续检验完整的裁剪后运行库。
 

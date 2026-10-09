@@ -14,6 +14,7 @@ const { accountSlugFor, fetchAccountUsage, mintAccessToken, invalidateCloudAccou
 const { getOrCreateMachineId, computeStableMachineId } = require("./machine-id");
 const { functionUrlFor, fetchFunctionResponse } = require("./function-url");
 const { createCloudDeviceTokenStore } = require("./cloud-device-token");
+const { parseBearerToken } = require("./bearer-token");
 
 const SYNC_TIMEOUT_MS = 120_000;
 // A failed account-view request should not stall every dashboard refresh
@@ -1793,7 +1794,7 @@ function createLocalApiHandler({ queuePath, serverVersion = null, trackerDataDir
       json(res, { code: "instance_changed", error: "The configured backend instance changed. Reload and sign in again." }, 409);
       return true;
     }
-    const bearer = /^Bearer\s+(.+)$/i.exec(String(req.headers?.authorization || ""))?.[1];
+    const bearer = parseBearerToken(req.headers?.authorization);
     const issuedFor = bearer && issuedAccessTokenInstances.get(crypto.createHash("sha256").update(bearer).digest("hex"));
     if (issuedFor && issuedFor !== fingerprintFor(selectedRuntime)) {
       json(res, { code: "instance_changed", error: "This session belongs to another backend instance. Sign in again." }, 409);
