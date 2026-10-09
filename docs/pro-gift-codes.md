@@ -1,6 +1,6 @@
 # Pro 赠送码
 
-2026-10-09 Windows 接续：gift 远端源码与当前构建完全一致，四个基础表 RLS 开启，管理 RPC 的匿名/客户端执行权限拒绝。两个专用真实 auth 账号完成 16 项 API 验证，包括无效码不授予权益、刷新轮换与本人隔离。该结果不是成功 Windows GUI 兑换证明；Windows 原码生成的 NTFS 守卫没有放宽。最新候选和证据见 [总表](cloud-release-readiness.md)。
+2026-10-10 Windows 接续：gift 远端源码与当前构建完全一致，四个基础表 RLS 开启，管理 RPC 的匿名/客户端执行权限拒绝。两个专用真实 auth 账号完成 16 项 API 验证，包括无效码不授予权益、刷新轮换与本人隔离。Windows 普通账号 UI 登录/退出/重载/切换已完成 7 项验证；专用 A/B 账号在验收后删除、密码失效，原有白名单保留。该结果不是成功 Windows GUI 兑换证明；Windows 原码生成的 NTFS 守卫没有放宽。最新候选和证据见 [总表](cloud-release-readiness.md)。
 
 赠送码由 TokenTracker 后端发放会员权益。Waffo 继续处理付费订阅，赠送不创建订单、付款或自动续费。
 

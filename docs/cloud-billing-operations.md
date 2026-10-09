@@ -39,7 +39,7 @@ TokenTracker `sandbox` maps to Waffo `test`; TokenTracker `live` maps to Waffo `
 | `cloud_usd_monthly_fixed` | `fixed` | 4.99 | One-time |
 | `cloud_usd_yearly_fixed` | `fixed` | 39.99 | One-time |
 
-These are global test prices before tax. Store integer cents in TokenTracker (499/3999), but pass display amount strings (`"4.99"`/`"39.99"`) to the SDK. Waffo products use the `saas` tax category. Product and order validation checks ownership, environment, price, billing period and absence of a provider trial. The seven-day no-card trial belongs to TokenTracker. Waffo checkout calculates tax and displays the final charge; do not promise identical tax-inclusive totals or a CNY conversion rate. Read back `providers.waffo` from the catalog; that flag is not proof of merchant approval or payment.
+These are the Owner-confirmed global production base prices before tax (confirmed 2026-10-09); sandbox uses the same amounts. Store integer cents in TokenTracker (499/3999), but pass display amount strings (`"4.99"`/`"39.99"`) to the SDK. Waffo products use the `saas` tax category. Product and order validation checks ownership, environment, price, billing period and absence of a provider trial. The seven-day no-card trial belongs to TokenTracker. Waffo checkout calculates tax and displays the final charge; do not promise identical tax-inclusive totals or a CNY conversion rate. Read back `providers.waffo` from the catalog; that flag is not proof of merchant approval or payment.
 
 ## Existing project hosted sandbox
 
@@ -151,7 +151,7 @@ npx @insforge/cli functions list --json
 |---|---|---|
 | Financial state in PostgreSQL | Real PostgreSQL concurrency/transaction tests, grants/RLS, one fulfillment per payment, cumulative refunds, stale events, environment isolation | SQL/HTTP and real gift multi-connection tests passed; hosted checkout idempotency returned 200/202/202 for one order. Broader live race/transaction acceptance remains pending |
 | Signed provider events | Genuine Waffo test notifications; mode/store/amount/signature mismatch rejected; API-bound order and period verified | Four test SKUs, failure/recovery and four refunds verified; production events pending |
-| Checkout and recovery UI | New-tab/system-browser checkout and return on every offered platform; stable retry, no hidden second subscription, cancellation and supported portal flow | Hosted browser and Mac QA internal order recovery passed. Browser→OS→App, current Windows GUI/login/installer and Linux native checkout need separate evidence |
+| Checkout and recovery UI | New-tab/system-browser checkout and return on every offered platform; stable retry, no hidden second subscription, cancellation and supported portal flow | Hosted browser and Mac QA internal order recovery passed. Current Windows normal email login, account switch, reload/logout and packaged WebView2 passed; Browser→OS→App payment return, installer lifecycle and Linux native checkout need separate evidence |
 | Retry collisions and provider back flow | Real late-payment reconciliation; both charges remain visible; conflict blocks new checkout; multiple provider attempts verified independently, safely canceled/recovered without hiding real payments | Actual two-pending cancel/restart verified; SQL/HTTP race and replay tests passed; hosted concurrency pending |
 | Entitlements and free use | Server gates personal cloud upload/read and registered synchronization devices; 5 slots; shared CLI/app identity; unchanged ranking formula; local/free community intact | Hosted sandbox access, device slots and isolation passed; free self-hosted private sync passed in the local official stack. Repeat on production preview before enabling enforcement |
 | Gifts | One-time claim, same-account retry, account isolation, expiry, batch disable, independent revoke, no Waffo charge/renewal; active/upcoming gifts block new checkout | Two real accounts and database concurrency passed; Windows gift GUI and production-preview handlers still require validation |
@@ -164,6 +164,10 @@ npx @insforge/cli functions list --json
 Historical Mac gift-stage evidence records 3,846 Node tests passing with three skipped, four architecture checks and 1,169 Dashboard tests. Earlier 3,743/3,818 counts belong to older stages. Current post-integration checks and full CI gaps are listed in [the release handoff](cloud-release-readiness.md); no historical count proves the current merged release candidate.
 
 Local tests do not complete genuine provider, UI, or settlement gates. Every offered route needs its own evidence. A failed or unavailable route must remain unavailable in checkout.
+
+## Historical backup security migration
+
+The production audit on 2026-10-10 found default anonymous/authenticated grants on two legacy device/token backup tables. Migration 20261010000000_secure-legacy-device-backups.sql enables RLS and revokes all client/PUBLIC grants on these exact optional tables. The migration runner owns the transaction. Before/after row counts and administrator SELECT match; four real client HTTP reads are denied and the advisor rescan has zero rls-disabled findings. This is not a data-deletion or archival activation migration. Do not restore the exposed grants during a billing rollback. Remaining server-only RLS/no-policy and cache-performance findings remain separately recorded in the release handoff.
 
 ## Rollback and incident handling
 
@@ -180,10 +184,12 @@ Local tests do not complete genuine provider, UI, or settlement gates. Every off
 
 - [x] Waffo merchant approval and Store production/receipt permissions were independently verified on 2026-10-08. Reconfirm the selected merchant/store before launch; approval is separate from live products, private keys and payout-account verification.
 - [x] Owner confirmed the payout account is added and available; the 2026-10-09 UI check independently shows an existing account. Do not ask for another account or bank details.
-- [x] Owner confirmed the existing payout account is now associated. The finance page still offers account selection and shows no independent binding/verification badge; engineering must read back actual binding before the pilot rather than asking the Owner to repeat setup based only on that prompt.
-- [x] Owner created the production key and supplied its local file. Production list presence and local RSA 2048 sign/verify passed; the Base64 PKCS#8 download has a normalized PEM and DER pin prepared outside the repository with restricted NTFS ACL. No server secret was changed; provider file/environment/ownership binding remains an engineering check.
-- [ ] Engineering must read back the selected merchant/store, separate test/live product eligibility, private-key environment, webhook and payout status. Owner confirms contract fees and settlement conditions; API credentials remain server-side.
-- [ ] Confirm global base prices, checkout tax display, payment-method availability, renewal/cancellation/refund terms, private billing support, and the separate retention/deletion announcement.
+- [x] Owner confirmed the existing payout account is now associated. The independent signed production API now confirms the correct merchant binding and payoutEnable=true, but channelStatus=unverified and channelVerifiedAt=NULL. Confirm channel verification without adding the account again.
+- [x] Owner created the production key and supplied its local file. Production list presence and local RSA 2048 sign/verify passed; the Base64 PKCS#8 download has a normalized PEM and DER pin prepared outside the repository with restricted NTFS ACL. Signed production queries verified key/environment/merchant/Store ownership. Eight Waffo server secrets have been configured and independently read back; no client or reserved backend credentials were changed.
+- [x] Engineering read back merchant/Store, production key ownership, four active production products, the formal webhook and payout binding/status. These checks do not verify a live transaction or settlement.
+- [ ] Owner resolves the unverified payout channel and confirms contract fees/currency/settlement conditions; API credentials remain server-side.
+- [x] Owner confirmed USD4.99/month and USD39.99/year before tax, identical for recurring and fixed terms.
+- [ ] Confirm actual live checkout tax/payment methods and final renewal/cancellation/refund/privacy/support terms. Retention/deletion still requires its separate reviewed announcement.
 - [ ] Manually pay the agreed pilot transactions and approve refunds; provide statement and bank settlement confirmation privately when due.
 - [ ] Approve production activation and the public announcement after all applicable gates pass.
 
