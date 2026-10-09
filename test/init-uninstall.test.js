@@ -132,7 +132,9 @@ test("notify handler runs local source sync without a cloud device token", async
   }
 });
 
-test("notify handler chains executable original notify commands and skips stale explicit paths", async () => {
+test("notify handler chains executable original notify commands and skips stale explicit paths", {
+  skip: process.platform === "win32" && "Fixture launches a POSIX shebang executable; Windows Node notify chaining is covered separately",
+}, async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-notify-chain-"));
   try {
     const markerPath = path.join(tmp, "unsafe-marker");
@@ -212,7 +214,7 @@ test("notify handler skips a nested self notify referenced through a symlinked p
     const trackerDir = path.join(tmp, "tracker");
     await fs.mkdir(trackerDir, { recursive: true });
     const linkDir = path.join(tmp, "tracker-link");
-    await fs.symlink(trackerDir, linkDir, "dir");
+    await fs.symlink(trackerDir, linkDir, process.platform === "win32" ? "junction" : "dir");
     const notifyPath = path.join(linkDir, "notify.cjs");
     const markerPath = path.join(tmp, "sky-marker");
     const skyPath = path.join(tmp, "SkyComputerUseClient");
@@ -364,7 +366,9 @@ test("notify handler skips node-like original notify without a script target", a
   }
 });
 
-test("notify handler validates env split-string interpreter targets", async () => {
+test("notify handler validates env split-string interpreter targets", {
+  skip: process.platform === "win32" && "Fixture requires the POSIX env interpreter and shebang execution",
+}, async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-notify-chain-"));
   try {
     const markerPath = path.join(tmp, "env-split-marker");
@@ -534,7 +538,9 @@ test("notify handler validates env split-string interpreter targets", async () =
   }
 });
 
-test("notify handler treats exe-suffixed runtimes as node-like interpreters", async () => {
+test("notify handler treats exe-suffixed runtimes as node-like interpreters", {
+  skip: process.platform === "win32" && "Fixture uses shebang scripts named .exe rather than Windows PE executables",
+}, async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-notify-chain-"));
   try {
     for (const runtimeName of ["node", "bun", "deno"]) {
@@ -580,7 +586,9 @@ test("notify handler treats exe-suffixed runtimes as node-like interpreters", as
   }
 });
 
-test("notify handler skips bun and deno original notify when payload token is not a script", async () => {
+test("notify handler skips bun and deno original notify when payload token is not a script", {
+  skip: process.platform === "win32" && "Fixture creates POSIX shebang Bun and Deno launchers",
+}, async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-notify-chain-"));
   try {
     for (const runtimeName of ["bun", "deno"]) {

@@ -190,15 +190,30 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: Test Windows-specific Node paths
+      - name: Install Windows root dependencies
+        run: npm ci
+
+      # WAL fixtures launch the SQLite CLI in addition to Node's SQLite
+      # reader. Pin the official Windows tools and verify SQLite's published
+      # SHA3-256 before extraction; this is a test dependency only.
+      - name: Install SQLite for Windows test fixtures
+        shell: pwsh
         run: |
-          npm ci
-          node --test test/openclaw-parser.test.js
-          node --test --test-name-pattern="native Windows" test/usage-limits.test.js
-          node --test --test-name-pattern="getUsageLimits Ark timeout fallback" test/usage-limits.test.js
-          node --test test/command-runner.test.js
-          node --test test/sync-background.test.js
-          node --test test/kilo-parser.test.js test/roocode-parser.test.js
+          $archive = Join-Path $env:RUNNER_TEMP 'sqlite-tools-win-x64-3540000.zip'
+          Invoke-WebRequest 'https://www.sqlite.org/2026/sqlite-tools-win-x64-3540000.zip' -OutFile $archive
+          $verify = @'
+          const fs = require('node:fs');
+          const crypto = require('node:crypto');
+          const bytes = fs.readFileSync(process.argv[1]);
+          if (bytes.length !== 6982216 || crypto.createHash('sha3-256').update(bytes).digest('hex') !== '8d1ccff873455c7f83c6e03ee253e81406d0e432ca9e7247ed6183929a824b33') throw Error('SQLite fixture tool checksum mismatch');
+          '@
+          node -e $verify $archive
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $tools = Join-Path $env:RUNNER_TEMP 'tokentracker-sqlite-test-tools'
+          Expand-Archive -LiteralPath $archive -DestinationPath $tools
+          $tools | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & (Join-Path $tools 'sqlite3.exe') --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Test Windows updater
         run: dotnet test TokenTrackerWin.Tests/TokenTrackerWin.Tests.csproj --configuration Release
@@ -220,6 +235,12 @@ jobs:
           VITE_INSFORGE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3OC0xMjM0LTU2NzgtOTBhYi1jZGVmMTIzNDU2NzgiLCJlbWFpbCI6ImFub25AaW5zZm9yZ2UuY29tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNDU5NDd9.T0auta_IrVIh0uXW1bob5QSnzvsnJmN28r5XkSGEuQY
           TOKENTRACKER_BUILD_PET: "1"
         run: npm run dashboard:build
+
+      # Build first because local-runtime tests verify dashboard/dist. Keep
+      # the Windows suite equivalent to Linux/macOS rather than selecting
+      # only already-known native paths. POSIX-only fixtures report skips.
+      - name: Test suite on Windows
+        run: node --test --test-timeout=120000 --test-concurrency=4 test/*.test.js
 
       - name: Bundle and verify Windows review package
         shell: pwsh
