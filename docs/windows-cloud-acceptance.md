@@ -1,5 +1,9 @@
 # Windows 客户端验收交接
 
+## 后续同步锁测试夹具：应用源码未变
+
+7bd905d6 的 Windows Node24 全量为 3858 通过/40 跳过；包内 Node22 有 1 项 native account publication 夹具未处理 SYNC_BUSY，不能算完整通过。成功路径现观察两次真实 EEXIST 后才释放锁，立即处理 Promise 拒绝并使用受控时钟；独立超时拒绝仍用真实时限，原队列/token 断言均保留。Node22/Node24 本机相关文件各 **27/27**，无失败/取消/跳过；没有改产品行为或加大测试超时。后续完整结果读取 [PR 当前 checks](https://github.com/xiufengsun/TokenTracker/pull/772/checks)，来源细节见 [总表](cloud-release-readiness.md)。下方实际 c93c9080 包结果不冒充后续 head 的完整 CI。
+
 ## 最新已核验候选：1.3.0 / c93c9080
 
 应用与受审来源 **c93c908059a298a32855ee19a5741c048cf21899**。修复排行榜三个 catch 的错误输出，公开异常队列/隔离审计与受保护扫描总结失败现只返回操作固定的 HTTP500 错误，不返回内部数据库/多行细节或序列化未知异常。新增完整转译 handler 回归在旧源码实际 6 失败/1 通过；修复后相关目标组 **57/57**，两份变更 hash 和提交 blob 一致。实际 ESM 函数产物另有 **7/7**，53661 字节 / SHA256 129fa654ef8f0f21d0fa21456294f5e622b800c7d81d97fde2137766ec2c8c2e，仅以该源文件为输入，保留既有 npm SDK import；正式远端排行榜 handler **尚未部署**，仍按恢复与 preview 回归门槛部署。不能把本机产物通过写成远端已修复。

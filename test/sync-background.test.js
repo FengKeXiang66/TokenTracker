@@ -287,6 +287,53 @@ async function readCursors(home) {
   return JSON.parse(await fs.readFile(path.join(home, ".tokentracker", "tracker", "cursors.json"), "utf8"));
 }
 
+async function syncAfterObservedContention(t, home, args, lockWaitOptions) {
+  const trackerDir = path.join(home, ".tokentracker", "tracker");
+  await fs.mkdir(trackerDir, { recursive: true });
+  const lockPath = path.join(trackerDir, "sync.lock");
+  const active = await openLock(lockPath, { quietIfLocked: true });
+  assert.ok(active);
+
+  // These success cases verify retries and publication, not filesystem speed.
+  // Keep their clock still; the separate busy-lock cases test real deadlines.
+  const now = Date.now();
+  const clock = t.mock.method(Date, "now", () => now);
+  const originalOpen = fs.open;
+  let blockedAttempts = 0;
+  let observedContention;
+  const contention = new Promise((resolve) => { observedContention = resolve; });
+  const open = t.mock.method(fs, "open", async (...params) => {
+    try {
+      return await originalOpen(...params);
+    } catch (error) {
+      if (params[0] === lockPath && params[1] === "wx" && error.code === "EEXIST") {
+        blockedAttempts += 1;
+        if (blockedAttempts === 2) observedContention();
+      }
+      throw error;
+    }
+  });
+  let released = false;
+  try {
+    const sync = cmdSync(args, { lockWaitOptions });
+    // Attach rejection handling immediately and require an actual lock retry
+    // before release, rather than assuming a 30ms sleep establishes overlap.
+    await Promise.race([
+      contention,
+      sync.then(() => { throw new Error("sync completed before the held lock was released"); }),
+    ]);
+    await assert.rejects(readQueue(home), { code: "ENOENT" });
+    await active.release();
+    released = true;
+    await sync;
+    assert.ok(blockedAttempts >= 2);
+  } finally {
+    open.mock.restore();
+    clock.mock.restore();
+    if (!released) await active.release();
+  }
+}
+
 test("background auto sync skips deep Codex archives", async () => {
   await withTempSyncEnv(async (home) => {
     const codexHome = process.env.CODEX_HOME;
@@ -326,7 +373,7 @@ test("background drain skips deep Codex archives while retaining drain semantics
   });
 });
 
-test("Codex notify sync catches up after an overlapping background sync releases the lock", async () => {
+test("Codex notify sync catches up after an overlapping background sync releases the lock", async (t) => {
   await withTempSyncEnv(async (home) => {
     const codexHome = process.env.CODEX_HOME;
     await writeCodexRollout(
@@ -336,20 +383,11 @@ test("Codex notify sync catches up after an overlapping background sync releases
       73,
     );
 
-    const trackerDir = path.join(home, ".tokentracker", "tracker");
-    await fs.mkdir(trackerDir, { recursive: true });
-    const active = await openLock(path.join(trackerDir, "sync.lock"), {
-      quietIfLocked: true,
-    });
-    assert.ok(active);
-
-    const notificationSync = cmdSync(
+    await syncAfterObservedContention(
+      t, home,
       ["--auto", "--from-notify", "--source=codex"],
-      { lockWaitOptions: { notifyWaitMs: 500, notifyPollMs: 10 } },
+      { notifyWaitMs: 500, notifyPollMs: 10 },
     );
-    await new Promise((resolve) => setTimeout(resolve, 30));
-    await active.release();
-    await notificationSync;
 
     const queue = await readQueue(home);
     assert.match(queue, /"source":"codex"/);
@@ -357,7 +395,7 @@ test("Codex notify sync catches up after an overlapping background sync releases
   });
 });
 
-test("native account publication waits for an overlapping sync instead of reporting success", async () => {
+test("native account publication waits for an overlapping sync instead of reporting success", async (t) => {
   await withTempSyncEnv(async (home) => {
     const codexHome = process.env.CODEX_HOME;
     await writeCodexRollout(
@@ -367,20 +405,11 @@ test("native account publication waits for an overlapping sync instead of report
       79,
     );
 
-    const trackerDir = path.join(home, ".tokentracker", "tracker");
-    await fs.mkdir(trackerDir, { recursive: true });
-    const active = await openLock(path.join(trackerDir, "sync.lock"), {
-      quietIfLocked: true,
-    });
-    assert.ok(active);
-
-    const publicationSync = cmdSync(
+    await syncAfterObservedContention(
+      t, home,
       ["--auto", "--background", "--publish-account"],
-      { lockWaitOptions: { priorityWaitMs: 500, priorityPollMs: 10 } },
+      { priorityWaitMs: 500, priorityPollMs: 10 },
     );
-    await new Promise((resolve) => setTimeout(resolve, 30));
-    await active.release();
-    await publicationSync;
 
     const queue = await readQueue(home);
     assert.match(queue, /"source":"codex"/);

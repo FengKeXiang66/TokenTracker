@@ -1,5 +1,7 @@
 # Cloud 交付与托管沙盒验收
 
+后续仅同步锁测试夹具调整：7bd905d6 的 Windows 包内 Node22 出现 1 项 native publication 未处理 SYNC_BUSY，不记为全通过。成功用例改用真实锁冲突信号和受控时钟，立即处理拒绝；独立真实超时拒绝与原始 token/队列断言保留。隔离 Node22/Node24 各 27/27；完整 CI 以 [PR 当前 head](https://github.com/xiufengsun/TokenTracker/pull/772/checks) 为准。应用源码未变，下面实际包仍证明 c93c9080 的来源。
+
 最新已核验来源 **1.3.0 / c93c9080**：四平台 CI 全通过，Windows Node24/实际包内 Node22 均 3858 通过/40 条件跳过，.NET 117/117；Linux Node 3888/8 跳过、macOS Node 3892/4 跳过及 239 原生通过。新包 984 文件/109 嵌入源码/hash/四项密钥模式核对，30 原生窗口及 55 包内专项通过（另 1 本机权限跳过）。排行榜错误输出在源码及实际 ESM 产物回归通过，CodeQL 222 自动关闭，当前 PR 安全门禁 0 新注释通过；主干已有 14 open 保留。正式排行榜 handler 尚未部署，生产仍 preview，资金/恢复/前端/原生生命周期未通过。完整来源和 hash 见 [总表](cloud-release-readiness.md)；下文旧包仅证明各自来源。
 
 2026-10-10 前一应用/受审来源 **1.3.0 / c3909232** 的四平台 CI 全通过：Windows Node24 与实际包内 Node22 均 3851 通过/40 条件跳过，.NET 117/117；Linux Node 3881/8 跳过、macOS Node 3885/4 跳过及 239 原生测试通过。实际新包 984 文件/109 嵌入源码/hash/四项私钥与管理密钥模式扫描核对，30 原生窗口及 55 包内专项通过（另 1 本机链接权限跳过）。第二批五项源码告警自动关闭；16 条告警按具体 SARIF/源码/回归逐条判定后，PR CodeQL 门禁通过，主干已有 15 open 未忽略。来源、完整 hash、[逐项审查](cloud-security-review.md)及仍未完成的资金/恢复/前端/原生生命周期门槛见 [总表](cloud-release-readiness.md)。生产继续 preview，未正式收费或公开发行；下文旧包只证明各自来源。
