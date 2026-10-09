@@ -254,6 +254,12 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Compress-Archive -Path TokenTrackerWin/publish/* -DestinationPath TokenTracker-review-win-x64.zip
 
+      # The shipped runtime is Node22, while build tooling uses Node24. Test
+      # the actual bundled binary too so native fs/undici regressions cannot
+      # hide behind a successful run on a different Node major.
+      - name: Test suite with the bundled Windows Node runtime
+        run: .\TokenTrackerWin\publish\EmbeddedServer\node.exe --test --test-timeout=120000 --test-concurrency=4 test/*.test.js
+
       - name: Compile Windows review installer
         shell: pwsh
         run: |
