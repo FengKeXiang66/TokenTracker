@@ -8,7 +8,7 @@
 
 ## 当前 Windows 接续证据
 
-1c96a2cc 的 CI 37956050272 四个 job 全部通过，Windows .NET 117 项及完整 ZIP/Inno 安装器构建成功；CodeQL 全通过、开放告警为 0。Dashboard 当前 1192/1192 通过。全仓 Windows Node 快照为 3728 通过、80 失败、20 取消、38 跳过，不能以目标组或 Linux/macOS 全绿替代。新增同步专项的三项失败来自真实 AppData 混入 fixture；隔离 APPDATA/LOCALAPPDATA 后 27/27，已加入 Windows CI。
+1c96a2cc 的 CI 37956050272 四个 job 全部通过，Windows .NET 117 项及完整 ZIP/Inno 安装器构建成功；CodeQL 全通过、开放告警为 0。Dashboard 当前 1192/1192 通过。旧全仓 Windows Node 快照为 3728 通过、80 失败、20 取消、38 跳过；新的 Node22 隔离对照为 3738 通过、70 失败、20 取消、38 跳过，最新 e6186b35 主干亦有 93 失败。具体匹配边界见总表，不能以目标组或 Linux/macOS 全绿替代。新增同步专项的三项失败来自真实 AppData 混入 fixture；隔离 APPDATA/LOCALAPPDATA 后 27/27，已加入 Windows CI。
 
 原生测试宿主加载发布目录 DLL，并使用隔离 WebView2/应用数据。最初宿主输出目录缺少 EmbeddedServer，使应用的开发 fallback 使用系统 Node16，auth proxy 返回 502；该次不能算嵌入 Node 登录证明。补齐宿主的打包资源后，普通邮箱登录真实 InsForge 测试账号成功、Pro 年付 US$39.99/月付 US$4.99 显示正确、固定期切换正确，试用/付款在 preview 禁用。系统浏览器 loopback、安全 URL 拒绝、窗口隐藏/重开均已执行；不是完整 Program.Main 托盘或 OS 深链返回证明。
 
@@ -16,7 +16,11 @@
 
 私有证据位于 .tmp/windows-cloud/acceptance-rc-clean/、acceptance-native-ui-rc.json、acceptance-qa-cleanup.json、acceptance-auth-gifts.json（16 项真实 API）、acceptance-live-preview.json（8 项正式 preview API）。这些 API 测试不等于成功 Windows 赠送 GUI 或真实资金验收。
 
-CI 51bdcdfd 的完整 review artifact 已下载并验证 GitHub archive digest，ZIP 独立解压 981/981 文件大小与 SHA256 一致。实际 workflow checkout 为 merge SHA 042850b2，其 tree 与 review head 51bdcdfd 相同；该旧包版本 1.2.2。1.3.0 的本地干净包已验证 379 个输入、981 文件；CI 已生成新版 ZIP/安装器。最终 artifact 仍须独立下载核对 candidate head、实际 merge checkout、hash，不沿用旧包 hash。旧混用目录包含残留前端 hash 文件，校验器已拒绝，该目录不能作发行包。
+CI 51bdcdfd 的完整 review artifact 已下载并验证 GitHub archive digest，ZIP 独立解压 981/981 文件大小与 SHA256 一致。实际 workflow checkout 为 merge SHA 042850b2，其 tree 与 review head 51bdcdfd 相同；该旧包版本 1.2.2。1.3.0 的本地干净包已验证 379 个输入、981 文件；CI 已生成新版 ZIP/安装器。最终 artifact 已完成独立下载核对；来源与完整 hash 如下，不沿用旧包 hash。
+
+最终源码 8497d6e998369a8d4c90b2901ec089ed5dd7930a 的 CI artifact 已独立下载：archive 195981496 字节、SHA256 241d97ae378869532f172976b4662104696648b3af73e3410de4979cb80dc6c8，与 GitHub digest 一致。实际 checkout 为 7fd5fbfb86e6dda495fb773a8e09465a8eb0198d，Git tree 与受审 head 相同。1.3.0 ZIP 115718586 字节、SHA256 c3fab9a59fbe318c9d016897d1db7d712bceb53daba5ce1fa75bac64e9323fd4；Inno 安装器 81384336 字节、SHA256 0f898ddd528997710ce6684757b471b6caab81d8fbc3d02d1a520003a30edd30。解压 981/981 文件大小与 hash 一致，106 个嵌入 CLI/入口/清单源文件与 Git blob 一致，10 项实际私钥/管理 key/已撤销 QA 凭据的逐字节扫描命中为 0。安装器尚未执行安装/升级/卸载。
+
+最终 CI DLL 与打包 Node 已执行 30/30 原生检查，证据为 final-ci-native/native-smoke.json。首轮仅复制宿主顶层文件而缺少 WebView2Loader.dll，导致窗口初始化失败；CI 包含此 loader，补齐宿主的 CI loader 后通过，失败记录保留为 native-loader-fixture-failure.json。此次不是 Program.Main、深链付款返回或安装器生命周期测试。旧混用目录包含残留前端 hash 文件，校验器已拒绝，该目录不能作发行包。
 
 本机安装 Inno 的动作被自动审批审核拒绝，仅返回 blocked by policy，未执行；CI 使用预装编译器的构建已通过。完整托盘测试和工具拒绝的协议点击仍保持待设备验收，不用其他工具绕过。已有个人安装、注册表和历史数据保留。
 

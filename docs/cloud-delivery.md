@@ -1,6 +1,6 @@
 # Cloud 交付与托管沙盒验收
 
-2026-10-10 当前生产准备以 [总表](cloud-release-readiness.md) 为准：新增两个正式 billing/webhook 函数、八项 server secret、四个 production 产品与正式 12-event 回调已部署/发布并独立读回；原有业务函数未替换，live 仍 preview、账单均为 0。提款绑定正确但 API 渠道状态为 unverified。应用候选 1.3.0 / 1c96a2cc 的四平台 CI/CodeQL 全通过；干净包 34 项原生检查及 7 项普通 UI 登录/切换检查通过。新增两张历史备份表的安全迁移已应用并验证客户端拒绝、行数及管理员权限保持。最终安全迁移提交的 checks 仍按精确 SHA 核对。以下历史记录中的“未部署”“生产产品 0”和旧版本仅描述该阶段。
+2026-10-10 当前生产准备以 [总表](cloud-release-readiness.md) 为准：新增两个正式 billing/webhook 函数、八项 server secret、四个 production 产品与正式 12-event 回调已部署/发布并独立读回；原有业务函数未替换，live 仍 preview、账单均为 0。提款绑定正确但 API 渠道状态为 unverified。应用候选 1.3.0 / 1c96a2cc 的四平台 CI/CodeQL 全通过；干净包 34 项原生检查及 7 项普通 UI 登录/切换检查通过。新增两张历史备份表的安全迁移已应用并验证客户端拒绝、行数及管理员权限保持。最终安全修复 8497d6e9 的四平台 CI/CodeQL 全通过，CI 包独立解压 981/981 hash 一致、实际 checkout tree 匹配 head、凭据扫描无命中，CI DLL 原生检查 30/30。所有 hash 与仍未完成的发行门槛见总表。以下历史记录中的“未部署”“生产产品 0”和旧版本仅描述该阶段。
 
 2026-10-09。原 InsForge 上的沙盒付款与退款、同步权限、设备管理、授权和隔离归档恢复已验证。Pro 标识、HTTPS 返回页、自部署 Dashboard 双向切换和 Mac QA 窗口内订单恢复均有真实证据。**生产收费和会员限制仍关闭**。浏览器唤起 App、正式收款与结算仍待验收。
 
