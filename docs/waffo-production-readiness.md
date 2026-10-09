@@ -1,10 +1,10 @@
 # Waffo 审核后的生产准备
 
-2026-10-08 已通过实际 API 核对商户审核。商户为 production_enabled，Store 的生产与入账权限已生效。正式收费仍关闭，四个套餐 SKU 均没有生产版本。对外名称改为 TokenTracker Pro，现有 Cloud SKU 和接口名称保留。
+2026-10-09 当前状态：已使用 Owner 提供的正式 RSA2048 密钥，通过签名 production API 核对目标商户和 Store。四个 Pro 套餐均已发布为 active 生产版本，未税 USD4.99/月、USD39.99/年，自动续费与固定期同价。正式收费仍关闭，live policy 为 preview。
 
-2026-10-09 文档核对：商户审核结果来自此前 API 读回。本轮登录 Owner 提供的商户后台进行只读查看，工程未修改配置；当前生产产品为 0。Owner 随后生成正式密钥并提供本地文件，生产密钥列表已出现新建条目。本地确认 Base64 PKCS#8、RSA 2048 和签名校验通过，已在仓库外私有目录准备标准 PEM 及 DER 指纹，并验证限制 NTFS ACL；没有上传或修改服务端 secret。当前工程、设备和发布门槛见 [上线前交接总表](cloud-release-readiness.md)；正式启用前仍须核对部署侧商户、Store、产品、文件对应密钥环境与 policy。
+八项 Waffo server secret 已配置并独立读回，标准 PEM 和 DER 指纹来自仓库外受限 NTFS 私有目录；客户端和 Git 不包含密钥。两个正式 billing/webhook 函数源码与受审构建逐字节一致。正式 HTTP webhook 的地址、prod 标记和 12 个事件已独立读回；无签名 POST 返回 401 invalid_signature。完整当前证据与候选版本见 [上线前交接总表](cloud-release-readiness.md)。
 
-2026-10-09 Owner 已确认商户结算／提现账户已添加、可用且完成关联，不再要求重复操作。财务页仍显示账户选择提示，账户管理页确认账户存在但没有独立关联／验证标记；不能仅据提示判定未关联，也不把 Owner 报告记为 API 读回。工程在试点前核对实际绑定。此前 `payoutAccounts` 为空是旧读回，不是当前状态。生产余额、处理中与累计提款均为 0，真实结算未验证；私有摘要保留在本机，不保存账户号码。
+Owner 已完成结算／提现账户添加与关联，无需重复。最新签名 API 确认账户绑定目标商户且 payoutEnable=true，但 channelStatus 为 unverified、channelVerifiedAt 为 NULL。Owner 先前“已验证／可用”报告与该读回分开记录，需核对渠道验证／审核状态。只读取绑定、状态和币种，不保存账户号码；实际付款和结算未验证。
 
 ## 已处理
 
@@ -18,10 +18,10 @@
 
 | 项目 | 当前状态和工程动作 |
 | --- | --- |
-| 正式密钥 | Owner 已生成并提供，生产列表条目及本地格式／签名已核对。下载文件虽以 .pem 命名，内容是 Base64 PKCS#8；接入当前要求 PEM 的 live adapter 时使用已在仓库外准备的标准 PEM，指纹基于其解码 DER。工程仍须以供应商读回绑定环境与商户／店铺，再接入服务端 |
-| 结算账户 | Owner 已确认完成关联，本轮 UI 确认已有账户；工程试点前读回核对实际绑定，实际入账仍待试点结算。无需重复新增或关联 |
-| 产品发布 | 本轮生产模式为 0 个产品。publish 首次把测试版本复制为 active 生产版本；SDK 没有原子创建 inactive 生产草稿的字段。保留当前测试 SKU，工程准备产物，发布按正式启用授权统一执行 |
-| 接收与返回地址 | 现有InsForge已部署独立QA网关和静态HTTPS返回页，实际读取200；它们不能作为完整生产Dashboard或正式webhook。临时隧道已关闭，正式回调和完整`/billing/checkout`需按生产发布流程配置 |
+| 正式密钥 | 规范化、DER 指纹、provider 环境与商户／店铺归属及八项 server secret 接入、读回已完成 |
+| 结算账户 | 绑定正确，但 API 渠道为 unverified；Owner 核对渠道审核／验证，试点后核对真实入账，无需重新添加 |
+| 产品发布 | 四个 production SKU 已发布并读回 active、价格／货币／完整月年账期一致，无关既有产品不变；应用收费仍关闭 |
+| 接收与返回地址 | 正式 webhook 已部署并注册、拒绝无签名请求。完整正式 HTTPS Dashboard /billing/checkout 仍待受审发布；QA 静态页不能代替 |
 | 实际支付方式 | 根据正式产品类型与货币读回收银台。文档提供 card、Apple Pay、Google Pay、WeChat；支付宝是商户结算渠道，不作为当前买家付款权益承诺 |
 | 真实试点 | 发布与试点授权后核对真实付款、账本、权益、取消、退款和后续结算。正式年付版本、完整首期与下次扣款日期由工程验证 |
 

@@ -1707,7 +1707,7 @@ cloud.feature.history,cloud,*,Cloud,text,"{{days}} days of hourly detail and {{m
 cloud.feature.pro_identity,cloud,*,Cloud,text,Pro avatar frame and badge. Rankings stay based on usage.,,active
 cloud.feature.privacy_detail,cloud,*,Cloud,text,"No prompts, code, provider credentials, or local session and project records.",,active
 cloud.catalog.loading,cloud,*,Cloud,text,Loading Pro availability…,,active
-cloud.catalog.preview,cloud,*,Cloud,text,Pro subscriptions are not open yet. Prices are proposed; payment and trial activation are disabled until launch.,,active
+cloud.catalog.preview,cloud,*,Cloud,text,Pro subscriptions are not open yet. Payment and trial activation are disabled until launch.,,active
 cloud.catalog.provider_unavailable,cloud,*,Cloud,text,Pro payments are unavailable right now. Your plan selection is kept; return later.,,active
 cloud.catalog.sandbox,cloud,*,Cloud,text,Payment sandbox. Test transactions do not buy a live Pro membership.,,active
 cloud.faq.local_title,cloud,*,Cloud,text,What stays free?,,active

@@ -738,7 +738,7 @@
   "cloud.feature.pro_identity": "Pro 頭像邊框和標識，排名仍依用量計算。",
   "cloud.feature.privacy_detail": "不上傳 Prompt、程式碼、Provider 憑證或本地工作階段與專案記錄。",
   "cloud.catalog.loading": "正在載入 Pro 服務狀態…",
-  "cloud.catalog.preview": "Pro 訂閱尚未開放。目前價格為擬定方案，正式上線前無法付款或開啟試用。",
+  "cloud.catalog.preview": "Pro 訂閱尚未開放，正式上線前無法付款或開啟試用。",
   "cloud.catalog.provider_unavailable": "Pro 付款暫不可用。已保留方案選擇，請稍後再試。",
   "cloud.catalog.sandbox": "目前為付款沙箱，測試交易不會購買正式 Pro 會員。",
   "cloud.faq.local_title": "哪些功能仍然免費？",

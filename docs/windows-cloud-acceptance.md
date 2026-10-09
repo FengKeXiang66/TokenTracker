@@ -1,10 +1,22 @@
 # Windows 客户端验收交接
 
-2026-10-09（Asia/Shanghai）更新。此前已从远端拉取 `feat/cloud-subscriptions`，在 Windows 完成本地构建、原生窗口和浏览器交接验证。完整登录、沙盒支付返回和安装器生命周期仍待验收。
+2026-10-09（Asia/Shanghai）更新。最新 Windows 接续已完成正常邮箱登录、Pro 年/月与固定期价格切换、preview 按钮关闭、发布 DLL 的原生 WebView2 与浏览器 loopback 测试。完整托盘、系统协议付款返回和安装器生命周期仍待验收。最新候选准备为 1.3.0，下文旧版本记录仅证明各自阶段。
 
 这里需要的是 Windows 客户端测试电脑。官方后端仍使用现有付费 InsForge，付款由 Waffo 处理，不需要 Windows 服务器。
 
 本轮已在原 Windows 工作区重新拉取功能分支。当前源码和本机回归统一记录在 [上线前交接总表](cloud-release-readiness.md)。下文按来源保留 Mac 交叉包和 10 月 8 日实机记录；这些包都不是后续合入主干后源码的正式发行产物。
+
+## 当前 Windows 接续证据
+
+268896e7 的 CI 37950666208 四个 job 全部通过，Windows .NET 117 项及完整 ZIP/Inno 安装器构建成功；CodeQL 全通过、开放告警为 0。Dashboard 当前 1192/1192 通过。全仓 Windows Node 快照为 3728 通过、80 失败、20 取消、38 跳过，不能以目标组或 Linux/macOS 全绿替代。新增同步专项的三项失败来自真实 AppData 混入 fixture；隔离 APPDATA/LOCALAPPDATA 后 27/27，已加入 Windows CI。
+
+原生测试宿主加载发布目录 DLL，并使用隔离 WebView2/应用数据。最初宿主输出目录缺少 EmbeddedServer，使应用的开发 fallback 使用系统 Node16，auth proxy 返回 502；该次不能算嵌入 Node 登录证明。补齐宿主的打包资源后，普通邮箱登录真实 InsForge 测试账号成功、Pro 年付 US$39.99/月付 US$4.99 显示正确、固定期切换正确，试用/付款在 preview 禁用。系统浏览器 loopback、安全 URL 拒绝、窗口隐藏/重开均已执行；不是完整 Program.Main 托盘或 OS 深链返回证明。
+
+私有证据位于 .tmp/windows-cloud/acceptance-native/、acceptance-auth-gifts.json（16 项真实 API）、acceptance-live-preview.json（8 项正式 preview API）。这些 API 测试不等于成功 Windows 赠送 GUI 或真实资金验收。
+
+CI 51bdcdfd 的完整 review artifact 已下载并验证 GitHub archive digest，ZIP 独立解压 981/981 文件大小与 SHA256 一致。实际 workflow checkout 为 merge SHA 042850b2，其 tree 与 review head 51bdcdfd 相同；该旧包版本 1.2.2。版本 1.3.0 必须重新构建并记录 candidate head 与实际 merge checkout，不能沿用旧包 hash。
+
+本机安装 Inno 的动作被自动审批审核拒绝，仅返回 blocked by policy，未执行；CI 使用预装编译器的构建已通过。完整托盘测试和工具拒绝的协议点击仍保持待设备验收，不用其他工具绕过。已有个人安装、注册表和历史数据保留。
 
 2026-10-09赠送码更新。代码`77ca20241d0f6d0830acdbbb720e3bf078591dc2`已加入账户兑换、领取记录、重复领取保护及赠送期的结账提示。新的自包含测试包为`.tmp/waffo/hosted/native/gift-refresh/TokenTracker-private-pro-gifts-win-x64.zip`，111615167字节、975个文件，SHA256为`27eceecbbf794caf1cbaf4a60f92bae3ad6cecec341ff7bebacf593476194eed`。877个相关Git源码blob与构建输入一致；独立解压与私有凭据扫描通过。版本仍1.1.13，包不作为正式Release发布。
 
