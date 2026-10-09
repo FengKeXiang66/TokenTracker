@@ -1,5 +1,7 @@
 # Cloud / Pro 安全扫描逐项审查
 
+后续受审来源 c93c9080 已通过完整 CI 与 CodeQL gate 113997145048（0 新注释）；222 在 PR 自动 fixed，未人工 dismiss，分支剩 14 条主干已有 open。完整 handler 57 项相关目标组与实际 ESM 产物 7 项通过；正式远端函数尚未部署。下文 c3909232 的 16 条人工判定为此前来源，理由与读回证据继续保留。
+
 2026-10-10。应用候选 c3909232，最新扫描实际 PR merge a9e0c1e6（analysis 1925765564）。第二批五项源码告警自动关闭；人工判定前实际安全 check 113989824128 为 16 条注释（5 high、11 medium），分支 31 open。以下 16 条逐项审查后，5 条以 used in tests、11 条以 false positive 标记并逐条读回确认；该 check 已变为 success，标题为 No new alerts in code changed by this pull request。其历史 annotations_count 仍为 16，不写成原始扫描零告警；分支仍有 15 条主干已有 open 告警，未一并忽略。证据 acceptance-security-reviewed-adjudications.json。验收状态以 [上线前总表](cloud-release-readiness.md) 和对应 GitHub check 为准。未禁用查询或批量忽略目录。
 
 ## 已通过代码修复处理
@@ -53,6 +55,6 @@
 
 上述审查针对 PR 门禁匹配到的具体流；没有把主干的其他 provider/cache/测试告警一并忽略。主干 open 数、分支 open 数、PR 新注释数分别记录，不混为同一指标。usage-limits 的 TLS 例外仅针对固定 127.0.0.1 的本机 Codeium 服务，不能把它当作远端 HTTPS 允许关闭验证的依据。未完成的告警仍需自己的源码与回归证据。
 
-后续已修复 222：leaderboard-refresh 三个 catch 不再将未知异常 String(error) 或内部 error.message 返回 HTTP，改为操作固定错误。新增完整 handler 回归在旧源码实际 6 失败/1 通过，修复后及相关 guardrail/pricing/compact-wire 57/57；新 CI/扫描仍待完成，正式函数尚未部署。这是代码修复，未按误报关闭。其他 provider 授权/缓存流亦须各自核对目标、重定向、固定路径及回归；本文的 11 条预期流程判定不能套用到它们。
+后续已修复 222：leaderboard-refresh 三个 catch 不再将未知异常 String(error) 或内部 error.message 返回 HTTP，改为操作固定错误。新增完整 handler 回归在旧源码实际 6 失败/1 通过，修复后及相关 guardrail/pricing/compact-wire 57/57；新完整 CI 与 CodeQL gate 已通过，222 在 PR 自动 fixed，正式函数尚未部署。这是代码修复，未按误报关闭。其他 provider 授权/缓存流亦须各自核对目标、重定向、固定路径及回归；本文的 11 条预期流程判定不能套用到它们。
 
 CodeQL 官方规则：[文件到 HTTP](https://codeql.github.com/codeql-query-help/javascript/js-file-access-to-http/)、[HTTP 到文件](https://codeql.github.com/codeql-query-help/javascript/js-http-to-file-access/)、[文件检查/使用竞态](https://codeql.github.com/codeql-query-help/javascript/js-file-system-race/)。它们要求判断数据流是否符合应用预期；这里逐条保留具体边界，不把扫描静默作为发布证据。

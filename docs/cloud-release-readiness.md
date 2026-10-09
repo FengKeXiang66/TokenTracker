@@ -1,10 +1,22 @@
 # Cloud / Pro 上线前交接总表
 
-## 后续排行榜错误输出修复：新的 CI/扫描待验收
+## 最新已核验候选：1.3.0 / c93c9080
 
-主干既有告警 222 的三个 catch 现返回按操作固定的 HTTP500 错误，不再序列化未知异常或返回内部数据库/多行细节。新增测试调用转译后的完整 handler，覆盖两种异常在两个公开只读入口和受保护 scan-summary 的六种失败，以及未授权写入仍 401；同一测试在旧源码实际 6 项失败/1 通过，修复后目标组 **57/57**，无失败/取消/跳过，两份变更 hash 不变。证据 acceptance-windows-edge-errors-before.json/log、acceptance-windows-edge-errors-fixed.json/log。新完整 CI 与 CodeQL 自动关闭待读回；正式远端 leaderboard handler 尚未部署，仍受恢复/preview 回归部署顺序约束。下面 c3909232 的完整 CI 与包证据保留精确来源，不升级为后续完整候选。
+应用与受审来源 **c93c908059a298a32855ee19a5741c048cf21899**。修复排行榜三个 catch 的错误输出，公开异常队列/隔离审计与受保护扫描总结失败现只返回操作固定的 HTTP500 错误，不返回内部数据库/多行细节或序列化未知异常。新增完整转译 handler 回归在旧源码实际 6 失败/1 通过；修复后相关目标组 **57/57**，两份变更 hash 和提交 blob 一致。实际 ESM 函数产物另有 **7/7**，53661 字节 / SHA256 129fa654ef8f0f21d0fa21456294f5e622b800c7d81d97fde2137766ec2c8c2e，仅以该源文件为输入，保留既有 npm SDK import；正式远端排行榜 handler **尚未部署**，仍按恢复与 preview 回归门槛部署。不能把本机产物通过写成远端已修复。
 
-## 最新已核验候选：1.3.0 / c3909232
+[CI 37982441711](https://github.com/xiufengsun/TokenTracker/actions/runs/37982441711) 四个 job 全通过：Windows Node24 和实际打包 Node22 均 **3898 项、3858 通过、40 条件跳过、无失败/取消**，.NET **117/117**；Linux Node **3888 通过/8 跳过**；macOS Node **3892 通过/4 跳过**及 **239 项原生测试**通过；Rust job 全通过。新七项 handler 回归实际在所有 Node 平台执行。证据 acceptance-edge-error-ci.json 与 job log；前一文档-only 96d4046b CI 被替代运行取消，不记为通过。
+
+CodeQL 实际 PR check **113997145048 success / 0 新注释**；分析 1925873147 的 merge cb830f3016d3f8d41608fd9a2bc42e4e0bb5c5f3 tree 与该 head 相同。告警 222 在 PR 自动标为 fixed，没有人工 dismiss；主干原告警仍 open，不把修复升级为 main 已上线。之前的 16 条逐项人工判定及理由保留在 [安全审查](cloud-security-review.md)，本轮分支剩 **14 条主干已有 open**，未一并忽略/禁用查询。证据 acceptance-edge-error-gate.json。
+
+该提交 Windows archive **195991432 字节 / SHA256 53ce5c37b9cd50615531ca3b61ce8de3535be9e7b9f97ef56e335e4f7d50fceb** 与 GitHub digest 相同；实际 checkout **cb830f3016d3f8d41608fd9a2bc42e4e0bb5c5f3** tree **5d4a77b2c554531b1a541dd6e4d6211d12c66c68** 与受审 head 一致。**984/984 文件大小/hash、109 份嵌入源码 Git blob** 全匹配；四项现有私钥/管理 key 字节模式零命中。ZIP **115721267 字节 / SHA256 10cd7648622b843f6d929be862f2d9eb9ee781376d3cb065ccbb84ebe9d44f28**；Inno **81392627 字节 / SHA256 e25430633226a2220f8167d0d5d1da9ad66fb04601a17b083b366c3416180def**。实际该包 DLL/EmbeddedServer **30/30 原生窗口**通过，实际打包 Node22 与包内模块 **55 通过/1 本机链接权限跳过/无失败或取消**；源码位置断言通过。旧 Smoke 宿主复用，应用 DLL/runtime/loader 来自新包；未操作已有用户安装。原生完整入口、OS 协议付款返回与安装/升级/卸载依然无本轮通过证据。
+
+首轮 Windows Node22 为 3857 通过/40 跳过/0 断言失败/1 文件超时取消，init-local-runtime-reinstall.test.js 的连续复制超过 120 秒，后续安装器/上传未执行；不记为通过。相同文件在本机隔离 Node22 实际 3/3、21.88 秒；仅重跑失败 Windows job，成功结果见上。首轮完整日志与 acceptance-edge-error-ci-first-attempt.json 继续保留，未删测试/提高超时/改变受审源码。
+
+最新 [Vercel Preview](https://dashboard-bdtmuqdm2-sunxiufeng1992-8555s-projects.vercel.app) 的 deployment **6969570061** 读回 success，来源精确为 c93c9080；账单、价格、条款和隐私四路由仍转到 Vercel Login，当前浏览器打开最新账单地址也相同。未改变访问保护，未记为应用验收通过；正常预览访问仍待 Owner。证据 acceptance-edge-error-preview.json。
+
+UTC 20:00 正式后台再次只读核对仍 hosted/preview、launch_at=NULL，live 订单/支付/订阅全 0。已登录 Waffo 后台可见 1 个支付宝 CNY 提款账户；页面没有渠道验证状态标签，不能从账户存在推断已验证，也无需重复添加。API 的 channelStatus=unverified/channelVerifiedAt=NULL 与 Owner 先前报告仍分开记录；[官方流程](https://docs.waffo.ai/merchant/payout-accounts)说明新账户在首笔真实提款核对收款人后才标 Verified，因此当前字段可能反映尚无首笔提款，不单独证明配置错误。只保留脱敏事实，不复制页面身份或账户号码。证据 acceptance-release-live-state.json、acceptance-release-waffo-ui.json。未开启收费、会员限制、促销或归档；真实资金、首笔提款及到账、受保护前端、隔离恢复与原生生命周期门槛仍独立存在。后续受审源码改变须重新按来源记录，历史结果不自动升级。
+
+## 前一已核验候选：1.3.0 / c3909232
 
 应用与受审来源 **c3909232d416ff113aad417da892deafe1c50a84**。第二批改动使设备身份配置写入通过随机 wx/0600 临时文件原子替换；WorkBuddy trace 从同一打开的 descriptor 检查和读取；Bot 帧构建使用独立 mkdtemp 目录，只清理自己的文件；Windows 包清单大小/hash 从同一 buffer 获取；代理错误只返回限长首行或通用信息，不调用未知异常的 toString。Windows POSIX mode 不作为 NTFS ACL 证明。
 
@@ -20,7 +32,7 @@
 
 最近 fetch：main **e6186b35**、功能分支 **c3909232** 均无外部新增提交，主干已为当前分支祖先；PR MERGEABLE/CLEAN，保持 draft。UTC 19:32 正式后台只读核对仍 hosted/preview、launch_at=NULL、live 订单/支付/订阅均 0；Waffo 商户 active、payoutEnable=true、绑定匹配，但 channelStatus=unverified/channelVerifiedAt=NULL。没有开启收费、会员限制、促销或归档。当前工程与 Owner 门槛继续以本文后续表格为准。
 
-## 第一批安全修复：CI 已通过，安全门禁与新包待验收
+## 第一批安全修复记录：后续门禁与包结果见上述候选
 
 第一批已修复 Bearer 前缀解析的重叠正则、静态文件检查/读取竞态，以及 gift admin 的私有凭据与 resume 文件校验/读取竞态。Windows 私有文件入口仍按原 ACL 门槛关闭。支付测试 URL 条件改为精确 origin 判断。
 
@@ -108,18 +120,18 @@ Windows CI 已扩大为完整 Node 回归，并在 Dashboard 构建后运行；S
 - 四个套餐已发布为 active production 版本，USD4.99/月、USD39.99/年，续费/固定期同价，完整账期，无供应商试用；没有改动既有无关产品。
 - 正式 HTTP webhook 已注册并读回：目标为现有后台 /functions/tokentracker-waffo-webhook，prod、12 个对应事件。旧回调不变；无签名 POST 返回 401 invalid_signature。未发生真实签名生产交易通知。
 - 正式 catalog 返回 preview、配置可识别、checkout_verified=false；真实测试账号发起 checkout 返回 503 checkout_not_launched，在创建订单前拒绝。生产 orders/payments/subscriptions 均为 0。
-- **提款账户已绑定目标商户且 payoutEnable=true，但正式 API 返回 channelStatus=unverified、channelVerifiedAt=NULL。** 这是当前独立证据，与 Owner 先前“已验证/可用”报告分开记录；无需重复新增账户，需核对渠道审核/验证状态。真实付款、账单和到账尚未验证。
+- **提款账户已绑定目标商户且 payoutEnable=true，但正式 API 返回 channelStatus=unverified、channelVerifiedAt=NULL。** 已登录后台可见账户；按 [Waffo 官方流程](https://docs.waffo.ai/merchant/payout-accounts)，新账户在首笔真实提款核对收款人后才标为 Verified。当前状态可能与尚无真实提款有关，不凭此字段认定配置错误；无需重复新增账户。真实付款、账单和到账尚未验证。
 
 ## 仍阻止正式收费发布的事项
 
 | 门槛 | 下一步与负责人 |
 | --- | --- |
-| 精确发行候选 | 最新 c3909232 四平台 CI、Windows Node24/包内 Node22 全量、984 文件/109 嵌入源码/hash/四项密钥扫描、30 原生窗口及 55 包内专项通过。PR 安全门禁在逐条判定后通过，15 条主干已有告警保持 open 需各自审查；真实资金、恢复、受保护前端和原生生命周期仍未通过。后续源码改变须重新按来源核对，正式发行走统一 npm/macOS/Windows/Linux 流程 |
+| 精确发行候选 | 最新 c93c9080 四平台 CI、Windows Node24/包内 Node22 全量、984 文件/109 嵌入源码/hash/四项密钥扫描、30 原生窗口及 55 包内专项通过。PR 安全门禁在逐条判定后通过，14 条主干已有告警保持 open 需各自审查；排行榜错误输出源码/实际构建回归及自动关闭已通过，但正式函数尚未替换；真实资金、恢复、受保护前端和原生生命周期仍未通过。后续源码改变须重新按来源核对，正式发行走统一 npm/macOS/Windows/Linux 流程 |
 | Windows 设备路径 | 普通账号切换、退出/刷新已通过；成功礼遇兑换显示仍待验证；专用干净设备完成完整托盘入口、协议返回、安装/升级/卸载及数据保留。窗口测试与安装器编译不能代替生命周期 |
-| 完整正式返回页 | 工程将受审的 Dashboard /billing/checkout 部署至正式 HTTPS 站点，并验证来源、账单归属、失焦/重开恢复；8497d6e9 的 [Vercel Preview](https://dashboard-2wg4xipef-sunxiufeng1992-8555s-projects.vercel.app) 部署读回 success，但四个账单/法律路由均跳转 Vercel Login，浏览器亦无 Vercel 登录会话。需要 Owner 提供正常预览访问后验收；登录页 HTTP200 不算应用通过，现有 QA 静态页不算完整生产 Dashboard |
+| 完整正式返回页 | 工程将受审的 Dashboard /billing/checkout 部署至正式 HTTPS 站点，并验证来源、账单归属、失焦/重开恢复；c93c9080 的 [Vercel Preview](https://dashboard-bdtmuqdm2-sunxiufeng1992-8555s-projects.vercel.app)（deployment 6969570061） 部署读回 success，但四个账单/法律路由均跳转 Vercel Login，浏览器亦无 Vercel 登录会话。需要 Owner 提供正常预览访问后验收；登录页 HTTP200 不算应用通过，现有 QA 静态页不算完整生产 Dashboard |
 | 托管访问与恢复 | 工程在保持 preview 的前提完成其他正式函数部署顺序、免费/过渡/设备/导出回归及隔离备份恢复；归档未通过独立门槛时继续关闭 |
 | 真实资金 | Owner 确定试点可用付款方式与金额上限并实际付款/系统确认；工程核对签名回调、订单、账本、完整月/年账期、拒付重试、取消和退款。不得把沙盒或手工造账当作真实交易 |
-| 渠道与结算 | Owner 在 Waffo 确认渠道验证为何仍为 unverified，核对合同费率/币种/结算条件，试点后确认实际入账；工程保存脱敏状态证据 |
+| 渠道与结算 | Owner 核对合同费率/币种/结算条件，真实收入满足提款条件后完成首笔提款并核对状态及到账；unverified 本身不证明配置错误。工程保存脱敏状态证据，失败或异常时再核对 Waffo 渠道 |
 | 条款与启用 | Owner 确认退款/续费/隐私/客服政策和启用时间；工程准备具体文案、部署与回滚结果后再实施收费、公告和公开发行 |
 
 自动审批审核此前拒绝完整托盘 Program.Main/单实例/Job Object 的额外测试，以及本机安装 Inno 的动作，均仅返回 blocked by policy；未执行或改工具绕过。另一次本机旧测试输出的递归清理也被拒绝，已保留旧目录并使用新的干净目录。CI 使用已安装的 Inno 编译器完成构建。工具拒绝的外部协议点击仍由本人在设备上完成。
@@ -128,7 +140,7 @@ Windows CI 已扩大为完整 Node 回归，并在 Dashboard 构建后运行；S
 
 ## Owner 当前事项
 
-密钥生成、账户添加/关联和价格确认已经完成，无需重复。剩余本人事项为：确认 Waffo 渠道验证和结算合同；登录受保护的 Vercel Preview 以便继续前端验收；提供隔离恢复环境，或明确 InsForge 分支预算及运行时限；实际完成受控支付与必要的系统确认、后续到账核对；确定最终条款及启用时间。专用 Windows 设备上的协议与安装生命周期还需要可执行的验收环境。工程尚未完成的部署和发行检查不能转写成 Owner 已验收；后台应继续保持 preview。
+密钥生成、账户添加/关联和价格确认已经完成，无需重复。剩余本人事项为：确认结算合同，并在真实收入满足提款条件后核对首笔提款/到账，当前 unverified 不单独证明配置错误；登录受保护的 Vercel Preview 以便继续前端验收；提供隔离恢复环境，或明确 InsForge 分支预算及运行时限；实际完成受控支付与必要的系统确认；确定最终条款及启用时间。专用 Windows 设备上的协议与安装生命周期还需要可执行的验收环境。工程尚未完成的部署和发行检查不能转写成 Owner 已验收；后台应继续保持 preview。
 
 ## 文档入口
 

@@ -1,10 +1,14 @@
 # Waffo 审核后的生产准备
 
-2026-10-09 当前状态：已使用 Owner 提供的正式 RSA2048 密钥，通过签名 production API 核对目标商户和 Store。四个 Pro 套餐均已发布为 active 生产版本，未税 USD4.99/月、USD39.99/年，自动续费与固定期同价。正式收费仍关闭，live policy 为 preview。
+2026-10-10 当前状态：已使用 Owner 提供的正式 RSA2048 密钥，通过签名 production API 核对目标商户和 Store。四个 Pro 套餐均已发布为 active 生产版本，未税 USD4.99/月、USD39.99/年，自动续费与固定期同价。正式收费仍关闭，live policy 为 preview。
 
 八项 Waffo server secret 已配置并独立读回，标准 PEM 和 DER 指纹来自仓库外受限 NTFS 私有目录；客户端和 Git 不包含密钥。两个正式 billing/webhook 函数源码与受审构建逐字节一致。正式 HTTP webhook 的地址、prod 标记和 12 个事件已独立读回；无签名 POST 返回 401 invalid_signature。完整当前证据与候选版本见 [上线前交接总表](cloud-release-readiness.md)。
 
-Owner 已完成结算／提现账户添加与关联，无需重复。最新签名 API 确认账户绑定目标商户且 payoutEnable=true，但 channelStatus 为 unverified、channelVerifiedAt 为 NULL。Owner 先前“已验证／可用”报告与该读回分开记录，需核对渠道验证／审核状态。只读取绑定、状态和币种，不保存账户号码；实际付款和结算未验证。
+Owner 已完成结算／提现账户添加与关联，无需重复。最新签名 API 确认账户绑定目标商户且 payoutEnable=true，但 channelStatus 为 unverified、channelVerifiedAt 为 NULL。Owner 先前“已验证／可用”报告与该读回分开记录。只读取绑定、状态和币种，不保存账户号码；实际付款和结算未验证。
+
+已登录后台的只读页面核对可见 1 个支付宝中国 CNY 提款账户，页面注明账户由所有店铺共用；账户页没有渠道“已验证／待审核”状态标签。账户存在不等于渠道验证完成，不据此重新添加或修改绑定。证据 acceptance-release-waffo-ui.json 仅保存这些脱敏事实，不保存身份、账号或页面完整内容；本轮没有发起付款或提款。
+
+2026-10-10 官方 [提款账户说明](https://docs.waffo.ai/merchant/payout-accounts)明确：新账户在首笔真实提款核对收款人后才标为 Verified；[提款流程](https://docs.waffo.ai/merchant/payout-flow)说明每次提款都需选择目标账户，没有默认账户。因此，当前 unverified **可能表示尚未完成首次提款**，不能仅凭此字段认定配置错误或要求发布前重新验证。这个解释是对官方流程与当前零交易状态的推断，不是实际到账证明。Owner 后续核对合同条件，并在真实收入满足提款条件后亲自完成首笔提款/到账核对；遇到失败或异常状态再向 Waffo 确认。
 
 ## 已处理
 
@@ -19,7 +23,7 @@ Owner 已完成结算／提现账户添加与关联，无需重复。最新签�
 | 项目 | 当前状态和工程动作 |
 | --- | --- |
 | 正式密钥 | 规范化、DER 指纹、provider 环境与商户／店铺归属及八项 server secret 接入、读回已完成 |
-| 结算账户 | 绑定正确，但 API 渠道为 unverified；Owner 核对渠道审核／验证，试点后核对真实入账，无需重新添加 |
+| 结算账户 | 已添加且绑定正确；unverified 不单独作为配置未完成的证据。Owner 核对合同条件，并在首笔真实提款后核对验证状态及到账，无需重新添加 |
 | 产品发布 | 四个 production SKU 已发布并读回 active、价格／货币／完整月年账期一致，无关既有产品不变；应用收费仍关闭 |
 | 接收与返回地址 | 正式 webhook 已部署并注册、拒绝无签名请求。完整正式 HTTPS Dashboard /billing/checkout 仍待受审发布；QA 静态页不能代替 |
 | 实际支付方式 | 根据正式产品类型与货币读回收银台。文档提供 card、Apple Pay、Google Pay、WeChat；支付宝是商户结算渠道，不作为当前买家付款权益承诺 |

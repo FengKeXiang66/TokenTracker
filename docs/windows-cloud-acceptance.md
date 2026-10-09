@@ -1,10 +1,22 @@
 # Windows 客户端验收交接
 
-## 后续排行榜错误输出修复：新的 CI/扫描待验收
+## 最新已核验候选：1.3.0 / c93c9080
 
-主干既有告警 222 的三个 catch 现返回按操作固定的 HTTP500 错误，不再序列化未知异常或返回内部数据库/多行细节。新增测试调用转译后的完整 handler，覆盖两种异常在两个公开只读入口和受保护 scan-summary 的六种失败，以及未授权写入仍 401；同一测试在旧源码实际 6 项失败/1 通过，修复后目标组 **57/57**，无失败/取消/跳过，两份变更 hash 不变。证据 acceptance-windows-edge-errors-before.json/log、acceptance-windows-edge-errors-fixed.json/log。新完整 CI 与 CodeQL 自动关闭待读回；正式远端 leaderboard handler 尚未部署，仍受恢复/preview 回归部署顺序约束。下面 c3909232 的完整 CI 与包证据保留精确来源，不升级为后续完整候选。
+应用与受审来源 **c93c908059a298a32855ee19a5741c048cf21899**。修复排行榜三个 catch 的错误输出，公开异常队列/隔离审计与受保护扫描总结失败现只返回操作固定的 HTTP500 错误，不返回内部数据库/多行细节或序列化未知异常。新增完整转译 handler 回归在旧源码实际 6 失败/1 通过；修复后相关目标组 **57/57**，两份变更 hash 和提交 blob 一致。实际 ESM 函数产物另有 **7/7**，53661 字节 / SHA256 129fa654ef8f0f21d0fa21456294f5e622b800c7d81d97fde2137766ec2c8c2e，仅以该源文件为输入，保留既有 npm SDK import；正式远端排行榜 handler **尚未部署**，仍按恢复与 preview 回归门槛部署。不能把本机产物通过写成远端已修复。
 
-## 最新已核验候选：1.3.0 / c3909232
+[CI 37982441711](https://github.com/xiufengsun/TokenTracker/actions/runs/37982441711) 四个 job 全通过：Windows Node24 和实际打包 Node22 均 **3898 项、3858 通过、40 条件跳过、无失败/取消**，.NET **117/117**；Linux Node **3888 通过/8 跳过**；macOS Node **3892 通过/4 跳过**及 **239 项原生测试**通过；Rust job 全通过。新七项 handler 回归实际在所有 Node 平台执行。证据 acceptance-edge-error-ci.json 与 job log；前一文档-only 96d4046b CI 被替代运行取消，不记为通过。
+
+CodeQL 实际 PR check **113997145048 success / 0 新注释**；分析 1925873147 的 merge cb830f3016d3f8d41608fd9a2bc42e4e0bb5c5f3 tree 与该 head 相同。告警 222 在 PR 自动标为 fixed，没有人工 dismiss；主干原告警仍 open，不把修复升级为 main 已上线。之前的 16 条逐项人工判定及理由保留在 [安全审查](cloud-security-review.md)，本轮分支剩 **14 条主干已有 open**，未一并忽略/禁用查询。证据 acceptance-edge-error-gate.json。
+
+该提交 Windows archive **195991432 字节 / SHA256 53ce5c37b9cd50615531ca3b61ce8de3535be9e7b9f97ef56e335e4f7d50fceb** 与 GitHub digest 相同；实际 checkout **cb830f3016d3f8d41608fd9a2bc42e4e0bb5c5f3** tree **5d4a77b2c554531b1a541dd6e4d6211d12c66c68** 与受审 head 一致。**984/984 文件大小/hash、109 份嵌入源码 Git blob** 全匹配；四项现有私钥/管理 key 字节模式零命中。ZIP **115721267 字节 / SHA256 10cd7648622b843f6d929be862f2d9eb9ee781376d3cb065ccbb84ebe9d44f28**；Inno **81392627 字节 / SHA256 e25430633226a2220f8167d0d5d1da9ad66fb04601a17b083b366c3416180def**。实际该包 DLL/EmbeddedServer **30/30 原生窗口**通过，实际打包 Node22 与包内模块 **55 通过/1 本机链接权限跳过/无失败或取消**；源码位置断言通过。旧 Smoke 宿主复用，应用 DLL/runtime/loader 来自新包；未操作已有用户安装。原生完整入口、OS 协议付款返回与安装/升级/卸载依然无本轮通过证据。
+
+首轮 Windows Node22 为 3857 通过/40 跳过/0 断言失败/1 文件超时取消，init-local-runtime-reinstall.test.js 的连续复制超过 120 秒，后续安装器/上传未执行；不记为通过。相同文件在本机隔离 Node22 实际 3/3、21.88 秒；仅重跑失败 Windows job，成功结果见上。首轮完整日志与 acceptance-edge-error-ci-first-attempt.json 继续保留，未删测试/提高超时/改变受审源码。
+
+最新 [Vercel Preview](https://dashboard-bdtmuqdm2-sunxiufeng1992-8555s-projects.vercel.app) 的 deployment **6969570061** 读回 success，来源精确为 c93c9080；账单、价格、条款和隐私四路由仍转到 Vercel Login，当前浏览器打开最新账单地址也相同。未改变访问保护，未记为应用验收通过；正常预览访问仍待 Owner。证据 acceptance-edge-error-preview.json。
+
+UTC 20:00 正式后台再次只读核对仍 hosted/preview、launch_at=NULL，live 订单/支付/订阅全 0。已登录 Waffo 后台可见 1 个支付宝 CNY 提款账户；页面没有渠道验证状态标签，不能从账户存在推断已验证，也无需重复添加。API 的 channelStatus=unverified/channelVerifiedAt=NULL 与 Owner 先前报告仍分开记录；[官方流程](https://docs.waffo.ai/merchant/payout-accounts)说明新账户在首笔真实提款核对收款人后才标 Verified，因此当前字段可能反映尚无首笔提款，不单独证明配置错误。只保留脱敏事实，不复制页面身份或账户号码。证据 acceptance-release-live-state.json、acceptance-release-waffo-ui.json。未开启收费、会员限制、促销或归档；真实资金、首笔提款及到账、受保护前端、隔离恢复与原生生命周期门槛仍独立存在。后续受审源码改变须重新按来源记录，历史结果不自动升级。
+
+## 前一已核验候选：1.3.0 / c3909232
 
 应用与受审来源 **c3909232d416ff113aad417da892deafe1c50a84**。第二批改动使设备身份配置写入通过随机 wx/0600 临时文件原子替换；WorkBuddy trace 从同一打开的 descriptor 检查和读取；Bot 帧构建使用独立 mkdtemp 目录，只清理自己的文件；Windows 包清单大小/hash 从同一 buffer 获取；代理错误只返回限长首行或通用信息，不调用未知异常的 toString。Windows POSIX mode 不作为 NTFS ACL 证明。
 
@@ -20,7 +32,7 @@
 
 最近 fetch：main **e6186b35**、功能分支 **c3909232** 均无外部新增提交，主干已为当前分支祖先；PR MERGEABLE/CLEAN，保持 draft。UTC 19:32 正式后台只读核对仍 hosted/preview、launch_at=NULL、live 订单/支付/订阅均 0；Waffo 商户 active、payoutEnable=true、绑定匹配，但 channelStatus=unverified/channelVerifiedAt=NULL。没有开启收费、会员限制、促销或归档。当前工程与 Owner 门槛继续以本文后续表格为准。
 
-## 第一批安全修复：CI 已通过，安全门禁与新包待验收
+## 第一批安全修复记录：后续门禁与包结果见上述候选
 
 第一批已修复 Bearer 前缀解析的重叠正则、静态文件检查/读取竞态，以及 gift admin 的私有凭据与 resume 文件校验/读取竞态。Windows 私有文件入口仍按原 ACL 门槛关闭。支付测试 URL 条件改为精确 origin 判断。
 
