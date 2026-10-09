@@ -44,6 +44,12 @@ async function waitForFile(filePath, { timeoutMs = 1500, intervalMs = 50 } = {})
   return null;
 }
 
+function completedMarkerScript(markerPath, valueSource) {
+  // A marker becomes visible only after its payload is complete. Keep empty
+  // content observable as a failure rather than teaching readers to ignore it.
+  return `const fs = require('node:fs');\nconst marker = ${JSON.stringify(markerPath)};\nfs.writeFileSync(marker + '.tmp', ${valueSource});\nfs.renameSync(marker + '.tmp', marker);`;
+}
+
 function flattenHookEntries(entries) {
   return entries.flatMap((entry) => (Array.isArray(entry?.hooks) ? entry.hooks : [entry]));
 }
@@ -105,7 +111,7 @@ test("notify handler runs local source sync without a cloud device token", async
     await fs.mkdir(path.dirname(trackerBinPath), { recursive: true });
     await fs.writeFile(
       trackerBinPath,
-      `require("node:fs").writeFileSync(${JSON.stringify(markerPath)}, JSON.stringify(process.argv.slice(2)));\n`,
+      `${completedMarkerScript(markerPath, "JSON.stringify(process.argv.slice(2))")}\n`,
       "utf8",
     );
     await fs.writeFile(
@@ -157,7 +163,7 @@ test("notify handler chains executable original notify commands and skips stale 
     await fs.mkdir(skyDir, { recursive: true });
     await fs.writeFile(
       skyPath,
-      `#!/usr/bin/env node\nrequire('node:fs').writeFileSync(${JSON.stringify(markerPath)}, 'ran');\n`,
+      `#!/usr/bin/env node\n${completedMarkerScript(markerPath, "'ran'")}\n`,
       "utf8",
     );
     await fs.chmod(skyPath, 0o755);
@@ -187,7 +193,7 @@ test("notify handler skips an original notify that nests itself", async () => {
     const skyPath = path.join(tmp, "SkyComputerUseClient");
     await fs.writeFile(
       skyPath,
-      `#!/usr/bin/env node\nrequire('node:fs').writeFileSync(${JSON.stringify(markerPath)}, 'ran');\n`,
+      `#!/usr/bin/env node\n${completedMarkerScript(markerPath, "'ran'")}\n`,
       "utf8",
     );
     await fs.chmod(skyPath, 0o755);
@@ -220,7 +226,7 @@ test("notify handler skips a nested self notify referenced through a symlinked p
     const skyPath = path.join(tmp, "SkyComputerUseClient");
     await fs.writeFile(
       skyPath,
-      `#!/usr/bin/env node\nrequire('node:fs').writeFileSync(${JSON.stringify(markerPath)}, 'ran');\n`,
+      `#!/usr/bin/env node\n${completedMarkerScript(markerPath, "'ran'")}\n`,
       "utf8",
     );
     await fs.chmod(skyPath, 0o755);
@@ -251,7 +257,7 @@ test("notify handler skips a stale nested notify pointing into a .tokentracker d
     await fs.mkdir(trackerDir, { recursive: true });
     await fs.writeFile(
       skyPath,
-      `#!/usr/bin/env node\nrequire('node:fs').writeFileSync(${JSON.stringify(markerPath)}, 'ran');\n`,
+      `#!/usr/bin/env node\n${completedMarkerScript(markerPath, "'ran'")}\n`,
       "utf8",
     );
     await fs.chmod(skyPath, 0o755);
@@ -279,7 +285,7 @@ test("notify handler avoids duplicating existing payload args when chaining", as
     const shimPath = path.join(tmp, "dedupe-notify.js");
     await fs.writeFile(
       shimPath,
-      `require('node:fs').writeFileSync(${JSON.stringify(markerPath)}, process.argv.slice(2).join('|'));\n`,
+      `${completedMarkerScript(markerPath, "process.argv.slice(2).join('|')")}\n`,
       "utf8",
     );
 
@@ -303,7 +309,7 @@ test("notify handler skips interpreter original notify when script target is mis
     const missingScriptPath = path.join(tmp, "missing-notify.js");
     await fs.writeFile(
       fakeNodePath,
-      `#!/usr/bin/env node\nrequire('node:fs').writeFileSync(${JSON.stringify(markerPath)}, process.argv.slice(2).join('|'));\n`,
+      `#!/usr/bin/env node\n${completedMarkerScript(markerPath, "process.argv.slice(2).join('|')")}\n`,
       "utf8",
     );
     await fs.chmod(fakeNodePath, 0o755);
@@ -333,7 +339,7 @@ test("notify handler skips node-like original notify without a script target", a
     const fakeNodePath = path.join(tmp, "node");
     await fs.writeFile(
       fakeNodePath,
-      `#!/usr/bin/env node\nrequire('node:fs').writeFileSync(${JSON.stringify(markerPath)}, process.argv.slice(2).join('|'));\n`,
+      `#!/usr/bin/env node\n${completedMarkerScript(markerPath, "process.argv.slice(2).join('|')")}\n`,
       "utf8",
     );
     await fs.chmod(fakeNodePath, 0o755);
@@ -377,7 +383,7 @@ test("notify handler validates env split-string interpreter targets", {
     const explicitScriptPath = path.join(tmp, "notify-script.js");
     await fs.writeFile(
       fakeEnvPath,
-      `#!/usr/bin/env node\nrequire('node:fs').writeFileSync(${JSON.stringify(markerPath)}, process.argv.slice(2).join('|'));\n`,
+      `#!/usr/bin/env node\n${completedMarkerScript(markerPath, "process.argv.slice(2).join('|')")}\n`,
       "utf8",
     );
     await fs.chmod(fakeEnvPath, 0o755);
@@ -751,7 +757,7 @@ test("notify handler preserves legitimate repeated payload args when chaining", 
     const shimPath = path.join(tmp, "repeat-notify.js");
     await fs.writeFile(
       shimPath,
-      `require('node:fs').writeFileSync(${JSON.stringify(markerPath)}, process.argv.slice(2).join('|'));\n`,
+      `${completedMarkerScript(markerPath, "process.argv.slice(2).join('|')")}\n`,
       "utf8",
     );
 
@@ -1106,7 +1112,7 @@ test("notify handler still chains normal original notify commands", async () => 
     const shimPath = path.join(tmp, "safe-notify.js");
     await fs.writeFile(
       shimPath,
-      `require('node:fs').writeFileSync(${JSON.stringify(markerPath)}, process.argv.slice(2).join('|'));\n`,
+      `${completedMarkerScript(markerPath, "process.argv.slice(2).join('|')")}\n`,
       "utf8",
     );
 
@@ -1130,7 +1136,7 @@ test("notify handler chains the independent Acode original notify", async () => 
     const shimPath = path.join(tmp, "acode-notify.js");
     await fs.writeFile(
       shimPath,
-      `require('node:fs').writeFileSync(${JSON.stringify(markerPath)}, process.argv.slice(2).join('|'));\n`,
+      `${completedMarkerScript(markerPath, "process.argv.slice(2).join('|')")}\n`,
       "utf8",
     );
 

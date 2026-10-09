@@ -1,8 +1,10 @@
 # Windows 客户端验收交接
 
-## 后续同步锁测试夹具：应用源码未变
+## 后续测试夹具：应用源码未变
 
 7bd905d6 的 Windows Node24 全量为 3858 通过/40 跳过；包内 Node22 有 1 项 native account publication 夹具未处理 SYNC_BUSY，不能算完整通过。成功路径现观察两次真实 EEXIST 后才释放锁，立即处理 Promise 拒绝并使用受控时钟；独立超时拒绝仍用真实时限，原队列/token 断言均保留。Node22/Node24 本机相关文件各 **27/27**，无失败/取消/跳过；没有改产品行为或加大测试超时。后续完整结果读取 [PR 当前 checks](https://github.com/xiufengsun/TokenTracker/pull/772/checks)，来源细节见 [总表](cloud-release-readiness.md)。下方实际 c93c9080 包结果不冒充后续 head 的完整 CI。
+
+后续 e9b06987 的 macOS env 通知夹具空标记失败保留；12 处标记写入已改为写完再原子 rename。本机 Node22/Node24 通知与锁组合各 67 通过/4 POSIX 跳过/0 失败或取消；没有用 Windows 条件跳过代替 Mac/Linux 的 env 验证，也没有修改产品通知逻辑。全量结果仍按上述当前 PR head 读取。
 
 ## 最新已核验候选：1.3.0 / c93c9080
 

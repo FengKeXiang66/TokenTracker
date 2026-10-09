@@ -1,10 +1,12 @@
 # Cloud / Pro 上线前交接总表
 
-## 后续同步锁测试夹具修复：应用源码未变
+## 后续测试夹具修复：应用源码未变
 
 文档提交 7bd905d6 的 CI 37985950893：Linux、Rust、macOS（3892/4 跳过及 239 原生）通过，Windows Node24 为 3858/40 跳过；包内 Node22 为 3857 通过/40 跳过/1 失败，native account publication 用例报未处理的 SYNC_BUSY 拒绝，不记为全通过。源码与下面 c93c9080 相同，失败来自用 30ms 睡眠建立重叠、500ms 实时时限和延后 await 的测试夹具。
 
 两个成功用例现观察真实文件锁两次 EEXIST 后才释放锁，先断言队列尚未产生；Promise 拒绝立即处理，并在成功路径控制时钟，独立的 busy-lock 拒绝用例继续使用真实 deadline。所有原始 token/队列断言保留，未改产品锁时限或文件超时。本机隔离 Node22/Node24 均 **27/27**，无失败/取消/跳过，最终测试文件 hash d82ea95282c4d3a2c3bebf2c064c4cce072cf8d99c8152fce0e37e14e65be185。完整检查按 [PR 当前 head](https://github.com/xiufengsun/TokenTracker/pull/772/checks) 读取；下面 c93c9080 的应用与实际包证据继续保留其精确来源，不将旧 CI 升级为后续 head 的结果。
+
+e9b06987 的 CI 37987644688 随后在 macOS env split-string 通知夹具读到了空标记：3891 通过/4 跳过/1 失败，原生 XCTest 未执行，不记为 macOS 通过。12 处仍直接写标记的夹具已统一写自己的临时文件再 rename；读者继续检验空内容，未放宽参数或坏命令断言。产品通知代码未改。本机 Node22/Node24 的通知与锁组合各 **67 通过/4 POSIX 条件跳过/0 失败或取消**，71 项；新增文件 hash 424ad35f5012fd52c06a58050ac0d0852bca5ae7b997a38d8c228029a38a9400。POSIX env 实际验证继续由当前 Mac/Linux CI 提供。
 
 ## 最新已核验候选：1.3.0 / c93c9080
 
