@@ -1,12 +1,24 @@
 # Windows 客户端验收交接
 
-2026-10-10（Asia/Shanghai）更新。最新应用候选为 **1.3.0 / 60b8935b**，Windows 本机完整 Node 回归已通过：362 文件、3829 通过、0 失败、0 取消、47 条件跳过。新 CI/CodeQL、982 文件候选包与 107 嵌入源码核对，以及实际 CI DLL/打包 Node 的 30 项原生窗口检查均通过。此前的正常邮箱登录与换账号证据保留其原始来源。完整托盘、系统协议付款返回和安装器生命周期仍待验收。
+2026-10-10（Asia/Shanghai）更新。最新应用候选为 **1.3.0 / 896baa52**，修复 Node22 中文目录递归复制的原生崩溃；实际 Node22 完整本机回归已通过：363 文件、3830 通过、0 失败、0 取消、47 条件跳过。最新受审 head 29b02f5a 的四平台 CI、新包核对、30 项原生窗口及 18 项包内专项已通过；CodeQL workflow 成功，但 PR 安全门禁有 27 条注释需工程审查/修复。前一 60b8935b 的 CI/982 文件候选包/107 嵌入源码核对及 30 项原生窗口检查仅证明旧源码。正常邮箱登录与换账号证据亦保留原始来源。完整托盘、系统协议付款返回和安装器生命周期仍待验收。
 
 这里需要的是 Windows 客户端测试电脑。官方后端仍使用现有付费 InsForge，付款由 Waffo 处理，不需要 Windows 服务器。
 
 本轮已在原 Windows 工作区重新拉取功能分支。当前源码和本机回归统一记录在 [上线前交接总表](cloud-release-readiness.md)。下文按来源保留 Mac 交叉包和 10 月 8 日实机记录；这些包都不是后续合入主干后源码的正式发行产物。
 
 ## 当前 Windows 接续证据
+
+896baa52：安装包中的 Node22.22.2 补查暴露 native recursive copy 的 Unicode 路径退出码 3221226505。已用隔离目录复现，技能导入/链接 fallback 的 fs.cpSync 在 Windows 使用恒真 filter 保留全部条目并选择 JS 遍历，同步安全 guard 不变。新增子进程测试复制中文用户目录和 UTF-8 嵌套文件，并强制链接 EPERM 验证真实复制；TRAE trim fixture 保留真实完整运行库检查。
+
+实际 Node22 的完整本机回归在 188 秒自然结束：3877 项、3830 通过、0 失败、0 取消、47 跳过；四项 profile 与子进程 Node PATH 隔离，四份变更文件在运行中及提交绑定一致。证据 acceptance-windows-node22-copy-full-fixed.json/log、acceptance-node22-copy-commit-binding.json；此前 Node22 的单文件崩溃保留在 acceptance-windows-packaged-node22-full.json/log。Node22 专项 62 通过/6 跳过，Node24 专项 74 通过/6 跳过，无失败或取消。最新受审 head 为 29b02f5a，应用源码仍为 896baa52；CI 37973812448 四个 job 均通过，Windows Node24 与实际包内 Node22 全量均 3840 通过/37 跳过/0 失败/0 取消，.NET 117/117。CodeQL workflow 成功，但安全门禁并未通过，见总表。
+
+受审 head **29b02f5a9960cdb0b16cfb2d5215ad1c9f4336c1** 的 Windows 产物已独立下载核验：archive 195992529 字节、SHA256 7af2e4e1a6e81d809536a9c138edb92caa19093384c0a2ad5a767f8ca4bdd48f，与 GitHub digest 相同；checkout a4e489556b14aaa67a32dceb46d67fc71a92eb33 的 tree 275f67f25cbe7d2d81cba5fbebeea85b31060851 与受审 head 一致。982/982 文件大小/hash、107 份嵌入源码 Git blob 全匹配；四项现有私钥/管理 key 字节模式零命中。ZIP 115719886 字节、SHA256 a33757e232db0499cfb03792805a58f5d09ba6b164694c75174220d164c79e80；Inno 81394638 字节、SHA256 692c733aae89b33f3a0b0e96dff8dd8e938cf64ea63489508ed595eea51c5082。
+
+实际新 CI DLL/EmbeddedServer 的 30 项原生窗口检查通过，node22-copy-ci-native-final/native-smoke.json；实际包内 Node22.22.2/OpenClaw/中文技能复制另有 18/18，acceptance-node22-copy-packaged-modules.json。前两次宿主构造失败（多复制 CLR host 文件影响 framework 查找；Smoke deps 预解析 harness 内 DLL）均保留失败记录；最终只复用 Smoke 测试宿主并移除其应用 deps 绑定，发布 DLL、WebView2 loader 与 EmbeddedServer 全部来自新包，源码位置断言通过。没有操作已有用户安装；不是完整 Program.Main/单实例/Job Object、OS 协议支付返回或安装/升级/卸载证明。
+
+CodeQL 的 workflow 37973812430 执行成功，但 PR 的 CodeQL 安全门禁 113968044957 失败，报 27 条新注释（13 high、14 medium）；分支总计 42 条 open，主干 23 条 open，按告警编号比较有 21 条仅在分支存在。扫描流程成功不等于安全验收通过，注释数量也不等于已经确认的可利用漏洞。原始注释、分支/主干比较私有保存；工程继续逐项判定和修复，不能把 Owner 登录或资金门槛当作这部分工程工作的替代。
+
+以下 60b8935b 是前一阶段。
 
 60b8935b 修复 OpenClaw npm 的 Windows .cmd 启动问题：读取 PATH 对应 npm 包声明的 JS bin，用当前 Node 直接运行，保持中文/空格/&/% 路径和特殊参数，不启动 cmd shell。hook/session plugin 共用启动逻辑，启动失败、超时及信号退出不会误报成功；53 项相关回归通过。完整回归 3876 项、3829 通过、47 跳过、无失败或取消，184 秒自然结束。运行中源码 hash 保持，并在提交前逐文件核对；acceptance-windows-release-full.json/log 与提交绑定记录提供来源。
 

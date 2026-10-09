@@ -2,7 +2,25 @@
 
 2026-10-10（Asia/Shanghai）核对。Owner 已确认全球未税基础价 **USD4.99/月、USD39.99/年**，自动续费与固定期同价。工程已完成下列生产准备；**尚未达到正式收费发布标准**，实际资金、结算和原生设备门槛必须有真实证据。生产 policy 仍为 preview，launch_at 为 NULL，收费、会员限制、促销和生产归档均未启用。
 
-## 最新 Windows 全量回归
+## 当前候选：Node22 中文路径兼容修复
+
+最新应用 checkpoint 为 **1.3.0 / 896baa52b060dac3f7d34ce22312a0f184a87fcd**。补查安装包实际使用的 Node22.22.2 发现递归复制中文目录会原生终止，退出码 3221226505；此前同应用源码的完整 Node22 结果为 3825 通过、1 个文件失败、47 跳过，缺少该崩溃文件内另外三项结果，不能按完整用例通过计数。隔离目录的 native copy 复现相同退出码，而保留全部条目的 JS 遍历能成功；[Node 官方问题记录](https://github.com/nodejs/node/issues/59636)有同类 Windows Unicode copy 退出。
+
+技能导入与链接失败的复制分支现在为 Windows 的 fs.cpSync 添加恒真 filter，选择 Node 的 JS 目录遍历；不跳过文件，保留同步调用、嵌套路径 guard 和链接处理。新回归用隔离子进程实际复制中文用户目录、嵌套 UTF-8 文件，并强制 EPERM 覆盖链接 fallback；不操作用户技能。TRAE trim fixture 使用同一 Windows 遍历方式，继续检验完整的裁剪后运行库。
+
+修复后的实际 Node22.22.2 完整回归：**363 文件、3877 项，3830 通过、0 失败、0 取消、47 跳过**，188 秒自然结束，四项 profile 隔离、子进程 PATH 固定同一 Node，未修改系统 PATH。四份变更文件运行前后 hash 一致，提交 Git blob 全匹配；证据 acceptance-windows-node22-copy-full-fixed.json/log、acceptance-node22-copy-commit-binding.json。Node22 专项 62 通过/6 条件跳过，Node24 专项 74 通过/6 条件跳过，均无失败或取消。
+
+Windows CI 使用实际打包 Node22 再跑完整测试，另保留 Node24 全量。[CI 37973812448](https://github.com/xiufengsun/TokenTracker/actions/runs/37973812448) 四个 job 全通过；Windows 两个 Node 版本均为 3840 通过/37 跳过/0 失败/0 取消，分别 201 秒和 167 秒，.NET 117/117；Linux Node 3867/8 跳过、macOS Node 3871/4 跳过及 239 项原生测试全通过。十项本机链接权限跳过在 CI 实际运行通过。证据 acceptance-node22-copy-ci.json 与各 job log。
+
+受审 head **29b02f5a9960cdb0b16cfb2d5215ad1c9f4336c1** 的 Windows 产物已独立下载核验：archive 195992529 字节、SHA256 7af2e4e1a6e81d809536a9c138edb92caa19093384c0a2ad5a767f8ca4bdd48f，与 GitHub digest 相同；checkout a4e489556b14aaa67a32dceb46d67fc71a92eb33 的 tree 275f67f25cbe7d2d81cba5fbebeea85b31060851 与受审 head 一致。982/982 文件大小/hash、107 份嵌入源码 Git blob 全匹配；四项现有私钥/管理 key 字节模式零命中。ZIP 115719886 字节、SHA256 a33757e232db0499cfb03792805a58f5d09ba6b164694c75174220d164c79e80；Inno 81394638 字节、SHA256 692c733aae89b33f3a0b0e96dff8dd8e938cf64ea63489508ed595eea51c5082。
+
+实际新 CI DLL/EmbeddedServer 的 30 项原生窗口检查通过，node22-copy-ci-native-final/native-smoke.json；实际包内 Node22.22.2/OpenClaw/中文技能复制另有 18/18，acceptance-node22-copy-packaged-modules.json。前两次宿主构造失败（多复制 CLR host 文件影响 framework 查找；Smoke deps 预解析 harness 内 DLL）均保留失败记录；最终只复用 Smoke 测试宿主并移除其应用 deps 绑定，发布 DLL、WebView2 loader 与 EmbeddedServer 全部来自新包，源码位置断言通过。没有操作已有用户安装；不是完整 Program.Main/单实例/Job Object、OS 协议支付返回或安装/升级/卸载证明。
+
+CodeQL 的 workflow 37973812430 执行成功，但 PR 的 CodeQL 安全门禁 113968044957 失败，报 27 条新注释（13 high、14 medium）；分支总计 42 条 open，主干 23 条 open，按告警编号比较有 21 条仅在分支存在。扫描流程成功不等于安全验收通过，注释数量也不等于已经确认的可利用漏洞。原始注释、分支/主干比较私有保存；工程继续逐项判定和修复，不能把 Owner 登录或资金门槛当作这部分工程工作的替代。
+
+最新受审 head 为 29b02f5a，应用源码仍为 896baa52。此前 CI 37973032260 的 macOS notify fixture 在标记文件刚创建、尚未写完时读取到空内容；29b02f5a 仅把 Bun/Deno 测试标记改为临时文件写完后 rename，不改变产品行为，不忽略空内容失败。Windows 对应目标文件 40 通过/4 条件跳过；旧 CI 被替代运行取消，不能记为全绿。替代运行全部构建/测试通过，结果见上；安全门禁独立保持未通过。
+
+## 前一 checkpoint：Windows Node24 全量回归
 
 应用 checkpoint 已推进到 **1.3.0 / 60b8935b0211d249771765aeeec03b12778f0a6d**。本机 Node24.19.0 的 362 文件完整回归在 184 秒自然结束：**3876 项，3829 通过、0 失败、0 取消、47 跳过**，未触发测试超时。四项 profile 隔离，SQLite CLI 仅加入测试子进程 PATH。运行前后 29 份变更文件的 SHA256 一致，并在提交前再次逐文件校验；证据 acceptance-windows-release-full.json/log 与提交绑定记录。下文 b0a6544d 的 61 项失败是此前快照。
 
@@ -70,7 +88,7 @@ Windows CI 已扩大为完整 Node 回归，并在 Dashboard 构建后运行；S
 
 | 门槛 | 下一步与负责人 |
 | --- | --- |
-| 精确发行候选 | 最新受审应用来源 60b8935b 的四平台 CI/CodeQL、本机与 CI 完整 Windows Node、982 文件包清单/hash/凭据扫描、107 嵌入源码和原生窗口检查已通过。完整收费/恢复/原生生命周期门槛仍未通过；旧 8497d6e9/b0a6544d 包仅作历史证据，通过后走统一 npm/macOS/Windows/Linux 流程 |
+| 精确发行候选 | 最新应用 896baa52 / 受审 head 29b02f5a 的四平台 CI、Windows Node24/包内 Node22 全量、新包 982/107 文件/源码/hash/四项密钥扫描、30 原生窗口与 18 包内专项均通过。CodeQL workflow 执行成功，但 PR 安全门禁仍有 27 条注释待逐项工程审查/修复；收费/恢复/原生生命周期门槛也未通过，之后走统一 npm/macOS/Windows/Linux 流程 |
 | Windows 设备路径 | 普通账号切换、退出/刷新已通过；成功礼遇兑换显示仍待验证；专用干净设备完成完整托盘入口、协议返回、安装/升级/卸载及数据保留。窗口测试与安装器编译不能代替生命周期 |
 | 完整正式返回页 | 工程将受审的 Dashboard /billing/checkout 部署至正式 HTTPS 站点，并验证来源、账单归属、失焦/重开恢复；8497d6e9 的 [Vercel Preview](https://dashboard-2wg4xipef-sunxiufeng1992-8555s-projects.vercel.app) 部署读回 success，但四个账单/法律路由均跳转 Vercel Login，浏览器亦无 Vercel 登录会话。需要 Owner 提供正常预览访问后验收；登录页 HTTP200 不算应用通过，现有 QA 静态页不算完整生产 Dashboard |
 | 托管访问与恢复 | 工程在保持 preview 的前提完成其他正式函数部署顺序、免费/过渡/设备/导出回归及隔离备份恢复；归档未通过独立门槛时继续关闭 |
@@ -79,6 +97,8 @@ Windows CI 已扩大为完整 Node 回归，并在 Dashboard 构建后运行；S
 | 条款与启用 | Owner 确认退款/续费/隐私/客服政策和启用时间；工程准备具体文案、部署与回滚结果后再实施收费、公告和公开发行 |
 
 自动审批审核此前拒绝完整托盘 Program.Main/单实例/Job Object 的额外测试，以及本机安装 Inno 的动作，均仅返回 blocked by policy；未执行或改工具绕过。另一次本机旧测试输出的递归清理也被拒绝，已保留旧目录并使用新的干净目录。CI 使用已安装的 Inno 编译器完成构建。工具拒绝的外部协议点击仍由本人在设备上完成。
+
+此前各 checkpoint 的“CodeQL 通过”描述扫描 workflow 的执行结果，不作为当前 PR 安全告警清零证明。
 
 ## Owner 当前事项
 

@@ -1,6 +1,10 @@
 # Cloud 交付与托管沙盒验收
 
-2026-10-10 最新 Windows 应用 checkpoint 为 **1.3.0 / 60b8935b**，修复 OpenClaw npm 启动与失败误报，53 项相关回归通过。本机 362 文件完整 Node 回归为 **3829 通过、0 失败、0 取消、47 条件跳过**，184 秒自然结束；Windows CI 已从目标组扩大到完整回归并校验 SQLite 测试工具，3839 通过/37 跳过/无失败或取消，十个本机受权限限制的符号链接用例在 CI 实际通过。四个 CI job 与 CodeQL、新包 982 文件/107 嵌入源码/hash/四项现有密钥模式扫描、实际 CI DLL/EmbeddedServer 的 30 项原生窗口检查均通过；打包 Node22 的 OpenClaw 专项 17/17。旧 b0a6544d 包只证明旧源码，Node24 全量与 Node22 专项不混用。正式后台只读复核仍 preview/账单全部 0，Waffo 提款渠道仍 unverified。详细来源、条件跳过、路径/权限证据边界及支付/原生/恢复门槛见 [总表](cloud-release-readiness.md)。
+2026-10-10 应用来源 **1.3.0 / 896baa52**、受审 head **29b02f5a** 的四平台 CI 全通过。Windows Node24 与实际包内 Node22 的全量均 3840 通过/37 跳过/无失败或取消，.NET 117/117；新包 982 文件/107 嵌入源码/hash/四项密钥字节扫描匹配，实际新 CI DLL/EmbeddedServer 的 30 项原生窗口和 18 项包内专项通过。CodeQL workflow 执行成功，但 PR 安全门禁仍有 27 条注释（分支全部 open 42、主干 open 23），工程继续逐项判定/修复，不能称正式收费发布验收完成。精确来源/hash、宿主失败记录与独立上线门槛见 [总表](cloud-release-readiness.md)。
+
+2026-10-10 前一应用 checkpoint 为 **1.3.0 / 896baa52**。安装包实际 Node22 的额外完整回归发现中文目录 native copy 会终止进程；技能导入与链接 fallback 现通过保留全部条目的 JS 遍历修复，新增真实中文目录复制回归。Node22 本机完整回归 **363 文件、3830 通过、0 失败、0 取消、47 跳过**，188 秒自然结束并核对变更文件与提交。Windows CI 新增实际打包 Node22 全量，新包验证结果见上；下文 60b8935b 及更早包仅证明旧源码。正式收费与恢复等独立门槛见 [总表](cloud-release-readiness.md)。
+
+2026-10-10 前一 Windows 应用 checkpoint 为 **1.3.0 / 60b8935b**，修复 OpenClaw npm 启动与失败误报，53 项相关回归通过。本机 362 文件完整 Node 回归为 **3829 通过、0 失败、0 取消、47 条件跳过**，184 秒自然结束；Windows CI 已从目标组扩大到完整回归并校验 SQLite 测试工具，3839 通过/37 跳过/无失败或取消，十个本机受权限限制的符号链接用例在 CI 实际通过。四个 CI job 与 CodeQL、新包 982 文件/107 嵌入源码/hash/四项现有密钥模式扫描、实际 CI DLL/EmbeddedServer 的 30 项原生窗口检查均通过；打包 Node22 的 OpenClaw 专项 17/17。旧 b0a6544d 包只证明旧源码，Node24 全量与 Node22 专项不混用。正式后台只读复核仍 preview/账单全部 0，Waffo 提款渠道仍 unverified。详细来源、条件跳过、路径/权限证据边界及支付/原生/恢复门槛见 [总表](cloud-release-readiness.md)。
 
 2026-10-10 后续 Windows 应用 checkpoint 为 1.3.0 / b0a6544d：修复 Roo/Kilo 自定义目录的 Windows 盘符分割，四平台 CI/CodeQL 全通过，新包 981/981 hash 和 106 份嵌入源码匹配，实际 CI DLL/打包 Node 原生窗口检查 30/30。完整 Windows Node 仍有 61 项失败（3770 通过、0 取消、38 跳过），不能写为正式上线通过。完整来源/hash、私钥扫描边界及后续门槛见 [总表](cloud-release-readiness.md)；下文 1c96a2cc/8497d6e9 是先前阶段。
 
