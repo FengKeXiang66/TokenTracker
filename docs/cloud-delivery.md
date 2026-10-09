@@ -2,7 +2,7 @@
 
 2026-10-09。原 InsForge 上的沙盒付款与退款、同步权限、设备管理、授权和隔离归档恢复已验证。Pro 标识、HTTPS 返回页、自部署 Dashboard 双向切换和 Mac QA 窗口内订单恢复均有真实证据。**生产收费和会员限制仍关闭**。浏览器唤起 App、正式收款与结算仍待验收。
 
-交付代码为`24266ed1bad024d8f9e003f83f211c8e05be0505`，包含`60780e40`的普通支付返回和隔离QA，以及`f199d803`、`594b1010`的认证修复、原生网关、自部署验收及此前Pro/Waffo与主干审核页面。按用户授权统一提交推送到[feat/cloud-subscriptions](https://github.com/xiufengsun/TokenTracker/tree/feat/cloud-subscriptions)，交接文档提交仅更新证据和待验收步骤。stash安全快照仍保留。正式收费、促销和公开PR仍关闭。
+此前支付及原生QA交付代码为`24266ed1bad024d8f9e003f83f211c8e05be0505`，包含`60780e40`的普通支付返回和隔离QA，以及`f199d803`、`594b1010`的认证修复、原生网关、自部署验收及此前Pro/Waffo与主干审核页面。按用户授权统一提交推送到[feat/cloud-subscriptions](https://github.com/xiufengsun/TokenTracker/tree/feat/cloud-subscriptions)，交接文档提交仅更新证据和待验收步骤。stash安全快照仍保留。正式收费、促销和公开PR仍关闭。
 
 2026-10-09新增Pro赠送码，最新代码为`77ca20241d0f6d0830acdbbb720e3bf078591dc2`。支持30/90/365天完整权益、私有批量生成、停用和独立撤回，账户内兑换与领取记录单独显示，不创建Waffo付款或自动续费。已在原InsForge部署新增迁移与专用赠送沙盒，两个真实账号通过网页完成兑换、重复领取、账号隔离、停用和撤回验证。正式环境仍preview，赠送与订单均为0。[管理命令与验收范围](pro-gift-codes.md)。
 

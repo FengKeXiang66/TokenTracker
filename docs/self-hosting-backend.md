@@ -41,6 +41,8 @@ Confirm `current.project.oss_host` is your own instance before applying. Use a f
 
 The manifest installs device identities/tokens/codes, raw hourly usage, account-level session snapshots, owner-scoped usage cache invalidation, the private aggregation RPCs and the current Cloud contract. Financial tables exist for API compatibility but contain no merchant credentials or sample orders. Waffo authorization audits are included as schema only. Public leaderboards, avatars and production moderation data are outside this private backend package. Archival is not enabled; retained private history stays in PostgreSQL until the instance owner installs a separately verified retention strategy.
 
+The 2026-10-09 Pro gift-code update adds a fourteenth installation step. Gifts remain unavailable in self-hosted mode; private synchronization stays free. A fresh isolated PostgreSQL15.18 database with synthetic auth bootstrap passed the real 14-step installer and unchanged reinstall. The actual billing handler and SDK returned free account/catalog responses and rejected gift redemption, with no privacy table, orders, payments or gift grants. This narrow check does not replace the earlier real InsForge authentication and browser evidence below.
+
 ## Explicit free instance policy
 
 The final installation step selects `hosting_mode='self_hosted'` for the instance's Cloud environments. Existing hosted instances retain `hosting_mode='hosted'` when the new policy migration is applied independently.

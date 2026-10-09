@@ -1,6 +1,6 @@
 # Windows 客户端验收交接
 
-2026-10-08（Asia/Shanghai）更新。已从远端拉取 `feat/cloud-subscriptions`，在 Windows 完成本地构建、原生窗口和浏览器交接验证。完整登录、沙盒支付返回和安装器生命周期仍待验收。
+2026-10-09（Asia/Shanghai）更新。此前已从远端拉取 `feat/cloud-subscriptions`，在 Windows 完成本地构建、原生窗口和浏览器交接验证。完整登录、沙盒支付返回和安装器生命周期仍待验收。
 
 这里需要的是 Windows 客户端测试电脑。官方后端仍使用现有付费 InsForge，付款由 Waffo 处理，不需要 Windows 服务器。
 
