@@ -236,11 +236,19 @@ test("port cleanup only targets a real TokenTracker package", (t) => {
   const theirs = install("theirs", "some-other-tracker");
   assert.equal(isTokenTrackerServeCommand(`node ${theirs} serve`), false);
 
-  // The npm bin shim is a symlink into the package; realpath must be followed.
+  // Follow realpath through a POSIX bin symlink or a Windows package junction.
+  // Windows file symlinks require privileges that a normal checkout lacks.
   const shimDir = path.join(root, "node_modules", ".bin");
   fs.mkdirSync(shimDir, { recursive: true });
-  const shim = path.join(shimDir, "tokentracker-cli");
-  fs.symlinkSync(ours, shim);
+  let shim;
+  if (process.platform === "win32") {
+    const linkedPackage = path.join(shimDir, "tokentracker-package");
+    fs.symlinkSync(path.dirname(path.dirname(ours)), linkedPackage, "junction");
+    shim = path.join(linkedPackage, "bin", "tracker.js");
+  } else {
+    shim = path.join(shimDir, "tokentracker-cli");
+    fs.symlinkSync(ours, shim);
+  }
   assert.equal(isTokenTrackerServeCommand(`node ${shim} serve`), true);
 
   // The same, end to end: a genuine package under a directory containing

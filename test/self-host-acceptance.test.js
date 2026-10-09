@@ -19,6 +19,12 @@ test('private acceptance config rejects exposed files and privileged credentials
   t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
   const file=path.join(dir,'server.env');
   fs.writeFileSync(file,'ACCESS_ANON_KEY=anon_'+ 'a'.repeat(40)+'\n',{mode:0o600});
+  // POSIX mode bits cannot certify NTFS privacy. The existing reader refuses
+  // this fixture on Windows; never weaken its guard to make acceptance pass.
+  if(process.platform==='win32') {
+    assert.throws(()=>publicKey(file),/Server environment must be private/);
+    return;
+  }
   assert.equal(publicKey(file),'anon_'+ 'a'.repeat(40));
   fs.chmodSync(file,0o644);assert.throws(()=>publicKey(file));
   fs.chmodSync(file,0o600);fs.writeFileSync(file,'ACCESS_ANON_KEY=ik_'+ 'a'.repeat(40)+'\n');

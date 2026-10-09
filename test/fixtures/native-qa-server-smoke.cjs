@@ -22,8 +22,30 @@ const gatewayHeaders = { "X-TokenTracker-Sandbox-Realm": REALM, "X-TokenTracker-
 const fixture = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "native-qa-core-fixture-")));
 const packageRoot = path.join(fixture, "package");
 fs.mkdirSync(packageRoot);
-fs.cpSync(path.join(repoRoot, "src"), path.join(packageRoot, "src"), { recursive: true });
-fs.cpSync(path.join(repoRoot, "TokenTrackerBar/EmbeddedServer/tokentracker/node_modules"), path.join(packageRoot, "node_modules"), { recursive: true });
+// Node 22 fs.cpSync aborts on this Windows checkout's Unicode path. Copy the
+// same regular files explicitly, without importing links outside the fixture.
+function copyTree(source, target) {
+  fs.mkdirSync(target, { recursive: true });
+  for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
+    const from = path.join(source, entry.name), to = path.join(target, entry.name);
+    assert.ok(!entry.isSymbolicLink(), `Fixture source must not contain links: ${entry.name}`);
+    if (entry.isDirectory()) copyTree(from, to);
+    else fs.copyFileSync(from, to);
+  }
+}
+copyTree(path.join(repoRoot, "src"), path.join(packageRoot, "src"));
+// The fixture must work after npm ci without a prebuilt macOS app bundle.
+// Preserve the lockfile's production dependency layout, including nested deps.
+const lock = JSON.parse(fs.readFileSync(path.join(repoRoot, "package-lock.json"), "utf8"));
+for (const [relative, dependency] of Object.entries(lock.packages)) {
+  if (!relative.startsWith("node_modules/") || dependency.dev === true) continue;
+  const source = path.join(repoRoot, relative);
+  if (!fs.existsSync(source)) {
+    assert.ok(dependency.optional, `Missing installed production dependency: ${relative}`);
+    continue;
+  }
+  copyTree(source, path.join(packageRoot, relative));
+}
 fs.copyFileSync(path.join(repoRoot, "package.json"), path.join(packageRoot, "package.json"));
 fs.mkdirSync(path.join(packageRoot, "dashboard/dist"), { recursive: true });
 fs.writeFileSync(path.join(packageRoot, "dashboard/dist/index.html"), "<!doctype html><html><body><div id='root'></div></body></html>");
