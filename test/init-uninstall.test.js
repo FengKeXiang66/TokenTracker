@@ -598,7 +598,7 @@ test("notify handler skips bun and deno original notify when payload token is no
       const lockFilePath = path.join(tmp, `${runtimeName}-lock.json`);
       await fs.writeFile(
         fakeRuntimePath,
-        `#!/usr/bin/env node\nrequire('node:fs').writeFileSync(${JSON.stringify(markerPath)}, process.argv.slice(2).join('|'));\n`,
+        `#!/usr/bin/env node\nconst fs = require('node:fs');\nconst marker = ${JSON.stringify(markerPath)};\nfs.writeFileSync(marker + '.tmp', process.argv.slice(2).join('|'));\nfs.renameSync(marker + '.tmp', marker);\n`,
         "utf8",
       );
       await fs.chmod(fakeRuntimePath, 0o755);
