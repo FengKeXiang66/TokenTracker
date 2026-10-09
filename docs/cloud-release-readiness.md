@@ -2,12 +2,28 @@
 
 2026-10-10（Asia/Shanghai）核对。Owner 已确认全球未税基础价 **USD4.99/月、USD39.99/年**，自动续费与固定期同价。工程已完成下列生产准备；**尚未达到正式收费发布标准**，实际资金、结算和原生设备门槛必须有真实证据。生产 policy 仍为 preview，launch_at 为 NULL，收费、会员限制、促销和生产归档均未启用。
 
+## 最新 Windows 全量回归
+
+应用 checkpoint 已推进到 **1.3.0 / 60b8935b0211d249771765aeeec03b12778f0a6d**。本机 Node24.19.0 的 362 文件完整回归在 184 秒自然结束：**3876 项，3829 通过、0 失败、0 取消、47 跳过**，未触发测试超时。四项 profile 隔离，SQLite CLI 仅加入测试子进程 PATH。运行前后 29 份变更文件的 SHA256 一致，并在提交前再次逐文件校验；证据 acceptance-windows-release-full.json/log 与提交绑定记录。下文 b0a6544d 的 61 项失败是此前快照。
+
+修复了真实 Windows OpenClaw npm 启动问题：从 PATH 对应 npm prefix 的 package.json 解析 JS bin，以当前 Node 直接启动；路径中文、空格、&、% 与特殊参数保持字面值，不交给 cmd.exe 重解释。命令 hook 与 session plugin 共用启动器，超时、启动错误和信号退出均不能误报成功。53 项相关回归通过。其他修复包括 where/which 探测夹具、中文系统默认语言、原生路径分隔符、SQLite WAL 写进程退出等待，以及 NTFS 大 inode 数字下的测试哨兵。
+
+47 项跳过保留具体理由；本次新增的平台限定用于 Unix nvm/procfs、POSIX env/shebang 和 Linux Bash 打包夹具，Linux/macOS CI 仍执行这些检查。Windows 原生进程/端口、Node 通知链与目录 junction 检查仍运行。POSIX mode bits 不作为 NTFS ACL 证据；UNC 前缀分支用本地可读别名验证，不等于真实 WSL 挂载验收。
+
+Windows CI 已扩大为完整 Node 回归，并在 Dashboard 构建后运行；SQLite 3.54.0 官方工具的大小及 SHA3-256 在解压前校验。这是测试依赖，没有加入产品或系统 PATH。[CI 37970035795](https://github.com/xiufengsun/TokenTracker/actions/runs/37970035795) 四个 job 及 [CodeQL 37970035738](https://github.com/xiufengsun/TokenTracker/actions/runs/37970035738) **全部通过**。Windows Node 为 3839 通过、0 失败、0 取消、37 跳过；本机额外跳过的十项符号链接测试在 CI 实际通过。macOS Node 为 3870 通过/4 跳过，Linux Node 为 3866 通过/8 跳过，均无失败或取消；Windows .NET 117/117。日志 acceptance-release-ci.json/log，差异为 acceptance-release-ci-skip-comparison.json。
+
+60b8935b 新候选产物已独立下载核对：archive **195989292 字节 / SHA256 c24b1da9e8f461a0082dc58fe3c8a47d5f7415e14fea8b5506e04558e7685a80** 与 GitHub digest 一致。实际 checkout f828941f2f934887d08153402a60d4ebcd8d7e5b 的 Git tree **649e60a7dca5380593263e2d90031c7aa85f49b2** 与受审应用 head 相同；**982/982 文件大小/hash、107 个嵌入源码 Git blob** 匹配。ZIP **115719733 字节 / SHA256 bfd3dcc267e60841fac380c67de56dd2378ea67fde3a0565f902524020cc7012**；Inno **81391778 字节 / SHA256 9a2622e808153a1ae240b8f7abc864a3b6816dfaba9f387dd97b6e27c32366c4**。四项现有私钥/管理 key 字节模式零命中。证据 acceptance-release-artifact-download.json、acceptance-release-artifact-verification.json；不沿用旧包 hash 或已清除的 QA 凭据扫描数量。
+
+实际新 CI DLL/EmbeddedServer 已通过 **30/30 原生窗口检查**，release-ci-native/native-smoke.json；实际打包 Node22.22.2 与包内 OpenClaw 模块另通过 **17/17**，acceptance-release-packaged-openclaw.json，不使用仓库模块或系统 Node。Node24 全量与打包 Node22 的这组专项范围分开，未称 Node22 全量通过。安装器生命周期、Program.Main 完整托盘、操作系统协议付款返回、真实 WSL 挂载和 NTFS ACL 仍无本轮通过证据。
+
+同轮正式后台只读复核仍为 hosted/preview、launch_at=NULL，生产订单/支付/订阅全部为 0，acceptance-release-live-state.json。Waffo 查询未请求账号/银行号码，仍为 payoutEnable=true、绑定匹配、channelStatus=unverified、channelVerifiedAt=NULL；最新响应保留在受限私有目录。未启用收费或改变商户账户。
+
 ## 源码、候选版本与审核
 
 - 分支为 feat/cloud-subscriptions，草稿 PR 为 [#772](https://github.com/xiufengsun/TokenTracker/pull/772)。最新主干 e6186b350df7942f356ef9155af71fe81a9a99d1 已通过 ac9cfd8e 合入；六处文案冲突按键合并，Sessions 与 Pro 的独立修改均保留。最近 fetch 没有新增主干或功能分支提交。
 - 应用审核 checkpoint 为 268896e7a1fabbe75f89f302d0bc5ed7b5cb5a4a。已修复 checkout 恢复缓存，只持久化六个允许的订单字段；用户身份运行时派生，密码、token、邮箱、收银台 URL 和额外字段不进入缓存。CodeQL 高危告警自动关闭，无人工 dismiss，功能分支开放告警为 0。
 - 初始 1.3.0 版本 checkpoint 为 **1c96a2ccb67a00a4037eddb7b8a5c613085c5a83**，通过 npm version --no-git-tag-version 同步所有平台和锁文件，不创建远端 tag，不复用已发布的 v1.2.2。该应用提交已通过完整 CI；安全修复 checkpoint 8497d6e9 亦通过完整 CI/CodeQL；后续精确 SHA 的 checks 以 PR 为准；合入 main、npm 发布和统一桌面发行遵循 [CLAUDE.md](../CLAUDE.md)。当前没有公开 Release、收费启用或公告。
-- 最新应用 checkpoint 为 **1.3.0 / b0a6544d039ab29e2add90c06a2e0da79201168e**，包含 Roo/Kilo Windows 盘符修复及验收工具修复。其 [CI 37965509474](https://github.com/xiufengsun/TokenTracker/actions/runs/37965509474) 四个 job 和 [CodeQL 37965509485](https://github.com/xiufengsun/TokenTracker/actions/runs/37965509485) 全部通过；草稿 PR 仍无冲突。下文旧 checkpoint/包只证明其各自来源。
+- 前一应用 checkpoint 为 **1.3.0 / b0a6544d039ab29e2add90c06a2e0da79201168e**，包含 Roo/Kilo Windows 盘符修复及验收工具修复。其 [CI 37965509474](https://github.com/xiufengsun/TokenTracker/actions/runs/37965509474) 四个 job 和 [CodeQL 37965509485](https://github.com/xiufengsun/TokenTracker/actions/runs/37965509485) 全部通过；草稿 PR 仍无冲突。下文旧 checkpoint/包只证明其各自来源。
 
 ## 已执行的验证
 
@@ -24,7 +40,7 @@
 | Windows 继续排障 | TypeScript 验证改为当前 Node 启动 Dashboard 已安装且与锁文件一致的 compiler，避免 execFile 启动 npm.cmd 的 EINVAL；Markdown 索引用 POSIX 分隔符，11/11 专项通过。Ark timeout fixture 仅对 arkcli 返回匹配的 where 路径，修复把 Kiro 等其他查询也送进永不结束模拟的卡住；该专项通过。随后 Node24 全量运行在 172 秒自然结束，3764 通过、67 失败、0 取消、38 跳过，未触发 120 秒文件超时。日志 acceptance-windows-after-triage.log；此快照早于下述目录修复，仍不是全绿 |
 | Roo/Kilo Windows 目录修复 | 发现自定义 TOKENTRACKER_KILOCODE_ROOTS 按冒号拆开 Windows 盘符，已改用系统 path.delimiter：Windows 多目录使用分号，Unix 继续冒号。实际临时目录扫描、token 聚合、重新运行去重与同一记录 backfill 共 14/14 通过，并加入 Windows CI。该 src 改动后的候选包已重新构建和独立核对，见最新候选包行；8497d6e9 的旧包仅证明其原始版本 |
 | 修复后完整 Windows 回归 | 精确 b0a6544d、干净工作树、Node24.19.0、四项 profile 隔离，361 个文件自然结束：3869 项、3770 通过、61 失败、0 取消、38 跳过；168 秒，未触发 120 秒测试文件超时。acceptance-windows-after-drive-fix.json/log。比排障前快照减少六项失败；仍需继续逐项分析剩余失败，不是发布通过结果 |
-| 最新 Windows 候选包 | b0a6544d 的 archive 195982701 字节、SHA256 4e9e35e9abd18b817c3d53c97dc45fd4ed156a614d3f9c22ec8f281f3316b06c，与 GitHub digest 一致。checkout 7fed619a2dbadde08353923ec62128adcb1cb10f 的 tree fda90533f0c2beb2df425e13327ea67046d4a09b 与 head 一致；981/981 文件清单/大小/hash、106 嵌入源码 Git blob 匹配。ZIP 115718626 字节、SHA256 cb394f582aee5726b89c45eb983f2815f9218ae55cb701368eefbc7a75166bb3；Inno 81385377 字节、SHA256 424b9e3fd37b7e0b46cd05bd69d43059320f99fccac8b24791ca5c6e641a362f。四项现有私钥/管理 key 字节模式零命中，未宣称重新扫描已清除的旧 QA 凭据。实际新 CI DLL/打包 Node 原生 30/30 通过，triage-ci-native/native-smoke.json；安装器生命周期、完整托盘及协议付款返回未执行 |
+| 前一 Windows 候选包 | b0a6544d 的 archive 195982701 字节、SHA256 4e9e35e9abd18b817c3d53c97dc45fd4ed156a614d3f9c22ec8f281f3316b06c，与 GitHub digest 一致。checkout 7fed619a2dbadde08353923ec62128adcb1cb10f 的 tree fda90533f0c2beb2df425e13327ea67046d4a09b 与 head 一致；981/981 文件清单/大小/hash、106 嵌入源码 Git blob 匹配。ZIP 115718626 字节、SHA256 cb394f582aee5726b89c45eb983f2815f9218ae55cb701368eefbc7a75166bb3；Inno 81385377 字节、SHA256 424b9e3fd37b7e0b46cd05bd69d43059320f99fccac8b24791ca5c6e641a362f。四项现有私钥/管理 key 字节模式零命中，未宣称重新扫描已清除的旧 QA 凭据。实际新 CI DLL/打包 Node 原生 30/30 通过，triage-ci-native/native-smoke.json；安装器生命周期、完整托盘及协议付款返回未执行 |
 | 补充 Node24 Windows 对照 | v24.19.0、相同已安装依赖，主干 Dashboard 已独立构建，全部 profile 隔离。两边 usage-limits.test.js 均超过十分钟不结束，仅终止这两个确切测试进程以收尾；候选输出 3742 通过、69 失败、38 跳过，主干 3347 通过、89 失败、34 跳过。用例总数因未完成文件不同，不替代 Node22 完整快照，也不是通过结果；日志 acceptance-windows-node24-*.log |
 | 当前原生窗口 | 1c96a2cc / 1.3.0 的干净发布目录通过 34/34 原生检查，明确断言使用打包 Node 而非系统 fallback；普通 UI 登录 B、重载保持、退出后重载清除、切换 A 的 7/7 检查通过。实际身份以邮箱与 UUID 核对。价格/固定期/preview 禁用已验证；最终 CI 产出 DLL/打包 Node 另执行 30/30 窗口/bridge/浏览器/页面检查通过；首次复制宿主缺少 WebView2Loader 的失败记录保留，补齐 CI loader 后通过。不是完整 Program.Main、付款协议返回或安装器生命周期证明 |
 | 托管真实 API | 两个专用 auth 账号的登录/刷新轮换、账号隔离、无效赠送码、基础表与管理 RPC 拒绝共 16 项通过，acceptance-auth-gifts.json；生产 preview catalog/account/未登录拒绝/checkout 前置关闭共 8 项，acceptance-live-preview.json。没有成功 Windows 礼遇兑换或真实付款证明 |
@@ -54,7 +70,7 @@
 
 | 门槛 | 下一步与负责人 |
 | --- | --- |
-| 精确发行候选 | 最终安全迁移 CI/CodeQL 及包来源/hash/凭据扫描已通过；工程固定 8497d6e9 为此轮受审包来源，后续改应用需重新绑定；通过后才走统一 npm/macOS/Windows/Linux 流程 |
+| 精确发行候选 | 最新受审应用来源 60b8935b 的四平台 CI/CodeQL、本机与 CI 完整 Windows Node、982 文件包清单/hash/凭据扫描、107 嵌入源码和原生窗口检查已通过。完整收费/恢复/原生生命周期门槛仍未通过；旧 8497d6e9/b0a6544d 包仅作历史证据，通过后走统一 npm/macOS/Windows/Linux 流程 |
 | Windows 设备路径 | 普通账号切换、退出/刷新已通过；成功礼遇兑换显示仍待验证；专用干净设备完成完整托盘入口、协议返回、安装/升级/卸载及数据保留。窗口测试与安装器编译不能代替生命周期 |
 | 完整正式返回页 | 工程将受审的 Dashboard /billing/checkout 部署至正式 HTTPS 站点，并验证来源、账单归属、失焦/重开恢复；8497d6e9 的 [Vercel Preview](https://dashboard-2wg4xipef-sunxiufeng1992-8555s-projects.vercel.app) 部署读回 success，但四个账单/法律路由均跳转 Vercel Login，浏览器亦无 Vercel 登录会话。需要 Owner 提供正常预览访问后验收；登录页 HTTP200 不算应用通过，现有 QA 静态页不算完整生产 Dashboard |
 | 托管访问与恢复 | 工程在保持 preview 的前提完成其他正式函数部署顺序、免费/过渡/设备/导出回归及隔离备份恢复；归档未通过独立门槛时继续关闭 |
@@ -66,7 +82,7 @@
 
 ## Owner 当前事项
 
-密钥生成、账户添加/关联和价格确认已经完成，无需重复。剩余本人事项为：确认 Waffo 渠道验证和结算合同；实际完成受控支付与必要的系统确认、后续到账核对；确定最终条款及启用时间。工程尚未完成的设备、部署和发行检查不能转写成 Owner 已验收。
+密钥生成、账户添加/关联和价格确认已经完成，无需重复。剩余本人事项为：确认 Waffo 渠道验证和结算合同；登录受保护的 Vercel Preview 以便继续前端验收；提供隔离恢复环境，或明确 InsForge 分支预算及运行时限；实际完成受控支付与必要的系统确认、后续到账核对；确定最终条款及启用时间。专用 Windows 设备上的协议与安装生命周期还需要可执行的验收环境。工程尚未完成的部署和发行检查不能转写成 Owner 已验收；后台应继续保持 preview。
 
 ## 文档入口
 

@@ -1,12 +1,18 @@
 # Windows 客户端验收交接
 
-2026-10-10（Asia/Shanghai）更新。最新 Windows 接续已完成正常邮箱登录、Pro 年/月与固定期价格切换、preview 按钮关闭、发布 DLL 的原生 WebView2 与浏览器 loopback 测试。完整托盘、系统协议付款返回和安装器生命周期仍待验收。最新应用候选为 1.3.0 / b0a6544d，四平台 CI/CodeQL 通过，下文旧版本记录仅证明各自阶段。
+2026-10-10（Asia/Shanghai）更新。最新应用候选为 **1.3.0 / 60b8935b**，Windows 本机完整 Node 回归已通过：362 文件、3829 通过、0 失败、0 取消、47 条件跳过。新 CI/CodeQL、982 文件候选包与 107 嵌入源码核对，以及实际 CI DLL/打包 Node 的 30 项原生窗口检查均通过。此前的正常邮箱登录与换账号证据保留其原始来源。完整托盘、系统协议付款返回和安装器生命周期仍待验收。
 
 这里需要的是 Windows 客户端测试电脑。官方后端仍使用现有付费 InsForge，付款由 Waffo 处理，不需要 Windows 服务器。
 
 本轮已在原 Windows 工作区重新拉取功能分支。当前源码和本机回归统一记录在 [上线前交接总表](cloud-release-readiness.md)。下文按来源保留 Mac 交叉包和 10 月 8 日实机记录；这些包都不是后续合入主干后源码的正式发行产物。
 
 ## 当前 Windows 接续证据
+
+60b8935b 修复 OpenClaw npm 的 Windows .cmd 启动问题：读取 PATH 对应 npm 包声明的 JS bin，用当前 Node 直接运行，保持中文/空格/&/% 路径和特殊参数，不启动 cmd shell。hook/session plugin 共用启动逻辑，启动失败、超时及信号退出不会误报成功；53 项相关回归通过。完整回归 3876 项、3829 通过、47 跳过、无失败或取消，184 秒自然结束。运行中源码 hash 保持，并在提交前逐文件核对；acceptance-windows-release-full.json/log 与提交绑定记录提供来源。
+
+Windows CI 改为构建 Dashboard 后运行完整 Node 测试，并校验官方 SQLite 测试工具大小与 SHA3-256；不修改产品或系统 PATH。47 项本机跳过保留原因，新增平台限制仅用于 Unix nvm/procfs、POSIX env/shebang 和 Linux Bash 包装夹具，Linux/macOS 继续执行。Windows 原生进程/端口和 Node 通知链仍测，目录链接用 junction 实测。POSIX mode 不是 NTFS ACL 证明，本地扩展路径的 UNC 前缀覆盖不等于 WSL 挂载证明。最新 CI 37970035795 四个 job / CodeQL 37970035738 全部通过；Windows CI Node 3839 通过、37 跳过、无失败或取消，本机额外十个符号链接用例在 CI 通过。macOS Node 3870/4 跳过，Linux Node 3866/8 跳过，均无失败；Windows .NET 117/117。
+
+60b8935b 产物的 archive SHA256 c24b1da9e8f461a0082dc58fe3c8a47d5f7415e14fea8b5506e04558e7685a80 与 GitHub digest 相同；实际 checkout f828941f2f934887d08153402a60d4ebcd8d7e5b 的 tree 649e60a7dca5380593263e2d90031c7aa85f49b2 与受审 head 一致。982/982 文件大小/hash 和 107 个嵌入源码 blob 匹配，四项私钥/管理 key 字节模式零命中。ZIP SHA256 bfd3dcc267e60841fac380c67de56dd2378ea67fde3a0565f902524020cc7012，Inno SHA256 9a2622e808153a1ae240b8f7abc864a3b6816dfaba9f387dd97b6e27c32366c4。实际新 CI DLL 与 EmbeddedServer 的 30 项原生窗口检查通过，release-ci-native/native-smoke.json；实际打包 Node22.22.2/包内 OpenClaw 模块另有 17/17，acceptance-release-packaged-openclaw.json。Node24 全量与 Node22 专项范围分开，未称 Node22 全量通过。详细大小与原始证据见总表；以下 b0a6544d 及旧记录仅证明各自源码，安装器生命周期和完整 Program.Main/协议付款返回仍未执行。
 
 后续排障修复了 TypeScript 检查启动 npm.cmd 的 EINVAL、Markdown 索引路径使用 Windows 反斜杠，以及 Ark timeout fixture 将所有 where 查询都错误映射至 arkcli.exe 的卡住。前两组 11/11、Ark 专项通过，Node24 全仓随后在 172 秒自然结束：3764 通过、67 失败、0 取消、38 跳过，未触发测试文件超时；不是全绿。进一步修复 Roo/Kilo 自定义目录列表拆开 Windows 盘符的问题，使用系统 path.delimiter；真实目录扫描和两次解析去重/backfill 14/14 通过。新的 CI 已覆盖这些检查。该 src 改动发生在下文 8497d6e9 包之后，旧包不能代替新候选的打包验收。
 

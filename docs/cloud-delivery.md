@@ -1,5 +1,7 @@
 # Cloud 交付与托管沙盒验收
 
+2026-10-10 最新 Windows 应用 checkpoint 为 **1.3.0 / 60b8935b**，修复 OpenClaw npm 启动与失败误报，53 项相关回归通过。本机 362 文件完整 Node 回归为 **3829 通过、0 失败、0 取消、47 条件跳过**，184 秒自然结束；Windows CI 已从目标组扩大到完整回归并校验 SQLite 测试工具，3839 通过/37 跳过/无失败或取消，十个本机受权限限制的符号链接用例在 CI 实际通过。四个 CI job 与 CodeQL、新包 982 文件/107 嵌入源码/hash/四项现有密钥模式扫描、实际 CI DLL/EmbeddedServer 的 30 项原生窗口检查均通过；打包 Node22 的 OpenClaw 专项 17/17。旧 b0a6544d 包只证明旧源码，Node24 全量与 Node22 专项不混用。正式后台只读复核仍 preview/账单全部 0，Waffo 提款渠道仍 unverified。详细来源、条件跳过、路径/权限证据边界及支付/原生/恢复门槛见 [总表](cloud-release-readiness.md)。
+
 2026-10-10 后续 Windows 应用 checkpoint 为 1.3.0 / b0a6544d：修复 Roo/Kilo 自定义目录的 Windows 盘符分割，四平台 CI/CodeQL 全通过，新包 981/981 hash 和 106 份嵌入源码匹配，实际 CI DLL/打包 Node 原生窗口检查 30/30。完整 Windows Node 仍有 61 项失败（3770 通过、0 取消、38 跳过），不能写为正式上线通过。完整来源/hash、私钥扫描边界及后续门槛见 [总表](cloud-release-readiness.md)；下文 1c96a2cc/8497d6e9 是先前阶段。
 
 2026-10-10 当前生产准备以 [总表](cloud-release-readiness.md) 为准：新增两个正式 billing/webhook 函数、八项 server secret、四个 production 产品与正式 12-event 回调已部署/发布并独立读回；原有业务函数未替换，live 仍 preview、账单均为 0。提款绑定正确但 API 渠道状态为 unverified。应用候选 1.3.0 / 1c96a2cc 的四平台 CI/CodeQL 全通过；干净包 34 项原生检查及 7 项普通 UI 登录/切换检查通过。新增两张历史备份表的安全迁移已应用并验证客户端拒绝、行数及管理员权限保持。最终安全修复 8497d6e9 的四平台 CI/CodeQL 全通过，CI 包独立解压 981/981 hash 一致、实际 checkout tree 匹配 head、凭据扫描无命中，CI DLL 原生检查 30/30。所有 hash 与仍未完成的发行门槛见总表。以下历史记录中的“未部署”“生产产品 0”和旧版本仅描述该阶段。
