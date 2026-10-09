@@ -150,7 +150,8 @@ export function SessionDetailModal({ session, subagents = [], onClose }) {
         tabIndex={-1}
         className="flex h-full w-full max-w-[36rem] flex-col border-l border-oai-gray-200 bg-white dark:border-oai-gray-800 dark:bg-oai-gray-950"
       >
-        <header className="flex shrink-0 items-start gap-3 border-b border-oai-gray-200 px-5 py-4 dark:border-oai-gray-800">
+        {/* A div, not a header element: the macOS app pads every header element by 36px. */}
+        <div className="flex shrink-0 items-start gap-3 border-b border-oai-gray-200 px-5 py-4 dark:border-oai-gray-800">
           <span className="shrink-0 pt-0.5 text-oai-gray-600 dark:text-oai-gray-300">
             <ProviderIcon provider={String(session.source || "").toUpperCase()} size={20} />
           </span>
@@ -161,7 +162,7 @@ export function SessionDetailModal({ session, subagents = [], onClose }) {
           <button ref={closeRef} type="button" onClick={onClose} aria-label={copy("sessions.detail.close")} className="-mr-2 -mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-oai-gray-500 hover:bg-oai-gray-100 hover:text-oai-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500 dark:text-oai-gray-400 dark:hover:bg-oai-gray-800 dark:hover:text-white sm:h-9 sm:w-9">
             <X size={18} aria-hidden />
           </button>
-        </header>
+        </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
           <section aria-label={copy("sessions.detail.consumption")}>

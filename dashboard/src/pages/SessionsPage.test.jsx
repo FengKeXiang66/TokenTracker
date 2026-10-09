@@ -530,6 +530,15 @@ describe("SessionsPage", () => {
     expect(within(morning).queryByText(/\d{4}/)).not.toBeInTheDocument();
   });
 
+  it("renders no header element, which the macOS app pads by 36px", async () => {
+    // DashboardWindowController injects `.native-app header { padding-top: 36px }`,
+    // so a header element here sits lower than every other page's title in the app.
+    render(<SessionsPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "View statistics for Fix authentication flow" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(document.querySelector("header")).toBeNull();
+  });
+
   it("renders a bounded window of rows and extends it on demand", async () => {
     const many = Array.from({ length: 150 }, (_, index) => ({
       ...response.sessions[0],

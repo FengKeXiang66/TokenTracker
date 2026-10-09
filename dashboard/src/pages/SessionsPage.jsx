@@ -551,7 +551,10 @@ export function SessionsPage() {
     <div className="flex flex-col flex-1 text-oai-black dark:text-oai-white font-oai antialiased">
       <main className="flex-1 pt-8 sm:pt-10 pb-12 sm:pb-16">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <header className="mb-8 flex flex-row items-start justify-between gap-4">
+          {/* A plain div, not a header element: the macOS app injects
+              `.native-app header { padding-top: 36px }`, which pushed this
+              title below every other page's. */}
+          <div className="mb-8 flex flex-row items-start justify-between gap-4">
             <div className="min-w-0">
               <h1 className="mb-3 text-3xl font-semibold tracking-tight text-oai-black dark:text-white sm:text-4xl">{copy("nav.sessions")}</h1>
               <p className="text-sm text-oai-gray-500 dark:text-oai-gray-400 sm:text-base">{copy("sessions.page.summary")}</p>
@@ -566,7 +569,7 @@ export function SessionsPage() {
             >
               <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} aria-hidden />
             </button>
-          </header>
+          </div>
 
           <div className="mb-6 space-y-3">
             <div className="sessions-toolbar">
