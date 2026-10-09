@@ -8,6 +8,18 @@ import {
 import { getInsforgeRemoteUrl } from "./insforge-config";
 
 const STORAGE_PREFIX = "tt.cloud.purchase.";
+const PURCHASE_FIELDS = [
+  "sku", "provider", "request_id", "order_id", "retry_order_id", "retry_request_id",
+];
+function purchaseRecord(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = {};
+  for (const field of PURCHASE_FIELDS) {
+    if (typeof value[field] === "string" && value[field].length <= 128)
+      record[field] = value[field];
+  }
+  return record;
+}
 function purchaseKey(userId) {
   return `${STORAGE_PREFIX}${encodeURIComponent(getInsforgeRemoteUrl() || "unconfigured")}.${userId}`;
 }
@@ -19,16 +31,20 @@ export function readCloudPurchase(userId) {
     const value = JSON.parse(
       localStorage.getItem(purchaseKey(userId)) || "null",
     );
-    return value?.userId === userId ? value : null;
+    if (value?.userId !== undefined && value.userId !== userId) return null;
+    const record = purchaseRecord(value);
+    return record ? { ...record, userId } : null;
   } catch {
     return null;
   }
 }
 export function saveCloudPurchase(userId, value) {
   try {
+    const record = purchaseRecord(value);
+    if (!record) return;
     localStorage.setItem(
       purchaseKey(userId),
-      JSON.stringify({ ...value, userId }),
+      JSON.stringify(record),
     );
   } catch {
     /* URL still preserves order recovery. */

@@ -114,6 +114,29 @@ describe("Cloud billing API", () => {
 });
 
 describe("purchase recovery and server state", () => {
+  it("persists only purchase recovery fields, excluding credentials and account details", () => {
+    saveCloudPurchase("account-1", {
+      sku: "cloud_usd_monthly", provider: "waffo", request_id: orderId,
+      userId: "account-2", email: "private@example.invalid", password: "private-password",
+      accessToken: "private-access-token", refreshToken: "private-refresh-token",
+      checkout_url: "https://checkout.example/?session=private",
+      nested: { authorization: "private-authorization" },
+    });
+    expect(localStorage.length).toBe(1);
+    expect(JSON.parse(localStorage.getItem(localStorage.key(0)))).toEqual({
+      sku: "cloud_usd_monthly", provider: "waffo", request_id: orderId,
+    });
+    expect(readCloudPurchase("account-1")).toMatchObject({ userId: "account-1", request_id: orderId });
+    expect(readCloudPurchase("account-2")).toBeNull();
+  });
+  it("filters legacy cache extras and refuses a mismatched legacy owner", () => {
+    saveCloudPurchase("account-1", { sku: "cloud_usd_monthly", request_id: orderId });
+    const key = localStorage.key(0);
+    localStorage.setItem(key, JSON.stringify({ userId: "account-1", request_id: orderId, password: "private-password" }));
+    expect(readCloudPurchase("account-1")).toEqual({ userId: "account-1", request_id: orderId });
+    localStorage.setItem(key, JSON.stringify({ userId: "account-2", request_id: orderId }));
+    expect(readCloudPurchase("account-1")).toBeNull();
+  });
   it("keeps one restart request bound to the owned unpaid order and account", () => {
     const order = { id: orderId, sku: "cloud_usd_yearly", provider: "waffo" };
     const first = getCloudCheckoutRestartRequest("account-1", order);
