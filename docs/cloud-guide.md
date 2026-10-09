@@ -1,6 +1,6 @@
 # TokenTracker Pro
 
-TokenTracker Pro is the planned paid membership for the managed Cloud service. These plans and prices are proposed; paid checkout, enforcement, and history retention are not yet active in production. We will announce the launch date after payment and account flows are verified. [简体中文](cloud-guide.zh-CN.md)
+TokenTracker Pro is the planned paid membership for the managed Cloud service. The Owner confirmed the USD 4.99/month and USD 39.99/year base prices on 2026-10-09; paid checkout, enforcement, and history retention are not yet active in production. We will announce the launch date after payment and account flows are verified. [简体中文](cloud-guide.zh-CN.md)
 
 ## What stays free
 

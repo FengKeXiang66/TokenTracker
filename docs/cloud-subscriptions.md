@@ -77,6 +77,6 @@ An unavailable merchant account is a remaining launch requirement, not evidence 
 
 ## Pricing and future benefits
 
-The current global USD4.99/month and USD39.99/year base prices remain a test proposal, with tax added by checkout. Recurring and fixed-term modes have the same base price. Before launch, evaluate willingness to pay for combined analysis and operational convenience against measured per-account cost and Waffo fees. Update the server catalog, provider products and UI together when prices change.
+The Owner confirmed global USD4.99/month and USD39.99/year base prices on 2026-10-09, with tax added by checkout. Recurring and fixed-term modes have the same base price. Production charging still requires the release and financial acceptance gates. Track measured per-account cost and Waffo fees; update the server catalog, provider products and UI together if prices change later.
 
 The next low-cost benefit to evaluate is a cross-device monthly report with period comparisons and a downloadable summary, calculated from the existing aggregates in the client. A cross-device budget view can follow. These are planned work, not current paid entitlements. Local charts, local reports/exports and local alerts must remain available without a hosted subscription. AI-generated advice, emailed reports, team seats and priority response guarantees are not implemented or promised.
