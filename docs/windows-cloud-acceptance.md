@@ -4,6 +4,10 @@
 
 这里需要的是 Windows 客户端测试电脑。官方后端仍使用现有付费 InsForge，付款由 Waffo 处理，不需要 Windows 服务器。
 
+2026-10-09赠送码更新。代码`77ca20241d0f6d0830acdbbb720e3bf078591dc2`已加入账户兑换、领取记录、重复领取保护及赠送期的结账提示。新的自包含测试包为`.tmp/waffo/hosted/native/gift-refresh/TokenTracker-private-pro-gifts-win-x64.zip`，111615167字节、975个文件，SHA256为`27eceecbbf794caf1cbaf4a60f92bae3ad6cecec341ff7bebacf593476194eed`。877个相关Git源码blob与构建输入一致；独立解压与私有凭据扫描通过。版本仍1.1.13，包不作为正式Release发布。
+
+Windows实机接续时，除下文登录、付款返回和安装器步骤外，补充正常登录后兑换、重复输入、刷新、退出切换账号和撤回后的显示检查。测试路由须由工程侧准备；普通包直接打开不会自动接专用沙盒。macOS/Linux私有管理命令已验证，Windows的NTFS私有ACL未验证，原码生成和断线恢复暂时关闭，应用内兑换不受影响。本轮真实网页验证使用Mac上的Ego Browser；截图接口超时，因此没有新增像素截图审查或Windows GUI证据。
+
 ## 2026-10-09 Mac 接续
 
 Windows端工作结束后，Mac已快进整合`e40f47f4`，继续修复本地认证及支付返回。新普通Windows入口仅接受`tokentracker://billing/return?order=<canonical UUID>`，导航到当前本地后端的结账查询页；不从链接授予权益或指定账号/环境。正常OAuth回调保持，导航、history和入口日志不再输出完整URL/code。

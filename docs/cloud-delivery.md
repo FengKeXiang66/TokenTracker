@@ -4,6 +4,10 @@
 
 交付代码为`24266ed1bad024d8f9e003f83f211c8e05be0505`，包含`60780e40`的普通支付返回和隔离QA，以及`f199d803`、`594b1010`的认证修复、原生网关、自部署验收及此前Pro/Waffo与主干审核页面。按用户授权统一提交推送到[feat/cloud-subscriptions](https://github.com/xiufengsun/TokenTracker/tree/feat/cloud-subscriptions)，交接文档提交仅更新证据和待验收步骤。stash安全快照仍保留。正式收费、促销和公开PR仍关闭。
 
+2026-10-09新增Pro赠送码，最新代码为`77ca20241d0f6d0830acdbbb720e3bf078591dc2`。支持30/90/365天完整权益、私有批量生成、停用和独立撤回，账户内兑换与领取记录单独显示，不创建Waffo付款或自动续费。已在原InsForge部署新增迁移与专用赠送沙盒，两个真实账号通过网页完成兑换、重复领取、账号隔离、停用和撤回验证。正式环境仍preview，赠送与订单均为0。[管理命令与验收范围](pro-gift-codes.md)。
+
+本轮全仓3846项通过、3项跳过，4项架构检查通过；前端1169项、136个文件通过。两个实际PostgreSQL连接完成赠送并发验证。Mac普通、Mac QA及Windows测试包均刷新并绑定当前877份源码。以下支付、原生GUI和Windows实机记录保留各自历史源码范围，不代表新兑换页面已在Windows实机验收。
+
 Windows 端的 `e40f47f462a50de285151ca428b3927176641977` 已实际 fetch 并快进整合。它补充换行规则、跨平台校验和测试，以及真实 Windows 窗口记录；Mac 的活动修复均保留。用户已结束 Windows 端工作，不再等待设备到位。仍按文档区分已验证窗口和未验证的登录、付款返回、安装器及完整托盘路径，由 Mac 继续完成可独立执行的工程。
 
 2026-10-08 Windows 接续：`8e45d91e` 已在 Windows 11 上构建、自包含打包及实际 WebView2 渲染，原生单测 63/63、前端 1120/1120、Cloud/同步/Windows 目标组 456 通过且 1 跳过。系统浏览器 loopback 交接通过，ZIP 独立解压 982/982 一致。本轮兼容性修复见该分支；全仓 Windows 仍未全绿，完整托盘入口、真实登录/支付返回及安装器仍待验收。最新结果、测试包 hash 和本地证据见 [Windows 验收记录](windows-cloud-acceptance.md)，下文旧 Windows 记录为此前 checkpoint。
