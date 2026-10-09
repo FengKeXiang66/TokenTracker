@@ -1,14 +1,20 @@
 # Windows 客户端验收交接
 
-## 第二批安全修复候选：等待新的完整 CI、安全门禁与包验收
+## 最新已核验候选：1.3.0 / c3909232
 
-第二批改动使设备身份修复的配置写入通过随机 wx/0600 临时文件原子替换；WorkBuddy trace 从同一打开的 descriptor 检查和读取；Bot 帧生成使用独立 mkdtemp 目录，成功和失败均只清理自己创建的文件；Windows 包清单大小/hash 从同一 buffer 获取。代理初始化与连接错误只返回限长首行或通用信息，不再调用未知异常的 toString。Windows 的 POSIX mode 不作为 NTFS ACL 证明。
+应用与受审来源 **c3909232d416ff113aad417da892deafe1c50a84**。第二批改动使设备身份配置写入通过随机 wx/0600 临时文件原子替换；WorkBuddy trace 从同一打开的 descriptor 检查和读取；Bot 帧构建使用独立 mkdtemp 目录，只清理自己的文件；Windows 包清单大小/hash 从同一 buffer 获取；代理错误只返回限长首行或通用信息，不调用未知异常的 toString。Windows POSIX mode 不作为 NTFS ACL 证明。
 
-本机实际 Node22 目标回归：12 文件、415 项，**414 通过、0 失败、0 取消、1 条件跳过**，92.246 秒自然结束；十份源码/测试文件运行前后 hash 一致。文件符号链接用例因本机权限跳过，须在 CI 实际执行。旧版本 Bot 临时文件与 WorkBuddy 路径替换都在相同新增回归中复现失败；修复后通过。证据 acceptance-windows-security-second-combined.json/log、acceptance-bot-engine-temp-before.json、acceptance-workbuddy-trace-before.json。
+本机实际 Node22 目标组 **414 通过/1 文件符号链接权限跳过/0 失败/0 取消**，12 文件、415 项、92.246 秒自然结束；十份源码/测试运行前后 hash 及提交 blob 一致。旧 Bot 临时文件与 WorkBuddy 路径替换均在同一新增回归中实际失败，修复后通过。证据 acceptance-windows-security-second-combined.json/log、acceptance-security-second-commit-binding.json 及两个 before 探针。
 
-前一安全源码 **d9c0226f4f94c11ecec36ce2798cade1a61abef9** 的 [CI 37976934613](https://github.com/xiufengsun/TokenTracker/actions/runs/37976934613) 四个 job 已全部通过：Windows Node24 与实际打包 Node22 均 3844 通过/40 条件跳过，.NET 117/117；Linux Node 3874 通过/8 跳过，macOS Node 3878 通过/4 跳过及 239 项原生测试通过。三个新增 POSIX 私有文件权限/竞态回归在 Linux/macOS 实际执行通过。无失败或取消，证据 acceptance-security-first-ci.json 和对应 job log。
+[CI 37980273730](https://github.com/xiufengsun/TokenTracker/actions/runs/37980273730) 四个 job 全通过：Windows Node24 与实际打包 Node22 均 **3891 项、3851 通过、40 条件跳过、0 失败/取消**，分别 206.348 秒/181.320 秒；.NET **117/117**。Linux Node **3881 通过/8 跳过**、macOS Node **3885 通过/4 跳过**及 **239 项原生测试**全通过，Rust job 全通过。新增文件链接替换、代理异常和 WorkBuddy 替换回归在 Windows CI 实际执行，文件链接回归在 macOS/Linux 亦执行通过。证据 acceptance-security-second-ci.json 与各 job log。
 
-同一 d9c0226f 的 CodeQL workflow 完成，但实际 PR 安全门禁 113978608011 仍失败：20 条注释（8 high、12 medium），分支 35 条 open。比前一轮少 7 条不代表其余已通过或全部可利用；第二批修复尚待扫描，不人工批量忽略告警。新的完整 CI、安全门禁和实际候选安装包读回仍待完成；下文 29b02f5a/896baa52 的包证据只证明其来源源码。正式收费、会员限制、归档与真实资金门槛保持未启用/未通过。
+第二批五项源码告警自动关闭。完整 SARIF/源码与回归逐项核对后，5 条隔离测试告警以 used in tests、11 条预期且受约束的数据流以 false positive 标记，并逐条读回；未禁用查询或忽略目录。实际 PR 安全 check **113989824128 已为 success**，标题为 No new alerts in code changed by this pull request；历史注释计数仍 16，不能写成原始扫描零告警。分支仍有 **15 条主干已有 open**，未一并关闭；具体依据和剩余范围见 [逐项安全审查](cloud-security-review.md)，证据 acceptance-security-reviewed-adjudications.json、acceptance-security-second-gate.json。
+
+该提交的 Windows archive **195991257 字节 / SHA256 4b1c5348409bee4d0f9614ba196e2e3b6a1b0a777912c2186df7dd462478b4fe** 与 GitHub digest 相同；实际 checkout **a9e0c1e6aaede654385fe88f1269f61537761712** 的 tree **65cd95e5a136a0fdca3dea4a105862d76f8a28c9** 与受审 head 一致。**984/984 文件大小/hash、109 份嵌入源码 Git blob** 全匹配；四项现有私钥/管理 key 字节模式零命中。ZIP **115721260 字节 / SHA256 dd1a078431508ce709799d578cebc3896e26f7d4a27fea3830d8c2362f330766**；Inno **81392446 字节 / SHA256 1647ad975e4548fec1228134b2f75188a65b48df295c023c496c4b8b19ecbe2b**。
+
+实际该包的 DLL/EmbeddedServer **30/30 原生窗口检查**通过；实际打包 Node22.22.2 和包内 OpenClaw/Unicode 技能复制/原子 JSON/Bearer/代理/WorkBuddy 模块 **55 通过、1 本机链接权限跳过、无失败/取消**。测试只复用 Smoke 宿主，应用 DLL/运行时/loader 来自新包，来源断言通过；未操作已有用户安装。证据 security-second-ci-native-final/native-smoke.json、acceptance-security-second-packaged-modules.json 和合并 checkpoint。不是完整 Program.Main/托盘、单实例/Job Object、OS 协议付款返回或安装/升级/卸载证明。
+
+最近 fetch：main **e6186b35**、功能分支 **c3909232** 均无外部新增提交，主干已为当前分支祖先；PR MERGEABLE/CLEAN，保持 draft。UTC 19:32 正式后台只读核对仍 hosted/preview、launch_at=NULL、live 订单/支付/订阅均 0；Waffo 商户 active、payoutEnable=true、绑定匹配，但 channelStatus=unverified/channelVerifiedAt=NULL。没有开启收费、会员限制、促销或归档。当前工程与 Owner 门槛继续以本文后续表格为准。
 
 ## 第一批安全修复：CI 已通过，安全门禁与新包待验收
 
