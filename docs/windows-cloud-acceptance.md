@@ -4,23 +4,25 @@
 
 这里需要的是 Windows 客户端测试电脑。官方后端仍使用现有付费 InsForge，付款由 Waffo 处理，不需要 Windows 服务器。
 
+本轮已在原 Windows 工作区重新拉取功能分支。当前源码和本机回归统一记录在 [上线前交接总表](cloud-release-readiness.md)。下文按来源保留 Mac 交叉包和 10 月 8 日实机记录；这些包都不是后续合入主干后源码的正式发行产物。
+
 2026-10-09赠送码更新。代码`77ca20241d0f6d0830acdbbb720e3bf078591dc2`已加入账户兑换、领取记录、重复领取保护及赠送期的结账提示。新的自包含测试包为`.tmp/waffo/hosted/native/gift-refresh/TokenTracker-private-pro-gifts-win-x64.zip`，111615167字节、975个文件，SHA256为`27eceecbbf794caf1cbaf4a60f92bae3ad6cecec341ff7bebacf593476194eed`。877个相关Git源码blob与构建输入一致；独立解压与私有凭据扫描通过。版本仍1.1.13，包不作为正式Release发布。
 
 Windows实机接续时，除下文登录、付款返回和安装器步骤外，补充正常登录后兑换、重复输入、刷新、退出切换账号和撤回后的显示检查。测试路由须由工程侧准备；普通包直接打开不会自动接专用沙盒。macOS/Linux私有管理命令已验证，Windows的NTFS私有ACL未验证，原码生成和断线恢复暂时关闭，应用内兑换不受影响。本轮真实网页验证使用Mac上的Ego Browser，已审查390px/1280px浅深色视口截图；两个真实账号退出HTTP200，服务端会话清除且重载仍未登录。没有新增Windows GUI证据。
 
-## 2026-10-09 Mac 接续
+## 2026-10-09 Mac 接续记录（赠送码之前）
 
 Windows端工作结束后，Mac已快进整合`e40f47f4`，继续修复本地认证及支付返回。新普通Windows入口仅接受`tokentracker://billing/return?order=<canonical UUID>`，导航到当前本地后端的结账查询页；不从链接授予权益或指定账号/环境。正常OAuth回调保持，导航、history和入口日志不再输出完整URL/code。
 
-这6个Windows文件经独立review；官方.NET8.0.425在Mac ARM64执行117/117单测，Release/win-x64交叉编译零警告、零错误。该结果没有新的Windows GUI或OS协议导航证明，下文63项实机单测及窗口证据仍绑定旧源码。最新前端1129项与后端3818项通过、2项跳过，均为Mac验证。
+这6个Windows文件经独立review；官方.NET8.0.425在Mac ARM64执行117/117单测，Release/win-x64交叉编译零警告、零错误。该结果没有新的Windows GUI或OS协议导航证明，下文63项实机单测及窗口证据仍绑定旧源码。当时前端1129项与后端3818项通过、2项跳过，均为Mac验证。本轮Windows117单测与合入主干后的1190前端结果见总表。
 
 既有InsForge已增加独立的真实QA网关和HTTPS返回页，身份仍由真实InsForge签发；详见[原生沙盒手册](native-sandbox-gateway-runbook.md)。普通包不自动连接QA网关，也不携带沙盒密码、JWT、刷新token或Waffo私钥。另一台电脑从功能分支重新构建；当前Mac本地测试包仅作交叉打包证据。
 
-最新交叉测试包为`.tmp/waffo/hosted/native/TokenTracker-current-private-cloud-win-x64.zip`，来源代码`60780e40863ca20416641b0c14f9a1151ac2e507`。大小111609766字节，SHA256为`1a36e7a9cc2838ae341d2f980ab3e3b9f9536544268da3707e4d33ea054aa8ba`。975个文件独立解压后逐字节和SHA一致；102份CLI、1份入口、274份Windows网页与各自产物集合相同，609份相关源码与该commit的Git blob一致。
+当时的交叉测试包为`.tmp/waffo/hosted/native/TokenTracker-current-private-cloud-win-x64.zip`，来源代码`60780e40863ca20416641b0c14f9a1151ac2e507`。大小111609766字节，SHA256为`1a36e7a9cc2838ae341d2f980ab3e3b9f9536544268da3707e4d33ea054aa8ba`。975个文件独立解压后逐字节和SHA一致；102份CLI、1份入口、274份Windows网页与各自产物集合相同，609份相关源码与该commit的Git blob一致。这份包早于上文赠送码包。
 
 Windows网页按现有发布流程以`TOKENTRACKER_BUILD_PET=1`独立构建，包含`index.html`、`pet.html`、`quota.html`和全部法律页面。未复用Mac无宠物入口的网页产物。使用官方Node22.22.2已校验缓存和.NET8.0.425自包含发布，运行时8.0.31。没有执行Windows、安装器或协议导航；这份包替代下文旧ZIP作为本轮工程测试包，源码与包核对不能代替设备验收。
 
-## Windows 本机接续记录
+## 2026-10-08 Windows 本机记录（历史）
 
 构建验收的源码为 `8e45d91e43456d841b02002532cc6135e4a0a84d`，随后已快进至 `df051a64b230836bbc6bc69d1275d8f22dd6ee22`；远端新增提交仅更新三份交接文档，应用源码与测试包保持一致。本轮修改仅涉及 Git 换行约定、构建校验脚本、测试及验收文档；应用版本仍为 1.1.13，没有发布或启用生产收费。
 
@@ -76,14 +78,14 @@ ZIP SHA256 为 `c09b7b269effc413f40aec59e352df219f0f59f505a17b5aa7c30793b36932f5
 
 当前 ZIP 已包含 InsForge 的 40/64 位 opaque 匿名公钥兼容性、Pro 头像与标识、中性灰榜单高亮及分页置顶会员标识修复，也包含新主干的 `pricing.html`、`terms.html`、`privacy.html`、`legal.css` 和 LegalLinks 入口。旧 `TokenTracker-private-cloud-win-x64.zip` 及 `pro-refresh/` 内的 checkpoint 包均早于完整主干整合，不能作为本轮测试包。以上证明包含打包与源码一致性；Windows Node、WebView2 窗口及支付返回仍待实机验证。
 
-## 测试电脑到位后的工程步骤
+## Windows 剩余工程步骤
 
 1. 使用专用 Windows 测试账户和临时 TokenTracker 数据目录，保留用户原有安装、配置与本地历史。先读回包 hash，再准备 WebView2 运行环境。
 2. 工程侧准备真实应用测试账号、白名单、沙盒 API 路由与付款返回地址。当前测试函数使用 `-sandbox` 后缀，普通发行包仍使用正式路由，直接打开 ZIP 不等于已接好沙盒。Mac 的 5195/5196/5205 操作器地址也不能直接照搬到 Windows。
 3. 核对运行时配置与实际请求地址。公钥可进入客户端，服务端密钥、Waffo 私钥和当前测试账号的密码/JWT 不能打包或通过文件搬运。
 4. 实测 WebView2 打开系统浏览器收银台、拒付重试、成功付款、关掉返回页及重新聚焦客户端。确认原订单页通过轮询、focus/visibility 恢复会员状态，且不会重复购买。
 5. 实测免费本地功能、社区上传、会员同步、暂停恢复、到期或后端离线，以及退出登录和换账号。核对本地队列及旧账号数据不丢失、不混入另一账号。
-6. 如果本轮要验安装包，再在 Windows 执行原 PowerShell bundling 和 Inno Setup，检查安装、升级及卸载。当前等价 staging、Info-ZIP 和交叉编译不能代替这些步骤。
+6. 正式 Windows 安装器发布前，在专用测试账户执行 PowerShell bundling 和 Inno Setup，检查干净安装、覆盖升级、卸载与用户数据保留，以及协议注册、单实例和子进程退出。当前 ZIP、发布 DLL 和交叉编译证据不能代替这些步骤。
 
 每条记录 Windows/WebView2/Node 版本、实际 HTTP 状态与请求目的地、服务端账本或权限读回和关键截图。禁止用“编译通过”代替窗口或付款返回验证。
 
@@ -91,4 +93,4 @@ ZIP SHA256 为 `c09b7b269effc413f40aec59e352df219f0f59f505a17b5aa7c30793b36932f5
 
 在另一台电脑上使用已推送的 `feat/cloud-subscriptions` 分支及本页包 hash 接续。不要从 `main` 的普通发行包推断已包含本轮 Pro 代码。本地 ZIP 未作为正式 Release 发布，可由工程侧转交并校验，或在 Windows 从该分支重新构建。
 
-继续读取 [交付清单](cloud-delivery.md)、[收款运维手册](cloud-billing-operations.md) 和 `tasks/todo.md`。用户已授权提交和推送 `feat/cloud-subscriptions`，由主任务统一执行；仍不发布公开 PR、收费公告或启用生产收费。商户审核已通过，正式凭据、生产部署和真实结算门槛独立保留。
+继续读取 [上线前交接总表](cloud-release-readiness.md)、[交付清单](cloud-delivery.md) 和 [收款运维手册](cloud-billing-operations.md)。用户已授权提交和推送 `feat/cloud-subscriptions`，由主任务统一执行；仍不发布公开 PR、收费公告或启用生产收费。商户审核已通过，正式凭据、生产部署和真实结算门槛独立保留。

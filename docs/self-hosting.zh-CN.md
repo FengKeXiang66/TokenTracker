@@ -18,11 +18,11 @@
 
 ## 哪些代码已经开源
 
-本次核验的公开仓库包含客户端、`dashboard/edge-patches/` 下的 23 个后端 TypeScript 入口和 33 个 SQL 迁移文件。[MIT 许可](../LICENSE)允许使用和修改这些代码。文件已公开，不等于线上部署的每份脚本都与仓库完全一致。
+仓库包含客户端、后端 TypeScript 和 SQL 源码。`17247d9d` 的历史清单为 23 个后端入口和 33 个迁移；应按所选发行 commit 重新清点，不能当作当前数量。[MIT 许可](../LICENSE)允许使用和修改这些代码。文件已公开，不等于线上部署的每份脚本都与仓库完全一致。
 
 历史迁移是现有数据库上的增量改动，部分文件还包含特定用户群的运营处理或数据修复。**不要在新数据库上直接执行全部历史迁移。** 使用[干净的私有后端安装器](self-hosting-backend.md)。`--sql` 输出带 PostgreSQL 事务的独立文件；`--migration` 由已连接 InsForge 实例的迁移 API 提供事务。
 
-这次新增的订阅、设备权限和归档代码仍在本地开发分支，本次核验时还没有发布为新的公开 PR 或版本。[源码清单与缺口](self-hosting-status.md)
+订阅、设备权限、赠送和归档工作保存在 `feat/cloud-subscriptions`，尚未作为收费 Pro 正式发布。干净的私有基础 schema、官方本地 Linux 平台和标准 Dashboard A→C→A 切换已有验收记录；公网 VPS HTTPS 和受支持的原生路由仍需验证。[源码清单与缺口](self-hosting-status.md) · [上线前交接总表](cloud-release-readiness.md)
 
 ## 准备 VPS
 
@@ -85,7 +85,7 @@ CLI 支持 `TOKENTRACKER_INSFORGE_BASE_URL`、`TOKENTRACKER_INSFORGE_ANON_KEY`�
 - 浏览器和桌面请求都访问所选实例，不把自部署数据写入官方后端或公共榜单。
 - 备份能恢复到另一实例，认证、用量、设备身份、文件和必要密钥完整，恢复和升级后总量一致。
 
-单元测试或隔离的本地付款预览不能代替这些 VPS 检查。本次核验的机器没有 Docker 或 `psql` 可执行程序，没有执行 VPS 部署。
+单元测试不能代替这些公网 VPS 检查。后续官方 v2.3.3 本地 Linux 实验环境已验证真实认证、私有同步、存储和数据库恢复，见[后端证据](self-hosting-backend.md)。该环境与当前 Windows 工作区不同，不能证明公网部署或打包原生客户端路由。
 
 ## 后续维护
 

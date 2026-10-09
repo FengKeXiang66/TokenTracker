@@ -18,11 +18,11 @@ A self-hosted instance is independent of the official account system and public 
 
 ## What is open source
 
-The public repository includes the application, 23 backend TypeScript entry files in `dashboard/edge-patches/` and 33 SQL migration files at the reviewed public commit. The [MIT license](../LICENSE) permits using and modifying this code. A source inventory does not prove that the deployed production backend matches every file.
+The public repository includes the application and backend TypeScript/SQL source. The historical `17247d9d` inventory contained 23 backend entry files and 33 migration files; recount the chosen release commit rather than treating those as current counts. The [MIT license](../LICENSE) permits using and modifying this code. A source inventory does not prove deployed-source parity.
 
 The historical migrations are incremental changes to an existing database. Some files are operator-specific moderation or repair operations. **Do not apply every historical migration to a fresh database.** Use the [clean private-backend installer](self-hosting-backend.md). Its `--sql` mode owns a PostgreSQL transaction; `--migration` uses the linked InsForge migration API's transaction.
 
-The new subscription, device-access and archive work is still on the local development branch at this review. It has not been published as a new public PR or release. [Current inventory and gaps](self-hosting-status.md)
+Subscription, device-access, gift and archive work is tracked on `feat/cloud-subscriptions`; it has not been released as paid Pro. The clean private baseline, official local Linux platform and standard Dashboard A→C→A switching have recorded acceptance. Public VPS HTTPS and supported native routes remain pending. [Current inventory and gaps](self-hosting-status.md) · [Release handoff](cloud-release-readiness.md)
 
 ## Prepare the VPS
 
@@ -85,7 +85,7 @@ Test the real VPS through its public HTTPS URL:
 - Browser and native traffic uses the chosen instance. Self-hosted traffic is not uploaded to the official backend or leaderboard.
 - A backup restores authentication, usage, device identities, storage and required secrets into a separate instance. Restore and upgrade drills preserve totals.
 
-Running unit tests or the isolated local billing preview does not satisfy these VPS checks. The machine used for this review had no Docker or `psql` executable, and no VPS deployment was performed.
+Unit tests do not satisfy these public VPS checks. A later official v2.3.3 local Linux lab verified actual authentication, private sync, storage and database restore; see [the backend evidence](self-hosting-backend.md). That lab is separate from this Windows checkout and does not prove a public VPS deployment or a packaged native route.
 
 ## Maintain the service
 

@@ -1,14 +1,14 @@
 # Self-hosting implementation status
 
-Public source inventory reviewed on 2026-10-04; actual private-backend platform verified on 2026-10-08. This is an engineering inventory, not public VPS acceptance. The historical inventory counts below came from `17247d9d`; current Pro/self-host code is pushed on `feat/cloud-subscriptions` at `fb792a53`, including main `4e225c31`.
+Public source inventory reviewed on 2026-10-04; actual private-backend platform verified on 2026-10-08 and gift-stage database checks recorded on 2026-10-09. This is an engineering inventory, not public VPS acceptance. The historical inventory counts below came from `17247d9d`; they are not counts of today's `origin/main`. Current source, branch integration and release blockers are recorded in the [release handoff](cloud-release-readiness.md).
 
 ## Verified now
 
 | Item | Evidence | Limit |
 | --- | --- | --- |
 | Software license | Root `LICENSE`, MIT | Other dependencies retain their own licenses |
-| Public backend source | `git ls-tree -r --name-only origin/main dashboard/edge-patches` contains 23 `.ts` entry files | Repository inventory is not deployed-source parity |
-| Public SQL | `git ls-tree -r --name-only origin/main migrations` contains 33 `.sql` files | Incremental history, not a fresh-install baseline |
+| Historical public backend source | `17247d9d` contained 23 `.ts` entry files under `dashboard/edge-patches/` | Recount the selected release commit; inventory is not deployed-source parity |
+| Historical public SQL | `17247d9d` contained 33 `.sql` files under `migrations/` | Incremental history, not a fresh-install baseline |
 | Frontend target configuration | `dashboard/src/lib/insforge-config.ts` reads `VITE_INSFORGE_BASE_URL` and `VITE_INSFORGE_ANON_KEY` before the official fallback | Build-time configuration; published binaries do not change |
 | CLI target configuration | `src/lib/runtime-config.js`, `src/commands/init.js`, `src/commands/device-login.js` | Persistence/env resolution differs across paths |
 | InsForge platform self-hosting | Official Docker Compose, setup script and README | Platform support does not bootstrap the TokenTracker application |
@@ -23,10 +23,11 @@ The branch adds a clean private-backend installer, explicit free instance policy
 - [x] Pin and validate official InsForge v2.3.3 images, actual PostgreSQL15.18/Deno2.0.6 and SDK1.4.5. Actual signup/signin, `auth.uid()`, ownership RLS, foreign keys and anon/authenticated/project_admin privilege checks pass. CommonJS and locked dependency compatibility are verified by all14 HTTP200, not only deployment status.
 - [x] Add explicit free `self_hosted` access behavior under instance-owner control. Private reads/uploads remain authenticated; client-role RPC/table access stays denied. Device quotas and hosted history windows do not apply, and no fake payment or preview entitlement is required.
 - [x] Make the self-hosted device-authorize build use the selected dashboard origin and verify its grant/poll/upload flow locally.
-- [ ] Align CLI persistent config, local API auth/account proxy, dashboard SDK/functions URLs and native callback targets. Verify that all requests stay on the chosen instance.
-- [ ] Define an instance-switch flow that preserves local data, clears old account/token caches and prevents replaying credentials against another instance. Test both directions independently.
+- [x] Verify CLI persistent config, local API auth/account proxy and standard Dashboard SDK/function routing on the actual local A/C instances; current results include real authorization and private uploads. Packaged native callbacks and public VPS routes remain separate pending gates.
+- [x] Verify both A→C and C→A in the actual CLI, proxy, SDK and standard Dashboard: local queue/cursors preserved at switching, previous session cleared, old-instance JWTs rejected with 409 and remote devices removed from the displayed context. See [remaining acceptance](self-hosting-remaining-acceptance.md).
 - [x] Provide a deployment manifest for the private backend's 14 required functions, including device-flow authorization and rename. Bundle local imports and pin InsForge SDK 1.4.5. This is a separate manifest from `scripts/build-cloud-functions.cjs`; public-community and payment webhook deployment are excluded.
-- [ ] Configure private storage policies, optional OAuth/email, HTTPS/cookies/CORS and SPA callback routes. Disable official-community publishing on self-hosted clients by default.
+- [x] Verify private file ownership/anonymous rejection, actual browser cookie recovery, loopback foreign-origin rejection, local TLS/SPA routing and disabled official-community publication in the local official stack. This does not certify a public certificate or native callback.
+- [ ] Verify public HTTPS/browser trust and packaged native callback routes. If OAuth or email is offered, configure that instance's own provider and delivery credentials and test actual code exchange/send/receive; otherwise keep those optional features disabled.
 - [x] Verify unchanged reinstall and a full database/configuration/storage backup restore in the official local stack. PostgreSQL15 tools restore15.18 successfully;7 devices/4hourly/8auth/13step fields match, actual sign-in/private260/70 and40byte file match. Future upgrades and optional archive schedules remain separate reviewed changes.
 - [ ] Execute fresh-install, two-device sync, account isolation, duplicate/correction, timezone, backup/restore and upgrade tests on a real isolated VPS. Test supported native clients against that instance.
 
@@ -34,13 +35,13 @@ Application installation and actual private functions are verified in an isolate
 
 ## Reproduce the source checks
 
-Run from the TokenTracker repository. These commands only inspect tracked source and counts:
+Run from the TokenTracker repository. For current inventory choose the exact reviewed commit instead of a moving remote branch; replace `REVIEWED_COMMIT` below. These commands only inspect tracked source and counts:
 
 ```sh
-git rev-parse origin/main
-git show origin/main:LICENSE
-git ls-tree -r --name-only origin/main dashboard/edge-patches
-git ls-tree -r --name-only origin/main migrations
+git rev-parse REVIEWED_COMMIT
+git show REVIEWED_COMMIT:LICENSE
+git ls-tree -r --name-only REVIEWED_COMMIT dashboard/edge-patches
+git ls-tree -r --name-only REVIEWED_COMMIT migrations
 rg -n 'VITE_INSFORGE_BASE_URL|VITE_INSFORGE_ANON_KEY' dashboard/src/lib/insforge-config.ts
 rg -n 'verification_uri' dashboard/edge-patches/tokentracker-device-flow-authorize.ts
 rg -n 'resolveRuntimeConfig' src/lib/local-api.js src/commands/device-login.js

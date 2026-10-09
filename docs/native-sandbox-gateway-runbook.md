@@ -2,6 +2,8 @@
 
 This runbook prepares a separate native QA build against the existing InsForge project. It does not enable production billing, replace reviewed functions, or make a normal installed app a sandbox client. Root coordinates Windows permissions and all remote deployments. Credentials remain in the existing server or a native-local RAM broker.
 
+Use the [release handoff](cloud-release-readiness.md) for the current checkout and platform evidence. The remote gateway and GUI results below are historical acceptance records, not a remote re-verification by the current Windows documentation pass. The ordinary Windows build has no dedicated NativeQA target or broker wiring; its unit tests and DLL build cannot certify this Mac QA route.
+
 The fixed realm is `tokentracker-native-sandbox-v1`. The real authentication issuer remains `https://srctyff5.us-east.insforge.app`. The new gateway is `https://srctyff5.function2.insforge.app/tokentracker-native-sandbox-gateway`. Its single function endpoint uses query selectors. Do not assume the platform supports nested `/gateway/api/auth/*` paths.
 
 ## Route contract
@@ -80,4 +82,4 @@ If a later separately authorized checkout test opens a provider URL, require exa
 
 Browser Use explicitly refused the external-protocol click. Do not attempt the same navigation through another browser, CLI or GUI surface. Browser→OS→App remains a manual-device acceptance step; the internal order recovery does not prove it. A human should click the QA page's return button while the owned QA run is signed in. The engineer then checks the actor/realm/order and the unchanged real ledger. This requires no repeat purchase or refund.
 
-The ordinary app has a separate order-only `tokentracker://billing/return?order=<UUID>` parser on Mac and Windows. It opens the current local order page and has no sandbox realm or entitlement logic. Latest Windows parser tests run on Mac; the existing older Windows window evidence does not prove the new OS return path or installer. Keep those device steps pending until actually observed.
+The ordinary app has a separate order-only `tokentracker://billing/return?order=<UUID>` parser on Mac and Windows. It opens the current local order page and has no sandbox realm or entitlement logic. Windows parser tests have now also run on Windows; see the release handoff for their source and result. The older Windows window evidence still does not prove the new OS return path or installer. Keep those device steps pending until actually observed.

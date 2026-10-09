@@ -1,6 +1,6 @@
-# TokenTracker Cloud
+# TokenTracker Pro
 
-Cloud is in development. These plans and prices are proposed; paid checkout, enforcement, and history retention are not yet active in production. We will announce the launch date after payment and account flows are verified. [简体中文](cloud-guide.zh-CN.md)
+TokenTracker Pro is the planned paid membership for the managed Cloud service. These plans and prices are proposed; paid checkout, enforcement, and history retention are not yet active in production. We will announce the launch date after payment and account flows are verified. [简体中文](cloud-guide.zh-CN.md)
 
 ## What stays free
 
@@ -24,7 +24,13 @@ Cross-device monthly reports and budget views are future work, not delivered pai
 
 Self-hosted software is free under MIT. You pay for your server, domain and backups and maintain the instance yourself. Its accounts and statistics are independent of the official public leaderboard. Hosted device/history limits are service-plan terms, not software-license restrictions.
 
-The complete self-hosted path is currently a technical preview. Backend TS and migration source exists, while the clean application schema, unified client configuration and fresh VPS acceptance remain unfinished. Read the [self-hosting guide](self-hosting.md) before attempting deployment; a one-command TokenTracker installer is not available yet.
+The complete self-hosted path is currently a technical preview. A clean private application installer and local official-platform authentication/sync/restore have been verified; standard Dashboard instance switching also has actual evidence. Public VPS HTTPS, native routes and a reviewed version upgrade remain pending. Read the [self-hosting guide](self-hosting.md) before attempting deployment; a complete one-command VPS installer is not available.
+
+## Gifted Pro access
+
+An eligible signed-in account can redeem a privately issued 30-, 90- or 365-day Pro code in its account settings. A code is claimed once; repeating the same claim does not add another term. The server shows the actual dates and a separate gift history. Gifts do not create Waffo payments or automatic renewal.
+
+Resolve an unfinished payment or active automatic renewal before redeeming. Active or upcoming gifts prevent new paid checkout so the periods do not overlap. Disabling an unclaimed batch and revoking an already claimed gift are different operations. Gift redemption is unavailable on a free private self-hosted instance; production availability will follow the reviewed rollout.
 
 ## Trial and transition
 

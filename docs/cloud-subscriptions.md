@@ -2,6 +2,8 @@
 
 This document tracks the Cloud subscription work. The plans below are proposed; payment availability and a launch date will be announced after checkout, fulfillment, and merchant onboarding are verified. User-facing terms are in the [Cloud guide](cloud-guide.md) ([简体中文](cloud-guide.zh-CN.md)); operational gates are in the [billing runbook](cloud-billing-operations.md), and the [community announcement](cloud-announcement-draft.md) remains a review draft.
 
+The user-facing membership is named TokenTracker Pro; `Cloud` remains the hosted-service/API namespace. Current evidence and release blockers are in the [release handoff](cloud-release-readiness.md). The [gift specification](pro-gift-codes.md) adds 30/90/365-day account grants with no provider payment or renewal, single-claim protection and checkout exclusion for active/upcoming gifts.
+
 ## Product boundaries
 
 Local tracking, provider integrations, cost estimates, limits, desktop features, and local exports remain free and open source. Cloud is the officially managed cross-device analytics service. A membership belongs to one account and works across the CLI, macOS, Windows, Linux, and web dashboard.
@@ -69,7 +71,7 @@ Present Cloud value in three groups: cross-device analysis, hosted history/expor
 4. Enforce device, read, upload, and retention rules; reduce shared leaderboard refresh and repetitive account reads.
 5. Update privacy, user documentation, community announcement drafts, and deployment/rollback instructions.
 6. Validate financial invariants using a real PostgreSQL runtime, then verify provider sandbox transactions against an isolated backend and the actual UI.
-7. Complete Waffo KYB and production approval, configure separate live credentials/products, and verify real checkout, refunds and settlement with the owner before activating production charging.
+7. Merchant approval is recorded as passed; Owner has supplied the newly generated production key file and confirmed the verified/available payout account is associated. Engineering must independently re-read the selected merchant/store and key/account bindings, configure verified live credentials/products, and verify real checkout/refunds and bank settlement with the Owner before activating charging.
 
 An unavailable merchant account is a remaining launch requirement, not evidence that the payment integration works. Production charging, historical deletion, and publication of the community announcement remain separate launch actions.
 

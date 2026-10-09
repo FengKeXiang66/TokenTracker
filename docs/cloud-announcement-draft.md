@@ -2,9 +2,11 @@
 
 Review copy only. Do not publish until the launch checklist passes and the owner approves the public announcement. Prices, dates, checkout links, refund terms, and private support must be confirmed before publication. This draft announces a proposal; paid Cloud is not live.
 
+2026-10-09 review: user-facing paid membership is TokenTracker Pro. Merchant approval and Owner-reported verified payout-account binding are recorded separately from genuine live payment and settlement. Use the [release handoff](cloud-release-readiness.md) before checking any publication gate.
+
 ## English
 
-We are building TokenTracker Cloud for developers who want one usage view across their machines.
+We are building TokenTracker Pro for developers who want one managed Cloud usage view across their machines.
 
 Local TokenTracker stays complete, free, and open source. Collection, providers, cost and quota tracking, charts, exports, and desktop features continue without a paid account. The shared leaderboard, achievements, and basic public profile remain free, with the same ranking rules for everyone.
 
@@ -16,7 +18,7 @@ Checkout, device limits, and history archiving are still being verified. We will
 
 ## 简体中文
 
-我们在开发 TokenTracker Cloud，把多台机器的用量汇总到一个账号。
+我们在开发 TokenTracker Pro，通过官方托管 Cloud 服务把多台机器的用量汇总到一个账号。
 
 本地功能继续完整免费开源。采集、provider、成本与额度、本地图表、导出和桌面功能都保留；社区榜单、成就和基础 Profile 也保留，所有账号使用相同排名公式。
 

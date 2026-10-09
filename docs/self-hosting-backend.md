@@ -2,6 +2,8 @@
 
 The local branch now contains a clean TokenTracker application installer and a private-function deployment manifest. They install free private synchronization on a compatible InsForge instance. They do not create the InsForge platform or complete VPS, browser, or packaged desktop acceptance.
 
+Reconciled on 2026-10-09. The current manifest has 14 application steps, including the gift schema needed by the shared billing handler; self-hosted gifts and paid checkout remain unavailable. The official-stack 13-step results below are historical, while the gift-stage 14-step installer/reinstall results used a separate isolated PostgreSQL database. Neither unchanged reinstall is proof of an upgrade from 13 to 14 steps. See the [release handoff](cloud-release-readiness.md) and [remaining acceptance](self-hosting-remaining-acceptance.md) for current gates.
+
 InsForge provides its own PostgreSQL/auth/API/function runtime. Install it in a separate directory using a reviewed release and pinned image digests. Its official README documents MCP support for self-hosted administration; the cloud CLI is not a VPS installer. [Official platform instructions](https://github.com/InsForge/InsForge#self-hosted-docker-compose)
 
 ## Required platform contract

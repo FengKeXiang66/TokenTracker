@@ -4,6 +4,8 @@ The archive keeps the complete hourly record in private PostgreSQL JSONB packs, 
 
 This implements local storage and aggregation support. It installs no schedule and has not moved or deleted production usage.
 
+2026-10-09 handoff reconciliation: later isolated hosted QA verified cold corrections, bounded logical recovery and controlled samples; see [delivery evidence](cloud-delivery.md). Those checks do not complete production migration, performance, erasure, concurrent maintenance or scheduled activation. Current source and rollout gates are in the [release handoff](cloud-release-readiness.md).
+
 ## Data and read paths
 
 - Every hourly field is retained, including all token columns, conversations, billable counts, cost metadata, timestamps and revision. UTC packs preserve half-hour placement, so IANA timezones, DST and fixed offsets can still be applied at read time.
