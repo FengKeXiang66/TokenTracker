@@ -551,10 +551,10 @@ export function SessionsPage() {
     <div className="flex flex-col flex-1 text-oai-black dark:text-oai-white font-oai antialiased">
       <main className="flex-1 pt-8 sm:pt-10 pb-12 sm:pb-16">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <header className="mb-6 flex items-center justify-between gap-4">
+          <header className="mb-8 flex flex-row items-start justify-between gap-4">
             <div className="min-w-0">
-              <h1 className="text-2xl font-semibold tracking-tight text-oai-black dark:text-white">{copy("nav.sessions")}</h1>
-              <p className="mt-1 text-sm text-oai-gray-500 dark:text-oai-gray-400">{copy("sessions.page.summary")}</p>
+              <h1 className="mb-3 text-3xl font-semibold tracking-tight text-oai-black dark:text-white sm:text-4xl">{copy("nav.sessions")}</h1>
+              <p className="text-sm text-oai-gray-500 dark:text-oai-gray-400 sm:text-base">{copy("sessions.page.summary")}</p>
             </div>
             <button
               type="button"
@@ -562,7 +562,7 @@ export function SessionsPage() {
               disabled={refreshing || isLoading}
               aria-label={copy("sessions.page.refresh")}
               title={copy("sessions.page.refresh")}
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-oai-gray-500 transition-colors hover:bg-oai-gray-100 hover:text-oai-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500 disabled:opacity-50 dark:text-oai-gray-400 dark:hover:bg-oai-gray-800 dark:hover:text-white sm:h-9 sm:w-9"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-oai-gray-200 text-oai-gray-600 transition-colors hover:bg-oai-gray-100 hover:text-oai-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500 disabled:opacity-50 dark:border-oai-gray-800 dark:text-oai-gray-400 dark:hover:bg-oai-gray-800 dark:hover:text-white"
             >
               <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} aria-hidden />
             </button>
