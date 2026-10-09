@@ -20,6 +20,9 @@ export type CloudMembership = {
     "legacy_free" | "active" | "trial" | "transition" | "expired" | "free" | "self_hosted";
   hosting_mode?: "hosted" | "self_hosted";
   expires_at?: string | null;
+  access_source?: "payment" | "gift" | "mixed" | "none";
+  has_gift?: boolean;
+  gift_expires_at?: string | null;
   trial_ends_at?: string | null;
   trial_available: boolean;
   transition_ends_at?: string | null;
@@ -56,9 +59,21 @@ export type CloudOrder = {
   expires_at?: string | null;
   retry_payment_conflict_at?: string | null;
 };
+export type CloudGift = {
+  id: string;
+  duration_days: 30 | 90 | 365;
+  redeemed_at: string;
+  starts_at: string;
+  ends_at: string;
+  revoked_at: string | null;
+  state: "active" | "pending" | "expired" | "revoked";
+};
 export type CloudAccount = {
   environment?: "sandbox" | "live";
   membership: CloudMembership;
+  gift_redemption_available?: boolean;
+  redemption_restriction?: string | null;
+  gifts?: CloudGift[];
   payments: {
     id: string;
     provider: CloudProvider;

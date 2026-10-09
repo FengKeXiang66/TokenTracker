@@ -7,6 +7,12 @@ import { Button } from "../../ui/components/Button.jsx";
 export function cloudBillingErrorText(error, context) {
   const code = error?.code || error?.message;
   if (code === "instance_changed") return copy("instance.configuration.changed");
+  if (code === "gift_code_unavailable") return copy("cloud.gift.error_unavailable");
+  if (["gift_rate_limited", "gift_redemption_rate_limited"].includes(code)) return copy("cloud.gift.error_rate_limit");
+  if (code === "gift_not_available") return copy("cloud.gift.error_not_available");
+  if (code === "gift_requires_renewal_cancel") return copy("cloud.gift.error_renewal");
+  if (code === "gift_checkout_pending") return copy("cloud.gift.error_checkout");
+  if (code === "gift_membership_active") return copy("cloud.gift.error_active");
   if (code === "billing_catalog_unavailable")
     return copy("cloud.error.catalog");
   if (code === "billing_devices_unavailable")
@@ -53,7 +59,7 @@ export function cloudBillingErrorText(error, context) {
   if (["checkout_request_conflict", "pending_checkout_exists"].includes(code))
     return copy("cloud.error.request_conflict");
   if (code === "billing_network_error")
-    return context === "account"
+    return context === "gift" ? copy("cloud.gift.error_network") : context === "account"
       ? copy("cloud.error.account_network")
       : copy("cloud.error.network");
   if (["invalid_provider_checkout_url", "browser_open_failed"].includes(code))

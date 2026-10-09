@@ -50,6 +50,7 @@ CREATE TRIGGER self_host_sessions_delete_cache AFTER DELETE ON public.tokentrack
       .map(name=>({id:name.slice(0,-4),sql:read("migrations/"+name)})),
     {id:"10-self-hosted-policy",sql:read("migrations/20261008120000_self-hosted-access.sql")},
     {id:"11-token-environment-validation",sql:read("migrations/20261008120001_validate-cloud-token-environment.sql")},
+    {id:"12-pro-gifts",sql:read("migrations/20261009120000_cloud-gifts.sql")},
   ];
 }
 module.exports={root,read,functionSql,privateFunctions,steps};

@@ -36,6 +36,7 @@ const mocks = vi.hoisted(() => ({
   actualCatalog: false,
   accountError: null,
   subscriptions: [],
+  gifts: [],
 }));
 const orderId = "11111111-1111-4111-8111-111111111111";
 const successorId = "22222222-2222-4222-8222-222222222222";
@@ -93,7 +94,7 @@ vi.mock("../hooks/use-cloud-billing.js", async () => {
       account: { membership: mocks.hostingMode === "self_hosted"
         ? { ...membership, status: "self_hosted", hosting_mode: "self_hosted", trial_available: false, can_read_cloud: true, can_upload_cloud: true }
         : mocks.accountMembership === undefined ? membership : mocks.accountMembership,
-        pending_orders: mocks.pendingOrders, conflict_orders: mocks.conflictOrders, subscriptions: mocks.subscriptions },
+        pending_orders: mocks.pendingOrders, conflict_orders: mocks.conflictOrders, subscriptions: mocks.subscriptions, gifts: mocks.gifts },
       loading: mocks.accountLoading,
       error: mocks.accountError,
       auth: {
@@ -153,6 +154,7 @@ beforeEach(() => {
   mocks.actualCatalog = false;
   mocks.accountError = null;
   mocks.subscriptions = [];
+  mocks.gifts = [];
   mocks.userId = "account-1";
   mocks.signedIn = true;
   mocks.phase = "active";
@@ -169,6 +171,56 @@ afterEach(() => {
 });
 
 describe("Cloud pricing and checkout", () => {
+  it.each([[], [{ id: "revoked-recent", state: "revoked" }]])(
+    "keeps a gift-holder's plan and checkout safe when recent history omits active access %j", (gifts) => {
+      mocks.accountMembership = { status: "active", access_source: "gift", has_gift: true, trial_available: false };
+      mocks.gifts = gifts;
+      const view = show("/cloud", CloudPage);
+      expect(screen.queryByRole("button", { name: "Subscribe to Pro" })).not.toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Manage membership" })).toHaveAttribute("href", "/settings?section=account");
+      view.unmount();
+      show("/billing/checkout?sku=cloud_usd_monthly");
+      expect(screen.queryByRole("button", { name: /Create secure payment order/ })).not.toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Manage membership" })).toHaveAttribute("href", "/settings?section=account");
+      expect(mocks.request).not.toHaveBeenCalled();
+    },
+  );
+  it.each([false, "true"])("does not block paid plans based on a non-true has_gift value %s", (hasGift) => {
+    mocks.accountMembership = { status: "free", has_gift: hasGift, trial_available: false };
+    mocks.gifts = [];
+    const view = show("/cloud", CloudPage);
+    expect(screen.getByRole("button", { name: "Subscribe to Pro" })).toBeEnabled();
+    expect(screen.queryByText(/active or upcoming Pro gift/)).not.toBeInTheDocument();
+    view.unmount();
+    show("/billing/checkout?sku=cloud_usd_monthly");
+    expect(screen.getByRole("button", { name: /Create secure payment order/ })).toBeEnabled();
+    expect(screen.queryByText(/active or upcoming Pro gift/)).not.toBeInTheDocument();
+  });
+  it.each(["active", "pending"])("keeps new payments and trials unavailable while a gift is %s", (state) => {
+    mocks.gifts = [{ id: "gift-1", state }];
+    show("/cloud", CloudPage);
+    expect(screen.getByText(/active or upcoming Pro gift/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Manage membership" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Subscribe to Pro" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Start 7-day free trial/ })).not.toBeInTheDocument();
+    expect(mocks.request).not.toHaveBeenCalled();
+  });
+  it.each(["/billing/checkout?sku=cloud_usd_monthly", "/billing/checkout?intent=trial"])("routes a direct gift-holder checkout to membership management %s", (path) => {
+    mocks.gifts = [{ id: "gift-1", state: "pending" }];
+    show(path);
+    expect(screen.getByText(/active or upcoming Pro gift/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Manage membership" })).toHaveAttribute("href", "/settings?section=account");
+    expect(screen.queryByRole("button", { name: /Create secure payment order|Start 7-day trial/ })).not.toBeInTheDocument();
+    expect(mocks.request).not.toHaveBeenCalled();
+  });
+  it("gives a stale checkout rejection a membership recovery action without losing its purchase request", async () => {
+    mocks.request.mockRejectedValue({ code: "gift_membership_active" });
+    show("/billing/checkout?sku=cloud_usd_monthly");
+    await click(screen.getByRole("button", { name: /Create secure payment order/ }));
+    expect(screen.getByRole("alert")).toHaveTextContent(/active or upcoming Pro gift/);
+    expect(screen.getByRole("link", { name: "Manage membership" })).toBeInTheDocument();
+    expect(readCloudPurchase("account-1")).toMatchObject({ sku: "cloud_usd_monthly", request_id: expect.any(String) });
+  });
   it("lets a signed-out desktop browser return an order reference without claiming payment or calling the order API", () => {
     vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Macintosh");
     vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");

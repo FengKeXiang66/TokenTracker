@@ -15,6 +15,7 @@ import {
 import { getLocalApiAuthHeaders } from "../../lib/local-api-auth";
 import { copy } from "../../lib/copy";
 import { CloudDeadlinePrompt } from "./CloudContextualPrompt.jsx";
+import { RedeemProCode } from "./RedeemProCode.jsx";
 import { Button } from "../../ui/components/Button.jsx";
 import { Card } from "../../ui/components/Card.jsx";
 import {
@@ -366,7 +367,9 @@ function CloudMembershipAccount({ account, auth, loading, error, refresh }) {
     };
   }, []);
   const membership = account?.membership;
-  const selfHosted = membership?.status === "self_hosted";
+  const selfHosted = membership?.status === "self_hosted" || membership?.hosting_mode === "self_hosted";
+  const hasGiftAccess = !selfHosted && (membership?.has_gift === true ||
+    account?.gifts?.some((gift) => ["active", "pending"].includes(gift.state)));
   const paymentConflict = [...(account?.conflict_orders || []), ...(account?.pending_orders || [])]
     .some((order) => order.retry_payment_conflict_at);
   const activeSubscription = !selfHosted && account?.subscriptions?.find((item) =>
@@ -472,7 +475,8 @@ function CloudMembershipAccount({ account, auth, loading, error, refresh }) {
           <>
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <span className="rounded-full bg-oai-gray-100 px-3 py-1 text-sm font-medium dark:bg-oai-gray-800">
-                {cloudMembershipLabel(membership.status)}
+                {membership.status === "active" && membership.access_source === "gift"
+                  ? copy("cloud.gift.membership_label") : cloudMembershipLabel(membership.status)}
               </span>
               {endDate ? (
                 <span className="text-sm text-oai-gray-500 dark:text-oai-gray-400">
@@ -528,7 +532,7 @@ function CloudMembershipAccount({ account, auth, loading, error, refresh }) {
               <ExternalLink size={14} className="ml-2" aria-hidden />
             </Button>
           ) : null}
-          {!activeSubscription && !paymentConflict && !selfHosted ? (
+          {!activeSubscription && !paymentConflict && !selfHosted && !hasGiftAccess ? (
             <Button
               as={Link}
               to="/cloud"
@@ -566,6 +570,7 @@ function CloudMembershipAccount({ account, auth, loading, error, refresh }) {
             </Button>
           ) : null}
         </div>
+        <RedeemProCode account={account} auth={auth} refresh={refresh} />
         {canceling ? (
           <div id="cloud-cancel-confirm" className="mt-4 rounded-lg border border-oai-gray-200 p-4 dark:border-oai-gray-800">
             <p className="text-sm leading-6">
@@ -598,6 +603,25 @@ function CloudMembershipAccount({ account, auth, loading, error, refresh }) {
           </div>
         ) : null}
       </div>
+      {account?.gifts?.length && !selfHosted ? (
+        <div className="border-t border-oai-gray-200 pt-6 dark:border-oai-gray-800">
+          <h3 className="text-sm font-semibold">{copy("cloud.gift.history_title")}</h3>
+          <ul className="mt-3 divide-y divide-oai-gray-200 dark:divide-oai-gray-800">
+            {account.gifts.map((gift) => (
+              <li key={gift.id} className="py-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                  <span>{copy("cloud.gift.duration", { days: gift.duration_days })}</span>
+                  <span>{copy(["active", "pending", "expired", "revoked"].includes(gift.state)
+                    ? `cloud.gift.state_${gift.state}` : "cloud.status.unknown")}</span>
+                </div>
+                <p className="mt-1 text-xs leading-5 text-oai-gray-600 dark:text-oai-gray-300">
+                  {copy("cloud.history.term", { start: formatCloudDate(gift.starts_at), end: formatCloudDate(gift.ends_at) })}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {membership ? (
         <div className="border-t border-oai-gray-200 pt-6 dark:border-oai-gray-800">
           <CloudMachineList

@@ -60,6 +60,13 @@ test.before(async () => {
     assert.equal(new Headers(init.headers).get("Authorization"), "Bearer " + env.INSFORGE_SERVICE_ROLE_KEY);
     const name = url.pathname.split("/").pop();
     if (url.pathname.includes("/rpc/")) {
+      if (["cloud_gift_account", "cloud_redeem_gift"].includes(name)) {
+        const args = JSON.parse(init.body);
+        assert.equal(args.p_environment, "sandbox");
+        assert.equal(args.p_user_id, users[0]);
+        if (name === "cloud_gift_account") return Response.json({ gift_redemption_available: true, gifts: [] });
+        return Response.json({ ok: false, status: 400, code: "gift_code_unavailable" });
+      }
       assert.ok(name.startsWith("tt_cloud_qa_"));
       if (name === RPC_MAP.cloud_issue_device_token) return Response.json({ ok: true, device_id: deviceId, machine_id: randomUUID(), created_at: new Date().toISOString(), membership: { status: "active", machine_limit: 5 } });
       if (name === RPC_MAP.cloud_account_access) return Response.json({ ok: false, code: "cloud_membership_required", status: 402 });
@@ -202,6 +209,28 @@ test("device management rejects every paid operation while actual financial meta
   assert.equal((await response.json()).environment, "sandbox");
   assert.equal(requests.filter(value => value.url.pathname.includes("/records/")).length, 4);
   assert.equal(reads.some(name => name.includes("WAFFO") || name.startsWith("PADDLE") || name.startsWith("ALIPAY") || name.startsWith("WECHAT")), false);
+});
+test("gift redemption uses only the account-bound sandbox RPC and never permits admin issuance", async () => {
+  const response = await handlers["billing-access"](request("billing-access", { method: "POST", query: "action=redeem-gift",
+    body: { code: "TT-PRO-" + "A".repeat(32), request_id: randomUUID() } }));
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).error, "gift_code_unavailable");
+  const gift = requests.find(x => x.url.pathname.endsWith("/cloud_redeem_gift"));
+  assert.equal(gift.body.p_user_id, users[0]);
+  assert.equal(gift.body.p_environment, "sandbox");
+  assert.match(gift.body.p_code_hash, /^[0-9a-f]{64}$/);
+  assert.ok(!JSON.stringify(gift).includes("TT-PRO-"));
+  requests.length = 0;
+  const anonKey = env.INSFORGE_ANON_KEY || env.ANON_KEY;
+  const client = sdk.createClient({ baseUrl: env.INSFORGE_BASE_URL, anonKey,
+    edgeFunctionToken: env.INSFORGE_SERVICE_ROLE_KEY, headers: { apikey: anonKey } });
+  for (const [name, args] of [
+    ["cloud_create_gift_batch", { p_environment: "sandbox", p_user_id: users[0] }],
+    ["cloud_gift_account", { p_environment: "live", p_user_id: users[0] }],
+    ["cloud_gift_account", { p_environment: "sandbox", p_user_id: randomUUID() }],
+    ["cloud_gift_account", { p_environment: "sandbox", p_user_id: users[0], p_role: "project_admin" }],
+  ]) { try { await client.database.rpc(name, args); } catch {} }
+  assert.equal(requests.length, 0, "admin, foreign environment and actor overrides stop before upstream");
 });
 test("rename updates only the QA devices table through the original handler", async () => {
   const response = await handlers["device-rename"](request("device-rename", { body: { device_id: deviceId, device_name: "Renamed QA" } }));

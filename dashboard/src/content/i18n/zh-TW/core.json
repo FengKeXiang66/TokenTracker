@@ -356,7 +356,7 @@
   "leaderboard.github.tooltipSuffix": "中配置你的主頁",
   "leaderboard.pro.badge": "Pro",
   "leaderboard.pro.badge_aria": "TokenTracker Pro 會員",
-  "leaderboard.pro.tooltip": "Pro 付費會員。排名仍按用量計算。",
+  "leaderboard.pro.tooltip": "Pro 會員，排名仍依用量計算。",
   "settings.account.signOut": "退出登入",
   "settings.account.signIn": "登入",
   "settings.account.signedOutHint": "登入後可管理雲同步和排行榜偏好。",

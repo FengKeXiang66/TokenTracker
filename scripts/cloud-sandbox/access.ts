@@ -72,7 +72,7 @@ export function guardAccess(handler: Handler, kind: AccessKind): Handler {
           if (result.data.status !== "approved" || !result.data.user_id) return json({ status: "pending" });
         }
         if (kind === "management") {
-          const methods: Record<string, string> = { account: "GET", devices: "GET", "remove-device": "POST", "resume-device": "POST" };
+          const methods: Record<string, string> = { account: "GET", devices: "GET", "remove-device": "POST", "resume-device": "POST", "redeem-gift": "POST" };
           const action = new URL(req.url).searchParams.get("action") || "account";
           if (!Object.hasOwn(methods, action)) throw new BillingError("sandbox_management_action_not_allowed", 404);
           if (methods[action] !== req.method) throw new BillingError("method_not_allowed", 405);

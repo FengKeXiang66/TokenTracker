@@ -27,10 +27,10 @@ describe("server-confirmed Pro profile identity", () => {
     expect(marker).toHaveTextContent("Pro");
     await act(async () => { await user.tab(); });
     expect(marker).toHaveFocus();
-    const tooltip = await screen.findByText("Paid Pro member. Rankings stay based on usage.");
+    const tooltip = await screen.findByText("Pro member. Rankings stay based on usage.");
     expect(tooltip).toHaveTextContent("Rankings stay based on usage.");
     expect(marker).toHaveAttribute("aria-description", tooltip.textContent);
     await act(async () => { await user.keyboard("{Escape}"); });
-    expect(screen.queryByText("Paid Pro member. Rankings stay based on usage.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Pro member. Rankings stay based on usage.")).not.toBeInTheDocument();
   });
 });

@@ -10,6 +10,10 @@ export const QA_RPC_NAMES = [
 const TABLE_MAP = Object.fromEntries(QA_TABLE_NAMES.map(name => [name, "tt_cloud_qa_" + name]));
 const RPC_MAP = Object.fromEntries(QA_RPC_NAMES.map(name => [name, "tt_cloud_qa_" + name]));
 const FINANCIAL_READS = new Set(["tokentracker_cloud_orders", "tokentracker_cloud_payments", "tokentracker_cloud_subscriptions"]);
+const GIFT_RPC_ARGS: Record<string, string[]> = {
+  cloud_gift_account: ["p_environment", "p_user_id"],
+  cloud_redeem_gift: ["p_code_hash", "p_environment", "p_request_id", "p_user_id"],
+};
 const RECORDS = new Set(Object.values(TABLE_MAP));
 const RPCS = new Set(Object.values(RPC_MAP));
 
@@ -53,12 +57,18 @@ export function createClient(config: Parameters<typeof createActualClient>[0]) {
     if (!route) throw new Error("qa_transport_not_allowed");
     const name = route[2];
     if (route[1] === "rpc") {
-      if (!RPCS.has(name) || method !== "POST" || typeof options.body !== "string") throw new Error("qa_transport_not_allowed");
+      const gift = Object.hasOwn(GIFT_RPC_ARGS, name);
+      if ((!RPCS.has(name) && !gift) || method !== "POST" || typeof options.body !== "string") throw new Error("qa_transport_not_allowed");
       let args;
       try { args = JSON.parse(options.body); } catch { throw new Error("qa_transport_not_allowed"); }
       if (!args || Array.isArray(args) || typeof args !== "object" ||
-        (name.startsWith("tt_cloud_qa_cloud_") && args.p_environment !== "sandbox") ||
+        ((name.startsWith("tt_cloud_qa_cloud_") || gift) && args.p_environment !== "sandbox") ||
         (name !== RPC_MAP.cloud_ingest_usage && !users.has(String(args.p_user_id).toLowerCase()))) throw new Error("qa_transport_not_allowed");
+      if (gift && (JSON.stringify(Object.keys(args).sort()) !== JSON.stringify(GIFT_RPC_ARGS[name]) ||
+          name === "cloud_redeem_gift" && (args.p_code_hash !== null && !/^[0-9a-f]{64}$/.test(args.p_code_hash || "") ||
+            !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(args.p_request_id || "")))) {
+        throw new Error("qa_gift_operation_rejected");
+      }
     } else if (FINANCIAL_READS.has(name)) {
       if (method !== "GET" || options.body != null || !filteredUser(url, users) ||
         url.searchParams.getAll("environment").length !== 1 || url.searchParams.get("environment") !== "eq.sandbox") {
@@ -88,6 +98,7 @@ export function createClient(config: Parameters<typeof createActualClient>[0]) {
         throw new Error("qa_table_not_allowed");
       };
       if (property === "rpc") return (name: string, args?: Parameters<typeof target.rpc>[1], options?: Parameters<typeof target.rpc>[2]) => {
+        if (Object.hasOwn(GIFT_RPC_ARGS, name)) return target.rpc(name, args, options);
         if (!Object.hasOwn(RPC_MAP, name)) throw new Error("qa_rpc_not_allowed");
         return target.rpc(RPC_MAP[name], args, options);
       };

@@ -122,6 +122,7 @@ export async function rpc(client: ReturnType<typeof billingClient>, name: string
   if (result.error) {
     const message = result.error.message || "";
     const code = message.includes("self-hosted access is free") ? "self_hosted_free"
+      : message.includes("gift_membership_active") ? "gift_membership_active"
       : message.includes("payment conflict must be resolved") ? "payment_conflict"
       : (message.includes("previous retry order has a successful payment") ||
       message.includes("paid Waffo order cannot be restarted")) ? "checkout_already_paid"

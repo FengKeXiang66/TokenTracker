@@ -180,8 +180,15 @@ async function createNativeQAServer({ packageRoot, repoRoot, allowedUserIDs, own
           if (business) {
             const supplied = sourceHeaders.get("Authorization");
             if (supplied && (!supplied.startsWith("Bearer ") || !broker.acceptsAccessToken(supplied.slice(7)))) throw Error("native_qa_session_rejected");
-            if (value.method === "POST" && (businessFunction !== "tokentracker-billing" || target.searchParams.get("action") !== "reconcile" ||
-                !ownedOrderIDs.includes(JSON.parse(value.body)?.id))) throw Error("native_qa_mutation_rejected");
+            if (value.method === "POST") {
+              const input = JSON.parse(value.body);
+              const action = target.searchParams.get("action");
+              const orderRead = action === "reconcile" && ownedOrderIDs.includes(input?.id);
+              const giftClaim = action === "redeem-gift" && input && !Array.isArray(input) &&
+                Object.keys(input).length === 2 && typeof input.code === "string" && input.code.length <= 256 &&
+                /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.request_id || "");
+              if (businessFunction !== "tokentracker-billing" || !orderRead && !giftClaim) throw Error("native_qa_mutation_rejected");
+            }
           }
           const localFetch = async (input, init) => {
             const localURL = new URL(input, origin);

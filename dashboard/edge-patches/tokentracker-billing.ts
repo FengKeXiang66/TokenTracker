@@ -1,5 +1,6 @@
 import { cancelWaffoSubscription, closeUnpaidWaffoAttempts, queryWaffoBindings, createWaffoCheckout, validateWaffoProduct, waffoProductId } from "./cloud/waffo.ts";
 import { reconcileWaffoOrder } from "./cloud/waffo-processing.ts";
+import { giftAccount, redeemGift } from "./cloud/gifts.ts";
 import {
   BillingError,
   type CloudOrder,
@@ -95,7 +96,7 @@ export default async function billing(req: Request): Promise<Response> {
       return object(result.data) as unknown as CloudOrder;
     }
     if (action === "account" && req.method === "GET") {
-      const [membership, payments, subscriptions, orders, conflicts] = await Promise.all([
+      const [membership, payments, subscriptions, orders, conflicts, gifts] = await Promise.all([
         rpc(client, "cloud_membership", {
           p_user_id: userId,
           p_environment: environment,
@@ -125,6 +126,7 @@ export default async function billing(req: Request): Promise<Response> {
           .eq("user_id", userId).eq("environment", environment)
           .not("retry_payment_conflict_at", "is", null)
           .order("created_at", { ascending: false }).limit(20),
+        giftAccount(client, userId, environment),
       ]);
       if (payments.error || subscriptions.error || orders.error || conflicts.error) {
         throw new BillingError("billing_operation_failed", 503);
@@ -136,7 +138,15 @@ export default async function billing(req: Request): Promise<Response> {
         subscriptions: subscriptions.data,
         pending_orders: orders.data,
         conflict_orders: conflicts.data,
+        ...gifts,
       });
+    }
+    if (action === "redeem-gift" && req.method === "POST") {
+      const input = await body(req);
+      const result = await redeemGift(client, userId, environment, input.code, uuid(input.request_id));
+      const response = json(result.data, result.status);
+      if (result.status === 429) response.headers.set("Retry-After", String(object(result.data).retry_after || 900));
+      return response;
     }
     if (action === "trial" && req.method === "POST") {
       return json({

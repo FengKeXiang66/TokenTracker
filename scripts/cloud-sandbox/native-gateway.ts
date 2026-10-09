@@ -16,8 +16,8 @@ const METHODS: Record<string, string> = {
 };
 const BILLING_METHODS: Record<string, string> = { catalog: "GET", account: "GET", devices: "GET", order: "GET",
   checkout: "POST", "restart-checkout": "POST", reconcile: "POST", cancel: "POST", portal: "POST", trial: "POST",
-  "remove-device": "POST", "resume-device": "POST" };
-const MANAGEMENT = new Set(["account", "devices", "remove-device", "resume-device"]);
+  "remove-device": "POST", "resume-device": "POST", "redeem-gift": "POST" };
+const MANAGEMENT = new Set(["account", "devices", "remove-device", "resume-device", "redeem-gift"]);
 type TokenRow = { user_id: string; cloud_environment: string; revoked_at: unknown } | null;
 type Dependencies = { getEnv?: (name: string) => string | undefined; fetchImpl?: typeof fetch;
   lookupToken?: (hash: string) => Promise<TokenRow> };

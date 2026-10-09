@@ -620,7 +620,7 @@ leaderboard.github.tooltipSettingsLink,ui,LeaderboardPage,LeaderboardPage,github
 leaderboard.github.tooltipSuffix,ui,LeaderboardPage,LeaderboardPage,github_tooltip_suffix,"to appear here",,active
 leaderboard.pro.badge,ui,LeaderboardPage,LeaderboardProBadge,pro_badge,Pro,,active
 leaderboard.pro.badge_aria,ui,LeaderboardPage,LeaderboardProBadge,pro_badge_aria,TokenTracker Pro member,,active
-leaderboard.pro.tooltip,ui,LeaderboardPage,LeaderboardProBadge,pro_tooltip,Paid Pro member. Rankings stay based on usage.,,active
+leaderboard.pro.tooltip,ui,LeaderboardPage,LeaderboardProBadge,pro_tooltip,Pro member. Rankings stay based on usage.,,active
 leaderboard.summary.percentile,ui,LeaderboardPage,LeaderboardMeChip,summary_percentile,"Top {{p}}%",,active
 leaderboard.summary.jump_to_me,ui,LeaderboardPage,LeaderboardMeChip,summary_jump_to_me,"Jump to my row",,active
 leaderboard.summary.view_profile,ui,LeaderboardPage,LeaderboardMeChip,summary_view_profile,"View your profile",,active
@@ -1755,7 +1755,7 @@ cloud.renewal.manual,cloud,*,Cloud,text,"Fixed term, manual renewal. No automati
 cloud.renewal.auto,cloud,*,Cloud,text,Waffo subscription. Renews automatically until canceled. Cancel anytime; keep the paid term.,,active
 cloud.feature.sync,cloud,*,Cloud,text,Changed data syncs every {{minutes}} minutes. Pause or reconnect sync devices from your account.,,active
 cloud.feature.history,cloud,*,Cloud,text,"{{days}} days of hourly detail and {{months}} months of daily history, with Cloud data exports.",,active
-cloud.feature.pro_identity,cloud,*,Cloud,text,Paid Pro avatar frame and badge. Rankings stay based on usage.,,active
+cloud.feature.pro_identity,cloud,*,Cloud,text,Pro avatar frame and badge. Rankings stay based on usage.,,active
 cloud.feature.privacy_detail,cloud,*,Cloud,text,"No prompts, code, provider credentials, or local session and project records.",,active
 cloud.catalog.loading,cloud,*,Cloud,text,Loading Pro availability…,,active
 cloud.catalog.preview,cloud,*,Cloud,text,Pro subscriptions are not open yet. Prices are proposed; payment and trial activation are disabled until launch.,,active
@@ -1931,7 +1931,7 @@ cloud.prompt.learn,cloud,*,Cloud,text,Learn about Pro,,active
 cloud.prompt.local,cloud,*,Cloud,text,Use local data,,active
 cloud.prompt.deadline_trial,cloud,*,Cloud,text,Your trial ends {{date}}. You will not be charged automatically. Personal Cloud history then has a 30-day read and export window; local use and community uploads stay free.,,active
 cloud.prompt.deadline_transition,cloud,*,Cloud,text,Your transition ends {{date}}. Existing personal Cloud history then has 30 days for reading and export. Local use and community uploads continue.,,active
-cloud.prompt.deadline_active,cloud,*,Cloud,text,Your paid Pro term remains available through {{date}}. Check account billing for renewal status. Your local data stays available after the term ends.,,active
+cloud.prompt.deadline_active,cloud,*,Cloud,text,Your Pro access remains available through {{date}}. Check account billing for renewal status. Your local data stays available after the term ends.,,active
 instance.configuration.invalid,cloud,*,Cloud,text,"This instance connection is not configured safely. The operator must provide a valid backend URL and that instance's public anon key, then reload and sign in.",,active
 instance.configuration.changed,cloud,*,Cloud,text,The backend instance changed. Reload and sign in to the selected instance.,,active
 cloud.status.self_hosted,cloud,*,Cloud,text,Self-hosted · free,,active
@@ -1948,3 +1948,28 @@ legal.nav.terms,ui,*,LegalLinks,terms,Terms of Service,,active
 legal.nav.support,ui,*,LegalLinks,support,Support,,active
 cloud.action.open_app,cloud,CloudCheckoutPage,Cloud,link,Open in TokenTracker,,active
 cloud.checkout.return_app_hint,cloud,CloudCheckoutPage,Cloud,text,Check this order with the account signed in to your desktop app. The server confirms access.,,active
+cloud.gift.redeem_action,cloud,*,RedeemProCode,text,Redeem Pro code,,active
+cloud.gift.detail,cloud,*,RedeemProCode,text,A gift includes all Pro features and creates no auto-renewal. Any existing subscription is managed separately.,,active
+cloud.gift.code_label,cloud,*,RedeemProCode,text,Pro gift code,,active
+cloud.gift.confirm,cloud,*,RedeemProCode,text,Redeem code,,active
+cloud.gift.redeeming,cloud,*,RedeemProCode,text,Redeeming…,,active
+cloud.gift.redeemed,cloud,*,RedeemProCode,text,Your gift is recorded. Membership access and dates are shown in your account.,,active
+cloud.gift.already_redeemed,cloud,*,RedeemProCode,text,You have already redeemed this code. Its gift is shown in your account.,,active
+cloud.gift.refresh_needed,cloud,*,RedeemProCode,text,"The code was redeemed, but membership could not be refreshed. Refresh your account to confirm its access and dates.",,active
+cloud.gift.redeem_another,cloud,*,RedeemProCode,text,Redeem another code,,active
+cloud.gift.membership_label,cloud,*,RedeemProCode,text,Gifted Pro,,active
+cloud.gift.history_title,cloud,*,RedeemProCode,text,Pro gifts,,active
+cloud.gift.duration,cloud,*,RedeemProCode,text,{{days}} days of Pro,,active
+cloud.gift.term,cloud,*,RedeemProCode,text,"{{days}} days of Pro, {{start}} to {{end}}.",,active
+cloud.gift.state_active,cloud,*,RedeemProCode,text,Active,,active
+cloud.gift.state_pending,cloud,*,RedeemProCode,text,Starts after current access,,active
+cloud.gift.state_expired,cloud,*,RedeemProCode,text,Expired,,active
+cloud.gift.state_revoked,cloud,*,RedeemProCode,text,Revoked,,active
+cloud.gift.error_unavailable,cloud,*,RedeemProCode,text,This code is unavailable. Check the code or contact the person who gave it to you.,,active
+cloud.gift.error_rate_limit,cloud,*,RedeemProCode,text,Too many attempts. Wait a little before trying again.,,active
+cloud.gift.error_not_available,cloud,*,RedeemProCode,text,Gift redemption is not available on this instance yet.,,active
+cloud.gift.error_renewal,cloud,*,RedeemProCode,text,Cancel your existing auto-renewal before redeeming. Current access stays available; the code is used only when redemption succeeds.,,active
+cloud.gift.error_checkout,cloud,*,RedeemProCode,text,Review your unfinished payment order before redeeming. This code has not been used.,,active
+cloud.gift.error_active,cloud,*,RedeemProCode,text,You have an active or upcoming Pro gift. Manage it in your account before starting another payment.,,active
+cloud.gift.error_network,cloud,*,RedeemProCode,text,The redemption result could not be confirmed. Retry the same code; an already recorded gift will not be added twice.,,active
+cloud.prompt.deadline_gift,cloud,*,RedeemProCode,text,Your gifted Pro access ends {{date}}. The gift creates no auto-renewal. Your local data stays available afterward.,,active

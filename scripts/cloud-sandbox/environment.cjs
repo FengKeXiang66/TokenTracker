@@ -10,7 +10,7 @@ function tokentrackerSandboxEnv(name) {
   }
   if (name.startsWith("WAFFO_")) return Deno.env.get("TOKENTRACKER_SANDBOX_" + name);
   if (["INSFORGE_BASE_URL", "INSFORGE_ANON_KEY", "ANON_KEY", "INSFORGE_SERVICE_ROLE_KEY",
-    "JWT_SECRET", "JWT_PUBLIC_KEY", "TOKENTRACKER_SANDBOX_USER_IDS"].includes(name)) {
+    "JWT_SECRET", "JWT_PUBLIC_KEY", "TOKENTRACKER_SANDBOX_USER_IDS", "TOKENTRACKER_SANDBOX_GIFT_USER_IDS"].includes(name)) {
     return Deno.env.get(name);
   }
   // Retired payment credentials and all future unreviewed settings stay closed.

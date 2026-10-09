@@ -47,6 +47,8 @@ export function CloudPage() {
   const launched = cloudCheckoutLaunched(catalog);
   const providerAvailable = catalog?.providers?.waffo;
   const membership = account?.membership;
+  const hasGiftAccess = membership?.has_gift === true ||
+    account?.gifts?.some((gift) => ["active", "pending"].includes(gift.state));
   const paymentConflict = [...(account?.conflict_orders || []), ...(account?.pending_orders || [])]
     .some((order) => order.retry_payment_conflict_at);
   const hasCloud =
@@ -227,7 +229,7 @@ export function CloudPage() {
                   : copy("cloud.price.waiting")}
               </p>
             </div>
-            {hasCloud || openSubscription ? (
+            {hasCloud || openSubscription || hasGiftAccess ? (
               <Button
                 as={Link}
                 to="/settings?section=account"
@@ -236,7 +238,7 @@ export function CloudPage() {
                 {copy("cloud.action.manage_membership")}
               </Button>
             ) : null}
-            {!hasCloud && !openSubscription && !trialUnavailable ? (
+            {!hasCloud && !openSubscription && !hasGiftAccess && !trialUnavailable ? (
               <Button
                 type="button"
                 onClick={() => checkout(true)}
@@ -256,7 +258,7 @@ export function CloudPage() {
                   : trialUnavailable ? copy("cloud.error.trial") : copy("cloud.trial.no_card")}
               </p>
             ) : null}
-            {!openSubscription ? <Button
+            {!openSubscription && !hasGiftAccess ? <Button
               type="button"
               variant={trialUnavailable && !hasCloud ? "primary" : "secondary"}
               onClick={() => checkout()}
@@ -265,6 +267,9 @@ export function CloudPage() {
             >
               {copy("cloud.action.subscribe")}
             </Button> : null}
+            {hasGiftAccess ? <p className="mt-3 text-xs leading-5 text-oai-gray-600 dark:text-oai-gray-300">
+              {copy("cloud.gift.error_active")}
+            </p> : null}
             <p className="mt-3 text-xs leading-5 text-oai-gray-500 dark:text-oai-gray-400">
               {billingMode === "fixed"
                 ? copy("cloud.renewal.manual")

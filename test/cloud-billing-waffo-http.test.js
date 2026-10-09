@@ -72,6 +72,8 @@ async function setupDatabase() {
       reasoning_output_tokens bigint,total_tokens bigint CHECK(total_tokens>=0),billable_total_tokens bigint,
       conversations integer,total_cost_usd numeric,created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now(),
       PRIMARY KEY(user_id,device_id,hour_start,source,model));
+    GRANT USAGE ON SCHEMA auth TO project_admin;
+    GRANT SELECT(id) ON auth.users TO project_admin;
     GRANT ALL ON tokentracker_devices,tokentracker_device_machine,tokentracker_device_tokens,
       tokentracker_device_codes,tokentracker_hourly TO project_admin;`);
   await db.exec(functionSql(migration("20260719152022_harden-backend-concurrency.sql"), "refresh_tokentracker_device_identity"));
@@ -81,7 +83,7 @@ async function setupDatabase() {
     "20261007120000_cloud-waffo.sql", "20261007130000_cloud-waffo-retry.sql",
     "20261007140000_cloud-waffo-attempts.sql", "20261007150000_cloud-waffo-authorizations.sql",
     "20261007160000_cloud-waffo-sandbox-periods.sql",
-    "20261008120000_self-hosted-access.sql"]) await db.exec(migration(name));
+    "20261008120000_self-hosted-access.sql", "20261009120000_cloud-gifts.sql"]) await db.exec(migration(name));
   await db.exec("UPDATE tokentracker_cloud_policy SET phase='active',launch_at=now()-interval '1 hour' WHERE environment='sandbox'");
 }
 

@@ -112,6 +112,24 @@ describe("seven-day reminder dismissal", () => {
 });
 
 describe("account date reminders", () => {
+  it("uses a gift-specific reminder in the last seven days and honors its cooldown", () => {
+    const value = input({ membership: { ...free, status: "active", access_source: "gift",
+      expires_at: new Date(now + 7 * day).toISOString(), can_read_cloud: true, can_upload_cloud: true } });
+    expect(policy.cloudDeadlinePromptDecision(value)).toMatchObject({ kind: "deadline", scene: "deadline_gift",
+      bodyKey: "cloud.prompt.deadline_gift", date: value.membership.expires_at });
+    expect(policy.cloudDeadlinePromptDecision({ ...value, now: now - 1 })).toBeNull();
+    policy.dismissCloudPrompt(value.userId, "deadline_gift", now, value.storage);
+    expect(policy.cloudDeadlinePromptDecision(value)).toBeNull();
+    expect(policy.cloudDeadlinePromptDecision({ ...value, now: now + 7 * day })).toBeNull();
+  });
+  it("never promotes another payment to gifted Pro and leaves an ongoing recurring contract alone", () => {
+    const value = input({ membership: { ...free, status: "active", access_source: "gift",
+      expires_at: new Date(now + day).toISOString(), can_read_cloud: true, can_upload_cloud: true } });
+    expect(policy.cloudContextualPromptDecision(value)).toBeNull();
+    expect(policy.cloudDeadlinePromptDecision({ ...value, subscriptions: [{ status: "active", cancel_at_period_end: false }] })).toBeNull();
+    expect(policy.cloudDeadlinePromptDecision({ ...value, membership: { ...value.membership, access_source: "mixed" } }))
+      .toMatchObject({ bodyKey: "cloud.prompt.deadline_active" });
+  });
   it.each([["trial", "trial_ends_at", 2], ["transition", "transition_ends_at", 7], ["active", "expires_at", 7]])("shows %s only inside its reminder window and never after expiry", (status, field, days) => {
       const value = input({ membership: { ...free, status, [field]: new Date(now + days * day).toISOString() } });
       expect(policy.cloudDeadlinePromptDecision(value)).toMatchObject({ kind: "deadline", scene: `deadline_${status}` });

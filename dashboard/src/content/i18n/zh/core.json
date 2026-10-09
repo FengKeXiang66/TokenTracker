@@ -424,7 +424,7 @@
   "leaderboard.github.tooltipSuffix": "中配置你的主页",
   "leaderboard.pro.badge": "Pro",
   "leaderboard.pro.badge_aria": "TokenTracker Pro 会员",
-  "leaderboard.pro.tooltip": "Pro 付费会员。排名仍按用量计算。",
+  "leaderboard.pro.tooltip": "Pro 会员，排名仍按用量计算。",
   "settings.account.signOut": "退出登录",
   "settings.account.signIn": "登录",
   "settings.account.signedOutHint": "登录后可管理云同步和排行榜偏好。",

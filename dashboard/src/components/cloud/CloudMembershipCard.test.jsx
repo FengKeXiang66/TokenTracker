@@ -106,6 +106,66 @@ function show() {
 }
 
 describe("Cloud membership management", () => {
+  it.each([[], [{ id: "revoked-recent", state: "revoked", duration_days: 30 }]])(
+    "honors current gift access even when recent history omits its active gift %j", async (gifts) => {
+      mocks.account.membership.has_gift = true;
+      mocks.account.gifts = gifts;
+      mocks.account.subscriptions = [];
+      mocks.account.pending_orders = [];
+      show(); await screen.findByText("Work laptop");
+      expect(screen.queryByRole("link", { name: "Renew Pro" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "View Pro plans" })).not.toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Open dashboard" })).toHaveAttribute("href", "/dashboard");
+    },
+  );
+  it.each([false, "true"])("does not treat has_gift %s as an authoritative gift", async (hasGift) => {
+    mocks.account.membership.has_gift = hasGift;
+    mocks.account.gifts = [];
+    mocks.account.subscriptions = [];
+    mocks.account.pending_orders = [];
+    show(); await screen.findByText("Work laptop");
+    expect(screen.getByRole("link", { name: "Renew Pro" })).toHaveAttribute("href", "/cloud");
+    expect(screen.queryByText("Gifted Pro")).not.toBeInTheDocument();
+  });
+  it("keeps gifted Pro separate from paid bills and never invents a renewal", async () => {
+    mocks.account.gift_redemption_available = true;
+    mocks.account.membership.access_source = "gift";
+    mocks.account.subscriptions = [];
+    mocks.account.pending_orders = [];
+    mocks.account.gifts = [{ id: "gift-1", duration_days: 30, starts_at: "2026-10-09", ends_at: "2026-11-08", state: "active" }];
+    show(); await screen.findByText("Work laptop");
+    expect(screen.getByText("Gifted Pro")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Pro gifts" })).toBeInTheDocument();
+    expect(screen.getByText("30 days of Pro")).toBeInTheDocument();
+    expect(screen.queryByText(/Renews on|Auto-renewal is off|Auto-renewal is paused/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Renew Pro" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Redeem Pro code" })).toBeEnabled();
+    expect(screen.queryByText(/Waffo/)).not.toBeInTheDocument();
+    expect(mocks.account.payments).toEqual([]);
+  });
+  it("keeps an upcoming gift and canceled recurring access distinct from the provider billing date", async () => {
+    mocks.account.subscriptions[0].cancel_at_period_end = true;
+    mocks.account.subscriptions[0].next_billed_at = "2027-11-04";
+    mocks.account.membership.access_source = "payment";
+    mocks.account.gifts = [{ id: "future-gift", duration_days: 90, starts_at: "2027-10-04", ends_at: "2028-01-02", state: "pending" }];
+    show(); await screen.findByText("Work laptop");
+    expect(screen.getByText("Pro active")).toBeInTheDocument();
+    expect(screen.getByText("Starts after current access")).toBeInTheDocument();
+    expect(screen.getByText(/Available until/)).toHaveTextContent("Oct 4, 2027");
+    expect(screen.getByText(/Auto-renewal is off/)).toBeInTheDocument();
+    expect(screen.queryByText(/Renews on/)).not.toBeInTheDocument();
+    expect(mocks.account.subscriptions[0].next_billed_at).toBe("2027-11-04");
+  });
+  it.each(["expired", "revoked"])("shows a %s gift without Pro access or removing normal plan discovery", async (state) => {
+    mocks.account.subscriptions = [];
+    mocks.account.membership = { status: "free", access_source: "none", can_read_cloud: false, can_upload_cloud: false };
+    mocks.account.gifts = [{ id: "old-gift", duration_days: 365, starts_at: "2024-10-09", ends_at: "2025-10-09", state }];
+    show(); await screen.findByText("Work laptop");
+    expect(screen.getByText(state === "expired" ? "Expired" : "Revoked")).toBeInTheDocument();
+    expect(screen.queryByText("Gifted Pro")).not.toBeInTheDocument();
+    expect(screen.queryByText("Pro active")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View Pro plans" })).toBeInTheDocument();
+  });
   it("keeps self-hosted device management free without trial, prices or an official payment portal", async () => {
     mocks.account.membership = { status: "self_hosted", hosting_mode: "self_hosted", machine_limit: null,
       trial_available: false, can_read_cloud: true, can_upload_cloud: true };

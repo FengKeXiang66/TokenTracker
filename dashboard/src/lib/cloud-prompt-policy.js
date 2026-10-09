@@ -196,7 +196,8 @@ export function cloudDeadlinePromptDecision({ userId, membership, subscriptions 
     : status === "transition" ? membership.transition_ends_at : membership.expires_at;
   const remaining = Date.parse(end || "") - now;
   if (!Number.isFinite(remaining) || remaining <= 0 || remaining > (status === "trial" ? 2 : 7) * DAY) return null;
-  const scene = `deadline_${status}`;
+  const giftOnly = status === "active" && membership.access_source === "gift";
+  const scene = giftOnly ? "deadline_gift" : `deadline_${status}`;
   const cooldown = cooling(userId, scene, false, now, storage);
   if (cooldown.hidden || !cooldown.usable) return null;
   return { scene, kind: "deadline", bodyKey: `cloud.prompt.${scene}`, date: end };

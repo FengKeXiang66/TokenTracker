@@ -95,14 +95,14 @@ describe("contextual Cloud panels", () => {
     render(<MemoryRouter><CloudDeadlinePrompt userId={userId}
       membership={{ ...membership, status: "active", expires_at: "2026-10-09T08:00:00Z" }}
       subscriptions={[{ status: "past_due", cancel_at_period_end: false }]} /></MemoryRouter>);
-    expect(screen.getByText(/paid Pro term remains available/)).toHaveTextContent(/Check account billing for renewal status/);
+    expect(screen.getByText(/Pro access remains available/)).toHaveTextContent(/Check account billing for renewal status/);
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
   it("shows a quiet canceled-term date without a sales button", () => {
     render(<MemoryRouter><CloudDeadlinePrompt userId={userId}
       membership={{ ...membership, status: "active", expires_at: "2026-10-09T08:00:00Z" }}
       subscriptions={[{ status: "active", cancel_at_period_end: true }]} /></MemoryRouter>);
-    expect(screen.getByText(/paid Pro term remains available/)).toHaveTextContent("2026");
+    expect(screen.getByText(/Pro access remains available/)).toHaveTextContent("2026");
     expect(screen.queryByRole("link", { name: "Try Pro free" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "View Pro plans" })).not.toBeInTheDocument();
   });

@@ -90,6 +90,9 @@ test("billing actions split finance from QA device management; neither can selec
   }
   assert.equal((await f.invoke("fn=tokentracker-billing&action=remove-device", { method: "POST", body: { machine_id: randomUUID() } })).status, 200);
   assert.equal(f.calls.at(-1).url.pathname, "/tokentracker-billing-access-sandbox");
+  assert.equal((await f.invoke("fn=tokentracker-billing&action=redeem-gift", { token: jwt(peer), method: "POST",
+    body: { code: "TT-PRO-" + "A".repeat(32), request_id: randomUUID() } })).status, 200);
+  assert.equal(f.calls.at(-1).url.pathname, "/tokentracker-billing-access-sandbox");
   assert.equal((await f.invoke("fn=tokentracker-billing&action=catalog")).status, 200);
   assert.equal(f.calls.at(-1).url.pathname, "/tokentracker-billing-sandbox");
   assert.equal((await f.invoke("fn=tokentracker-billing&action=catalog", { token: jwt(peer) })).status, 403);

@@ -105,10 +105,12 @@ export function CloudCheckoutPage() {
   const paymentConflict = Boolean(order?.retry_payment_conflict_at ||
     [...(account?.conflict_orders || []), ...(account?.pending_orders || [])]
       .some((item) => item.retry_payment_conflict_at));
+  const hasGiftAccess = membership?.has_gift === true || account?.membership?.has_gift === true ||
+    account?.gifts?.some((gift) => ["active", "pending"].includes(gift.state));
   const canRestartCheckout = order?.provider === "waffo" &&
     order.payment_state === "unpaid" &&
     order.status !== "paid" &&
-    ["awaiting", "expired", "canceled"].includes(state) && launched && providerAvailable && !paymentConflict;
+    ["awaiting", "expired", "canceled"].includes(state) && launched && providerAvailable && !paymentConflict && !hasGiftAccess;
   const requestAuth = auth?.getAccessToken;
   const recent = readCloudPurchase(userId);
   const signInUrl = `/login?next=${encodeURIComponent(`/billing/checkout?${params}`)}`;
@@ -350,6 +352,15 @@ export function CloudCheckoutPage() {
           variant="secondary"
           className="w-full no-underline"
         >
+          {copy("cloud.action.manage_membership")}
+        </Button>
+      </div>
+    );
+  } else if (state === "review" && !orderId && hasGiftAccess) {
+    contentNode = (
+      <div className="space-y-5">
+        <BillingNotice>{copy("cloud.gift.error_active")}</BillingNotice>
+        <Button as={Link} to="/settings?section=account" variant="secondary" className="w-full no-underline">
           {copy("cloud.action.manage_membership")}
         </Button>
       </div>
@@ -628,6 +639,7 @@ export function CloudCheckoutPage() {
             "fixed_term_still_active",
             "checkout_request_conflict",
             "pending_checkout_exists",
+            "gift_membership_active",
           ].includes(displayError.code || displayError.message) ? (
             <Button
               as={Link}
