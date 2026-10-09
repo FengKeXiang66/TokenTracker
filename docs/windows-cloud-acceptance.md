@@ -1,6 +1,6 @@
 # Windows 客户端验收交接
 
-2026-10-10（Asia/Shanghai）更新。最新 Windows 接续已完成正常邮箱登录、Pro 年/月与固定期价格切换、preview 按钮关闭、发布 DLL 的原生 WebView2 与浏览器 loopback 测试。完整托盘、系统协议付款返回和安装器生命周期仍待验收。最新应用候选为 1.3.0 / 1c96a2cc，四平台 CI/CodeQL 通过，下文旧版本记录仅证明各自阶段。
+2026-10-10（Asia/Shanghai）更新。最新 Windows 接续已完成正常邮箱登录、Pro 年/月与固定期价格切换、preview 按钮关闭、发布 DLL 的原生 WebView2 与浏览器 loopback 测试。完整托盘、系统协议付款返回和安装器生命周期仍待验收。最新应用候选为 1.3.0 / b0a6544d，四平台 CI/CodeQL 通过，下文旧版本记录仅证明各自阶段。
 
 这里需要的是 Windows 客户端测试电脑。官方后端仍使用现有付费 InsForge，付款由 Waffo 处理，不需要 Windows 服务器。
 
@@ -9,6 +9,8 @@
 ## 当前 Windows 接续证据
 
 后续排障修复了 TypeScript 检查启动 npm.cmd 的 EINVAL、Markdown 索引路径使用 Windows 反斜杠，以及 Ark timeout fixture 将所有 where 查询都错误映射至 arkcli.exe 的卡住。前两组 11/11、Ark 专项通过，Node24 全仓随后在 172 秒自然结束：3764 通过、67 失败、0 取消、38 跳过，未触发测试文件超时；不是全绿。进一步修复 Roo/Kilo 自定义目录列表拆开 Windows 盘符的问题，使用系统 path.delimiter；真实目录扫描和两次解析去重/backfill 14/14 通过。新的 CI 已覆盖这些检查。该 src 改动发生在下文 8497d6e9 包之后，旧包不能代替新候选的打包验收。
+
+b0a6544d 的 CI 37965509474 四项及 CodeQL 37965509485 全部通过。精确 head 的隔离全仓 Node24 回归自然结束：3770 通过、61 失败、0 取消、38 跳过，168 秒，无文件超时，acceptance-windows-after-drive-fix.json/log；仍不是全绿。新 CI 包已独立下载验证：archive SHA256 4e9e35e9abd18b817c3d53c97dc45fd4ed156a614d3f9c22ec8f281f3316b06c 与 GitHub digest 一致，checkout 7fed619a2dbadde08353923ec62128adcb1cb10f 的 Git tree 与 head 一致，981/981 文件和 106 个嵌入源码 blob 均匹配。ZIP SHA256 cb394f582aee5726b89c45eb983f2815f9218ae55cb701368eefbc7a75166bb3，安装器 SHA256 424b9e3fd37b7e0b46cd05bd69d43059320f99fccac8b24791ca5c6e641a362f。当前四项私钥/管理 key 字节模式零命中；旧 QA 凭据已清除，未把上一轮十项扫描数量沿用到新包。新 CI DLL 与打包 Node 的 30/30 原生窗口检查通过，证据 triage-ci-native/native-smoke.json；完整托盘、协议付款返回及安装器生命周期仍待验证。
 
 1c96a2cc 的 CI 37956050272 四个 job 全部通过，Windows .NET 117 项及完整 ZIP/Inno 安装器构建成功；CodeQL 全通过、开放告警为 0。Dashboard 当前 1192/1192 通过。旧全仓 Windows Node 快照为 3728 通过、80 失败、20 取消、38 跳过；新的 Node22 隔离对照为 3738 通过、70 失败、20 取消、38 跳过，最新 e6186b35 主干亦有 93 失败。具体匹配边界见总表，不能以目标组或 Linux/macOS 全绿替代。新增同步专项的三项失败来自真实 AppData 混入 fixture；隔离 APPDATA/LOCALAPPDATA 后 27/27，已加入 Windows CI。
 
