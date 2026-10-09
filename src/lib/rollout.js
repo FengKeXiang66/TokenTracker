@@ -11427,7 +11427,8 @@ async function resolveOmoFileCwd(filePath) {
 
 function resolveKilocodeRoots(env = process.env) {
   if (typeof env.TOKENTRACKER_KILOCODE_ROOTS === "string" && env.TOKENTRACKER_KILOCODE_ROOTS.trim()) {
-    return env.TOKENTRACKER_KILOCODE_ROOTS.split(":")
+    // Use the host's PATH delimiter so a Windows drive colon stays intact.
+    return env.TOKENTRACKER_KILOCODE_ROOTS.split(path.delimiter)
       .map((r) => r.trim())
       .filter(Boolean);
   }

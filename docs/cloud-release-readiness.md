@@ -20,6 +20,8 @@
 | Cloud 目标组 | 606 通过、10 跳过、0 失败，integrated-targets.log；不等于全部 Windows Node 测试 |
 | Windows 全仓 Node | 旧未隔离快照为 3728 通过、80 失败、20 取消、38 跳过。新 Node22 隔离 USERPROFILE/HOME/APPDATA/LOCALAPPDATA 对照为 3738 通过、70 失败、20 取消、38 跳过；最新主干 e6186b35 为 3343 通过、93 失败、20 取消、34 跳过。98 个 not-ok 输出包含取消及父用例，97 个名称/文件在主干匹配；余下一项 trim 的依赖完整主干专项复现相同 Node22 fs.cpSync 进程退出，Node24 该组 4/4。没有把匹配名称当作全部原因分析，也不把全仓写为全绿 |
 | Windows 同步专项修复 | 上述三项 sync-background 失败来自未隔离 APPDATA/LOCALAPPDATA，读取真实 Cursor 数据与发起额度请求；隔离两个目录后 27/27，acceptance-sync-background-isolated.log，加入 Windows CI |
+| Windows 继续排障 | TypeScript 验证改为当前 Node 启动 Dashboard 已安装且与锁文件一致的 compiler，避免 execFile 启动 npm.cmd 的 EINVAL；Markdown 索引用 POSIX 分隔符，11/11 专项通过。Ark timeout fixture 仅对 arkcli 返回匹配的 where 路径，修复把 Kiro 等其他查询也送进永不结束模拟的卡住；该专项通过。随后 Node24 全量运行在 172 秒自然结束，3764 通过、67 失败、0 取消、38 跳过，未触发 120 秒文件超时。日志 acceptance-windows-after-triage.log；此快照早于下述目录修复，仍不是全绿 |
+| Roo/Kilo Windows 目录修复 | 发现自定义 TOKENTRACKER_KILOCODE_ROOTS 按冒号拆开 Windows 盘符，已改用系统 path.delimiter：Windows 多目录使用分号，Unix 继续冒号。实际临时目录扫描、token 聚合、重新运行去重与同一记录 backfill 共 14/14 通过，并加入 Windows CI。该 src 改动后的候选包需要重新构建；8497d6e9 的旧包仅证明其原始版本 |
 | 补充 Node24 Windows 对照 | v24.19.0、相同已安装依赖，主干 Dashboard 已独立构建，全部 profile 隔离。两边 usage-limits.test.js 均超过十分钟不结束，仅终止这两个确切测试进程以收尾；候选输出 3742 通过、69 失败、38 跳过，主干 3347 通过、89 失败、34 跳过。用例总数因未完成文件不同，不替代 Node22 完整快照，也不是通过结果；日志 acceptance-windows-node24-*.log |
 | 当前原生窗口 | 1c96a2cc / 1.3.0 的干净发布目录通过 34/34 原生检查，明确断言使用打包 Node 而非系统 fallback；普通 UI 登录 B、重载保持、退出后重载清除、切换 A 的 7/7 检查通过。实际身份以邮箱与 UUID 核对。价格/固定期/preview 禁用已验证；最终 CI 产出 DLL/打包 Node 另执行 30/30 窗口/bridge/浏览器/页面检查通过；首次复制宿主缺少 WebView2Loader 的失败记录保留，补齐 CI loader 后通过。不是完整 Program.Main、付款协议返回或安装器生命周期证明 |
 | 托管真实 API | 两个专用 auth 账号的登录/刷新轮换、账号隔离、无效赠送码、基础表与管理 RPC 拒绝共 16 项通过，acceptance-auth-gifts.json；生产 preview catalog/account/未登录拒绝/checkout 前置关闭共 8 项，acceptance-live-preview.json。没有成功 Windows 礼遇兑换或真实付款证明 |
@@ -37,6 +39,7 @@
 
 - InsForge CLI 0.2.8 已安装、登录并关联现有 tokentracker 项目。此机器的系统 Node16 不满足 CLI 要求，CLI 专用 shim 使用已校验的 Node22.22.2，其他工具和系统 Node 不变；npm 更新可能覆盖 shim。项目配置和凭据均不提交。
 - 备份 pre-pro-acceptance-20261009 已读回 completed。没有在生产执行恢复；隔离恢复演练仍为独立门槛。
+- 正式后端的纯 schema/RPC/RLS 导出已私有保存并核对：470527 字节，SHA256 745c6196e64fa7725791a29bf0b451542fc14a66faa311a8b46ff6b84aad085f，包含 91 个表、146 个函数和 91 条 RLS 声明；未请求客户行数据。这不是完整供应商备份或恢复成功证明。当前没有可复用 InsForge 分支，本机无可用 Docker 环境；隔离恢复等待已有主机，或 Owner 明确付费分支的预算及运行时限。
 - 已部署 tokentracker-billing 与 tokentracker-waffo-webhook 两个正式新增函数并读回源码逐字节一致，原有 41 个函数元数据不变。18 个候选函数的部署计划已核对：15 个现有远端源码/metadata 已保存用于回滚，2 个与候选完全一致，13 个旧同步/榜单 handler 与候选不同；3 个非 Waffo 历史 webhook 当前不存在。没有把构建成功写为这 13 个已部署，也没有开启会员限制。隔离恢复和 preview 免费/设备/导出回归仍先于替换。
 - Owner 提供的 RSA2048 文件已规范化为标准 PEM，正式签名查询证明密钥可访问目标 production 商户/Store。八项 Waffo server secret 均写入并独立读回，包含 DER 指纹；没有进入 VITE、Git、安装包或日志。
 - 四个套餐已发布为 active production 版本，USD4.99/月、USD39.99/年，续费/固定期同价，完整账期，无供应商试用；没有改动既有无关产品。

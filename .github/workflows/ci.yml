@@ -195,8 +195,10 @@ jobs:
           npm ci
           node --test test/openclaw-parser.test.js
           node --test --test-name-pattern="native Windows" test/usage-limits.test.js
+          node --test --test-name-pattern="getUsageLimits Ark timeout fallback" test/usage-limits.test.js
           node --test test/command-runner.test.js
           node --test test/sync-background.test.js
+          node --test test/kilo-parser.test.js test/roocode-parser.test.js
 
       - name: Test Windows updater
         run: dotnet test TokenTrackerWin.Tests/TokenTrackerWin.Tests.csproj --configuration Release
@@ -208,6 +210,9 @@ jobs:
       # are caught without publishing a tag or changing public assets.
       - name: Install Windows dashboard dependencies
         run: npm ci --prefix dashboard --no-audit --no-fund
+
+      - name: Validate Windows TypeScript and retrospective references
+        run: node --test test/dashboard-typescript-guardrails.test.js test/validate-retros.test.js
 
       - name: Build Windows dashboard with pet and quota
         env:

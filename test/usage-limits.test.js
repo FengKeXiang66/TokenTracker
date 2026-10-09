@@ -5208,7 +5208,7 @@ describe("getUsageLimits Ark timeout fallback", () => {
         },
         commandRunner(command, args) {
           calls.push({ command, args });
-          if (command === "where") {
+          if (command === "where" && args?.[0] === "arkcli") {
             return { status: 0, stdout: "C:\\Program Files\\arkcli.exe\n", stderr: "" };
           }
           // The provider spawns the resolved absolute path, never a bare
@@ -5221,7 +5221,7 @@ describe("getUsageLimits Ark timeout fallback", () => {
         },
       });
 
-      assert.deepEqual(calls.find(({ command }) => command === "where")?.args, ["arkcli"]);
+      assert.deepEqual(calls.find(({ command, args }) => command === "where" && args?.[0] === "arkcli")?.args, ["arkcli"]);
       assert.equal(result.codingPlan.configured, true);
       assert.equal(result.codingPlan.stale, undefined);
       assert.match(result.codingPlan.error, /timed out/i);

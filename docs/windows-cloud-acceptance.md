@@ -8,6 +8,8 @@
 
 ## 当前 Windows 接续证据
 
+后续排障修复了 TypeScript 检查启动 npm.cmd 的 EINVAL、Markdown 索引路径使用 Windows 反斜杠，以及 Ark timeout fixture 将所有 where 查询都错误映射至 arkcli.exe 的卡住。前两组 11/11、Ark 专项通过，Node24 全仓随后在 172 秒自然结束：3764 通过、67 失败、0 取消、38 跳过，未触发测试文件超时；不是全绿。进一步修复 Roo/Kilo 自定义目录列表拆开 Windows 盘符的问题，使用系统 path.delimiter；真实目录扫描和两次解析去重/backfill 14/14 通过。新的 CI 已覆盖这些检查。该 src 改动发生在下文 8497d6e9 包之后，旧包不能代替新候选的打包验收。
+
 1c96a2cc 的 CI 37956050272 四个 job 全部通过，Windows .NET 117 项及完整 ZIP/Inno 安装器构建成功；CodeQL 全通过、开放告警为 0。Dashboard 当前 1192/1192 通过。旧全仓 Windows Node 快照为 3728 通过、80 失败、20 取消、38 跳过；新的 Node22 隔离对照为 3738 通过、70 失败、20 取消、38 跳过，最新 e6186b35 主干亦有 93 失败。具体匹配边界见总表，不能以目标组或 Linux/macOS 全绿替代。新增同步专项的三项失败来自真实 AppData 混入 fixture；隔离 APPDATA/LOCALAPPDATA 后 27/27，已加入 Windows CI。
 
 原生测试宿主加载发布目录 DLL，并使用隔离 WebView2/应用数据。最初宿主输出目录缺少 EmbeddedServer，使应用的开发 fallback 使用系统 Node16，auth proxy 返回 502；该次不能算嵌入 Node 登录证明。补齐宿主的打包资源后，普通邮箱登录真实 InsForge 测试账号成功、Pro 年付 US$39.99/月付 US$4.99 显示正确、固定期切换正确，试用/付款在 preview 禁用。系统浏览器 loopback、安全 URL 拒绝、窗口隐藏/重开均已执行；不是完整 Program.Main 托盘或 OS 深链返回证明。
