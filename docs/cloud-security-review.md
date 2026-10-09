@@ -53,6 +53,6 @@
 
 上述审查针对 PR 门禁匹配到的具体流；没有把主干的其他 provider/cache/测试告警一并忽略。主干 open 数、分支 open 数、PR 新注释数分别记录，不混为同一指标。usage-limits 的 TLS 例外仅针对固定 127.0.0.1 的本机 Codeium 服务，不能把它当作远端 HTTPS 允许关闭验证的依据。未完成的告警仍需自己的源码与回归证据。
 
-下一工程检查包括 222：leaderboard-refresh 三个 catch 对未知异常使用 String(error) 后直接返回 HTTP JSON，应单独验证并收敛错误输出，不能仅因它已存在于主干而按误报关闭。其他 provider 授权/缓存流亦须各自核对目标、重定向、固定路径及回归；本文的 11 条预期流程判定不能套用到它们。
+后续已修复 222：leaderboard-refresh 三个 catch 不再将未知异常 String(error) 或内部 error.message 返回 HTTP，改为操作固定错误。新增完整 handler 回归在旧源码实际 6 失败/1 通过，修复后及相关 guardrail/pricing/compact-wire 57/57；新 CI/扫描仍待完成，正式函数尚未部署。这是代码修复，未按误报关闭。其他 provider 授权/缓存流亦须各自核对目标、重定向、固定路径及回归；本文的 11 条预期流程判定不能套用到它们。
 
 CodeQL 官方规则：[文件到 HTTP](https://codeql.github.com/codeql-query-help/javascript/js-file-access-to-http/)、[HTTP 到文件](https://codeql.github.com/codeql-query-help/javascript/js-http-to-file-access/)、[文件检查/使用竞态](https://codeql.github.com/codeql-query-help/javascript/js-file-system-race/)。它们要求判断数据流是否符合应用预期；这里逐条保留具体边界，不把扫描静默作为发布证据。

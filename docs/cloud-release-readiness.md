@@ -1,5 +1,9 @@
 # Cloud / Pro 上线前交接总表
 
+## 后续排行榜错误输出修复：新的 CI/扫描待验收
+
+主干既有告警 222 的三个 catch 现返回按操作固定的 HTTP500 错误，不再序列化未知异常或返回内部数据库/多行细节。新增测试调用转译后的完整 handler，覆盖两种异常在两个公开只读入口和受保护 scan-summary 的六种失败，以及未授权写入仍 401；同一测试在旧源码实际 6 项失败/1 通过，修复后目标组 **57/57**，无失败/取消/跳过，两份变更 hash 不变。证据 acceptance-windows-edge-errors-before.json/log、acceptance-windows-edge-errors-fixed.json/log。新完整 CI 与 CodeQL 自动关闭待读回；正式远端 leaderboard handler 尚未部署，仍受恢复/preview 回归部署顺序约束。下面 c3909232 的完整 CI 与包证据保留精确来源，不升级为后续完整候选。
+
 ## 最新已核验候选：1.3.0 / c3909232
 
 应用与受审来源 **c3909232d416ff113aad417da892deafe1c50a84**。第二批改动使设备身份配置写入通过随机 wx/0600 临时文件原子替换；WorkBuddy trace 从同一打开的 descriptor 检查和读取；Bot 帧构建使用独立 mkdtemp 目录，只清理自己的文件；Windows 包清单大小/hash 从同一 buffer 获取；代理错误只返回限长首行或通用信息，不调用未知异常的 toString。Windows POSIX mode 不作为 NTFS ACL 证明。
