@@ -1,5 +1,7 @@
 # Cloud 交付与托管沙盒验收
 
+最新通过的工程提交 **1.3.0 / 6abe2701**：[CI 37989219495](https://github.com/xiufengsun/TokenTracker/actions/runs/37989219495) 全部通过，Windows Node24/实际包内 Node22 各 3858/40 条件跳过，.NET 117/117、安装器编译上传；Mac 3892/4 跳过及 239 原生、Linux 3888/8 跳过、Rust 通过。CodeQL gate 114019867015 为 success/0 新注释。相对 c93c9080 仅交接和两个测试夹具改变，实际该来源包内组合专项 67/4 POSIX 跳过；下方实际包验收仍保留 c93c9080 来源。最新只读部署清单为 19 候选/16 回滚快照/2 匹配/14 待替换/3 历史缺失，无正式替换；Preview 仍需 Vercel 登录，生产仍 hosted/preview、live 交易均 0。完整 hash、精确来源与未完成的资金/恢复/页面/Windows 生命周期门槛见 [总表](cloud-release-readiness.md)，后续文档 head 的检查以 [当前 PR](https://github.com/xiufengsun/TokenTracker/pull/772/checks) 为准。
+
 后续仅同步锁测试夹具调整：7bd905d6 的 Windows 包内 Node22 出现 1 项 native publication 未处理 SYNC_BUSY，不记为全通过。成功用例改用真实锁冲突信号和受控时钟，立即处理拒绝；独立真实超时拒绝与原始 token/队列断言保留。隔离 Node22/Node24 各 27/27；完整 CI 以 [PR 当前 head](https://github.com/xiufengsun/TokenTracker/pull/772/checks) 为准。应用源码未变，下面实际包仍证明 c93c9080 的来源。
 
 后续通知夹具亦完成 12 处标记原子发布，修复 e9b06987 macOS CI 中文件已创建、内容未完成的空串竞态；组合专项在 Node22/Node24 各 67 通过/4 POSIX 条件跳过，无失败或取消，Mac/Linux 的实际 env 检查以当前 CI 为准。没有修改产品代码或忽略空标记失败。

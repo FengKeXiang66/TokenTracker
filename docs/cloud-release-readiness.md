@@ -1,5 +1,15 @@
 # Cloud / Pro 上线前交接总表
 
+## 最新通过的工程提交：1.3.0 / 6abe2701
+
+受审提交 **6abe270167182afe5511939b10a950e2b0a2776e** 的 [CI 37989219495](https://github.com/xiufengsun/TokenTracker/actions/runs/37989219495) 全部通过：Windows Node24 与实际包内 Node22 各 **3858 通过/40 条件跳过/0 失败或取消**，.NET **117/117**；macOS Node **3892/4 跳过**及 **239 原生测试**；Linux Node **3888/8 跳过**、Rust 格式/clippy/测试通过。CodeQL 实际门禁 **114019867015 success / 0 新注释**，分析 1926208544 的 merge tree 与该提交相同；14 条主干已有告警仍保留，未禁用查询。通知与同步锁夹具修复现已在 Mac/Linux 全量执行；实际已核验 Windows 包内模块的组合专项另为 **67 通过/4 POSIX 跳过**。
+
+该工程提交相对 c93c9080 只改交接与两个测试夹具，应用、构建和 workflow 输入相同；下面 **c93c9080 实际包的 984 文件/109 源码/30 原生窗口/55 包内专项**继续保留其精确来源，不冒充 6abe2701 包的人工验收。新 CI 的安装器已编译并上传，GitHub artifact 11645225619 为 195991587 字节、digest **4aae4e286d81a4c78245afe3b8a6797d5a8ead24669d3191814164c8e0038f32**；本机没有下载或人工验收该新 archive，不把供应商 digest 写成本机 hash 核对。本文随后仅更新交接；完整当前检查仍以 [PR 当前 head](https://github.com/xiufengsun/TokenTracker/pull/772/checks) 为准。
+
+后端最新只读部署计划补入独立受审的 leaderboard-refresh：**19 个候选、16 个现有源码/metadata 回滚快照、2 个正式源码匹配、14 个待替换、3 个历史支付 webhook 缺失**。原 18 个候选 hash 与此前计划相同；远端函数 metadata 在读回前后完全一致。回滚目录及文件共 36 项 NTFS ACL 核对，无 Owner/System/Administrators 以外的 Allow。没有替换正式函数；隔离恢复与 preview 回归仍先于这 14 个替换。证据 acceptance-current-reviewed-rollout-plan.json；旧 18/15/13 计划仅为此前记录。
+
+[6abe2701 Preview](https://dashboard-1to1paddr-sunxiufeng1992-8555s-projects.vercel.app) deployment **6970688267** 为 success，账单/价格/条款/隐私四路由仍需正常 Vercel 登录，未通过页面验收。UTC 20:57 正式后台只读核对仍 **hosted/preview、launch_at=NULL、live 订单/支付/订阅均 0**。最近 fetch 的主干 e6186b35 已包含，功能分支已推送且工作树干净，PR CLEAN/MERGEABLE、保持 draft。13 份交接/87 个本地链接和 9 处 1.3.0 版本已核对；后续文档改动另按当前工作树核对链接。证据 acceptance-notify-final-checkpoint.json。价格与已完成的密钥/结算账户设置不变；真实资金、恢复、完整前端、Windows 生命周期和 Owner 最终条款/启用事项继续按下面门槛处理，**仍未达到正式收费发布标准**。
+
 ## 后续测试夹具修复：应用源码未变
 
 文档提交 7bd905d6 的 CI 37985950893：Linux、Rust、macOS（3892/4 跳过及 239 原生）通过，Windows Node24 为 3858/40 跳过；包内 Node22 为 3857 通过/40 跳过/1 失败，native account publication 用例报未处理的 SYNC_BUSY 拒绝，不记为全通过。源码与下面 c93c9080 相同，失败来自用 30ms 睡眠建立重叠、500ms 实时时限和延后 await 的测试夹具。
@@ -8,7 +18,7 @@
 
 e9b06987 的 CI 37987644688 随后在 macOS env split-string 通知夹具读到了空标记：3891 通过/4 跳过/1 失败，原生 XCTest 未执行，不记为 macOS 通过。12 处仍直接写标记的夹具已统一写自己的临时文件再 rename；读者继续检验空内容，未放宽参数或坏命令断言。产品通知代码未改。本机 Node22/Node24 的通知与锁组合各 **67 通过/4 POSIX 条件跳过/0 失败或取消**，71 项；新增文件 hash 424ad35f5012fd52c06a58050ac0d0852bca5ae7b997a38d8c228029a38a9400。POSIX env 实际验证继续由当前 Mac/Linux CI 提供。
 
-## 最新已核验候选：1.3.0 / c93c9080
+## 已核验应用与包来源：1.3.0 / c93c9080
 
 应用与受审来源 **c93c908059a298a32855ee19a5741c048cf21899**。修复排行榜三个 catch 的错误输出，公开异常队列/隔离审计与受保护扫描总结失败现只返回操作固定的 HTTP500 错误，不返回内部数据库/多行细节或序列化未知异常。新增完整转译 handler 回归在旧源码实际 6 失败/1 通过；修复后相关目标组 **57/57**，两份变更 hash 和提交 blob 一致。实际 ESM 函数产物另有 **7/7**，53661 字节 / SHA256 129fa654ef8f0f21d0fa21456294f5e622b800c7d81d97fde2137766ec2c8c2e，仅以该源文件为输入，保留既有 npm SDK import；正式远端排行榜 handler **尚未部署**，仍按恢复与 preview 回归门槛部署。不能把本机产物通过写成远端已修复。
 

@@ -33,7 +33,7 @@ Owner 已完成结算／提现账户添加与关联，无需重复。最新签�
 
 ## 启用门槛
 
-未完成以上验收时，live policy 保持 preview，正式 checkout_verified 和促销开关保持关闭。没有公开 PR、公告或真实收费。
+未完成以上验收时，live policy 保持 preview，正式 checkout_verified 和促销开关保持关闭。[PR #772](https://github.com/xiufengsun/TokenTracker/pull/772) 已公开可见、仍为 draft，未合并；没有发布上线公告、开启真实收费或公开发行。最新通过的工程提交、后端 19 候选/14 待替换以及仍未完成的发布门槛见 [总表](cloud-release-readiness.md)。
 
 后端继续用现有付费InsForge。Windows工作已接续整合，最新普通支付返回的OS/GUI及安装器步骤仍需实际设备，见[交接文档](windows-cloud-acceptance.md)。Browser Use拒绝的外部协议点击需人工执行，不通过其他工具绕过；这些设备步骤不阻塞其余工程准备。
 
