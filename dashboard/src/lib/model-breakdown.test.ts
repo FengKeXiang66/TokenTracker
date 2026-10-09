@@ -261,6 +261,8 @@ describe("buildAllModels", () => {
         usage: 300,
         cost: 0,
         tokens: { input: 100, output: 20, cached: 170, cacheCreate: 5, reasoning: 5 },
+        pricing: null,
+        costSource: null,
       },
     ]);
   });

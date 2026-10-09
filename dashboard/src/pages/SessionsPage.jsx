@@ -1,7 +1,7 @@
 import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { Calendar, Loader2, RefreshCw, Search, Terminal, X as XIcon } from "lucide-react";
-import { Input } from "../ui/components";
-import { SegmentedControl } from "../ui/components/SegmentedControl.jsx";
+import { Calendar, ChevronRight, Copy, Info, Loader2, RefreshCw, Search, X as XIcon } from "lucide-react";
+import { Input, Select } from "../ui/components";
+import { Popover } from "@base-ui/react/popover";
 import { SearchableSelect } from "../ui/components/SearchableSelect.jsx";
 import { ProviderIcon } from "../ui/dashboard/components/ProviderIcon.jsx";
 import { HoverTooltip } from "../ui/components/HoverTooltip.jsx";
@@ -10,11 +10,16 @@ import { LocalOnlyNotice } from "../components/LocalOnlyNotice.jsx";
 import { copy } from "../lib/copy";
 import { cn } from "../lib/cn";
 import { getSessions } from "../lib/sessions-api";
+import { formatDuration, formatWhen } from "../lib/session-format";
 import { formatCompactNumber, formatUsdCurrency } from "../lib/format";
 import { useCurrency } from "../hooks/useCurrency";
 import { useLocale } from "../hooks/useLocale";
 import { isLocalDashboardHost } from "../lib/host-mode";
 import { isMockEnabled } from "../lib/mock-data";
+import { groupSessions, overlapsSessionDates, parseSessionFilters, sessionDayKey, sessionModels, sortSessions, summarizeSessions } from "../lib/sessions-insights";
+import { SessionDetailModal } from "../ui/dashboard/components/SessionDetailModal.jsx";
+import { SessionPerformance } from "../ui/dashboard/components/SessionPerformance.jsx";
+import "./sessions-layout.css";
 
 const IS_LOCAL_HOST = isLocalDashboardHost();
 
@@ -28,14 +33,14 @@ const NO_SESSIONS = [];
 const PAGE_SIZE = 100;
 
 const SOURCE_FILTERS = [
-  { id: "all", label: () => copy("sessions.filter.source_all") },
+  { id: "all", label: () => copy("usage.filter.source_all") },
   { id: "claude", label: () => "Claude Code" },
   { id: "codex", label: () => "Codex" },
   { id: "grok", label: () => "Grok" },
 ];
 
 const DATE_RANGES = [
-  { id: "all", days: 0, label: () => copy("sessions.filter.range_all") },
+  { id: "all", days: 0, label: () => copy("sessions.filter.range_label_all") },
   { id: "7d", days: 7, label: () => copy("sessions.filter.range_7d") },
   { id: "30d", days: 30, label: () => copy("sessions.filter.range_30d") },
   { id: "90d", days: 90, label: () => copy("sessions.filter.range_90d") },
@@ -65,50 +70,20 @@ function overlapsRange(session, startMs) {
   return Number.isFinite(ended) ? ended >= startMs : true;
 }
 
-function modelUsageRows(session) {
-  const observed = Array.isArray(session?.model_usage)
-    ? session.model_usage.filter((row) => row && typeof row.model === "string" && row.model)
-    : [];
-  if (observed.length) return observed;
-  return [{
-    model: session?.model || copy("sessions.model.unknown"),
-    total_tokens: Number(session?.own_total_tokens || session?.total_tokens || 0),
-  }];
+// Date groups key on when a session ended, but the row shows when it started.
+// Drop the date only when both fall on the same local day, so a session that
+// ran past midnight still says which day it began.
+function startsOnGroupDay(session) {
+  const started = Date.parse(session.started_at || "");
+  return !Number.isFinite(started) || sessionDayKey({ started_at: session.started_at }) === sessionDayKey(session);
 }
 
 function modelUsageLabel(session) {
-  const rows = modelUsageRows(session);
-  if (rows.length === 1) return rows[0].model;
+  const rows = sessionModels(session);
+  if (rows.length === 1) return rows[0].model || copy("sessions.model.unknown");
   return rows
     .map((row) => `${row.model} ${formatCompactNumber(Number(row.total_tokens || 0))}`)
     .join(" · ");
-}
-
-function formatWhen(value, locale) {
-  if (!value) return "—";
-  const ms = Date.parse(value);
-  if (!Number.isFinite(ms)) return "—";
-  try {
-    return new Date(ms).toLocaleString(locale || undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return new Date(ms).toISOString().slice(0, 16).replace("T", " ");
-  }
-}
-
-function formatDuration(ms) {
-  const n = Number(ms);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  const totalMinutes = Math.round(n / 60000);
-  if (totalMinutes < 60) return copy("sessions.duration.minutes", { minutes: totalMinutes });
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return copy("sessions.duration.hours", { hours, minutes });
 }
 
 async function copyToClipboard(text) {
@@ -132,9 +107,11 @@ const SessionRow = React.memo(function SessionRow({
   session,
   locale,
   nested = false,
+  timeOnly = false,
   childCount = 0,
   expanded = false,
   onToggle,
+  onDetail,
 }) {
   const { currency, rate } = useCurrency();
   const provider = String(session.source || "").toUpperCase();
@@ -145,33 +122,9 @@ const SessionRow = React.memo(function SessionRow({
   const title = isSubagent
     ? (session.agent_nickname || session.agent_role || session.title || projectLabel)
     : (session.title || projectLabel);
-  const showProjectInMeta = Boolean(session.title && session.project_key);
-  const isGrok = String(session.source || "").toLowerCase() === "grok";
-  const grokTokenBreakdown = isGrok && session.usage_precision
-    ? copy("sessions.grok.token_breakdown", {
-        input: formatCompactNumber(session.input_tokens),
-        cacheRead: formatCompactNumber(session.cached_input_tokens),
-        cacheWrite: formatCompactNumber(session.cache_creation_input_tokens),
-        output: formatCompactNumber(session.output_tokens),
-        reasoning: formatCompactNumber(session.reasoning_output_tokens),
-      })
-    : null;
-  const grokRuntimeBreakdown = isGrok && session.usage_precision
-    ? copy("sessions.grok.runtime_breakdown", {
-        calls: formatCompactNumber(session.model_calls),
-        seconds: (Number(session.api_duration_ms || 0) / 1000).toFixed(1),
-        tools: formatCompactNumber(session.tool_calls),
-        errors: formatCompactNumber(session.error_count),
-      })
-    : null;
-  const grokContextBreakdown = isGrok && Number(session.context_window_tokens) > 0
-    ? copy("sessions.grok.context_breakdown", {
-        used: formatCompactNumber(session.context_tokens_used),
-        window: formatCompactNumber(session.context_window_tokens),
-        percent: Number(session.context_usage_percent || 0).toFixed(0),
-      })
-    : null;
-
+  const costBadge = session.usage_is_incomplete
+    ? copy("sessions.badge.partial_usage")
+    : session.cost_is_partial ? copy("sessions.badge.partial_cost") : null;
   // The resume command only works from the session's own directory, so the full
   // local path has to stay reachable. Hover reveals it, click copies it — that
   // keeps a long absolute path out of every row while still being one click
@@ -227,166 +180,76 @@ const SessionRow = React.memo(function SessionRow({
   };
 
   return (
-    <li className={cn(
-      "flex flex-col gap-3 py-4 sm:flex-row sm:items-start",
-      nested && "ml-6 border-l-2 border-oai-gray-200 pl-4 dark:border-oai-gray-800",
-    )}>
-      <div className="flex min-w-0 flex-1 items-start gap-2.5">
-        <span className="mt-0.5 shrink-0 text-oai-gray-400 dark:text-oai-gray-500">
-          <ProviderIcon provider={provider} size={20} />
+    <li className={cn("sessions-row sessions-row-grid py-3", nested && "sessions-row-nested")}>
+      <div className="sessions-row-identity flex min-w-0 items-start gap-3">
+        <span className="shrink-0 pt-2 text-oai-gray-600 dark:text-oai-gray-300 md:pt-0.5">
+          <ProviderIcon provider={provider} size={nested ? 16 : 18} />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            {/* With no agent-authored title the heading *is* the project name,
-                so the copy affordance moves there rather than duplicating it. */}
-            {!isSubagent && !session.title && session.project_ref ? (
-              projectLabelNode("font-medium text-oai-black dark:text-white")
-            ) : (
-              <span className="truncate font-medium text-oai-black dark:text-white">
-                {title}
-              </span>
-            )}
-            {isSubagent ? (
-              <span className="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:bg-sky-500/10 dark:text-sky-300">
-                {copy("sessions.badge.subagent")}
-                {session.agent_role ? ` · ${session.agent_role}` : ""}
-              </span>
-            ) : null}
-            {session.first_pass ? (
-              <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
-                {copy("sessions.badge.first_pass")}
-              </span>
-            ) : null}
-            {(isGrok && session.usage_precision) || session.cost_is_partial ? (
-              <span className={cn(
-                "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium",
-                session.usage_is_incomplete || session.cost_is_partial
-                  ? "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300"
-                  : "bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300",
-              )}>
-                {session.usage_is_incomplete
-                  ? copy("sessions.badge.partial_usage")
-                  : session.cost_is_partial
-                    // Distinct from partial usage: every token is observed,
-                    // but a model in the session has no public rate, so the
-                    // cost below is a lower bound rather than an estimate.
-                    ? copy("sessions.badge.partial_cost")
-                    : session.cost_source === "provider_reported"
-                      ? copy("sessions.badge.reported_cost")
-                      : copy("sessions.badge.reported_usage")}
-              </span>
-            ) : null}
+          <button
+            type="button"
+            onClick={() => onDetail(session)}
+            aria-label={copy("sessions.detail.open_aria", { title })}
+            title={title}
+            className="min-h-9 max-w-full truncate rounded text-left text-sm font-medium text-oai-black underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500 dark:text-white md:min-h-0"
+          >
+            {title}
+          </button>
+          <div className="sessions-row-meta mt-0.5 flex min-w-0 flex-wrap items-center gap-y-1 text-xs text-oai-gray-500 dark:text-oai-gray-400">
+            <span className="sessions-meta-item min-w-0 max-w-full">{session.project_ref ? projectLabelNode("min-h-6 inline-flex items-center md:min-h-0") : <span className="truncate">{projectLabel}</span>}</span>
+            <span className="sessions-meta-item min-w-0 max-w-full truncate" title={modelUsageLabel(session)}>{modelUsageLabel(session)}</span>
+            <span className="sessions-meta-item tabular-nums">{formatWhen(session.started_at, locale, { timeOnly: timeOnly && startsOnGroupDay(session) })}</span>
+            {duration ? <span className="sessions-meta-item tabular-nums">{duration}</span> : null}
+            {isSubagent ? <span className="sessions-meta-item">{copy("sessions.badge.subagent")}{session.agent_role ? ` · ${session.agent_role}` : ""}</span> : null}
+            {session.first_pass ? <span className="sessions-meta-item text-emerald-700 dark:text-emerald-300">{copy("sessions.badge.first_pass")}</span> : null}
+            {costBadge ? <span className="sessions-meta-item text-amber-700 dark:text-amber-300">{costBadge}</span> : null}
+            {session.cost_source === "provider_reported" ? <span className="sessions-meta-item">{copy("sessions.badge.reported_cost")}</span> : null}
             {childCount ? (
               <button
                 type="button"
-                onClick={onToggle}
+                onClick={() => onToggle(session.session_hash)}
                 aria-expanded={expanded}
-                className="inline-flex items-center rounded-full border border-oai-gray-200 px-2 py-0.5 text-[11px] font-medium text-oai-gray-600 transition-colors hover:bg-oai-gray-100 hover:text-oai-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500 dark:border-oai-gray-700 dark:text-oai-gray-300 dark:hover:bg-oai-gray-800 dark:hover:text-white"
+                className="-mx-1.5 inline-flex min-h-8 items-center md:-my-1 md:ml-2 md:mr-0 gap-0.5 rounded px-1.5 font-medium text-oai-gray-700 hover:bg-oai-gray-100 hover:text-oai-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500 dark:text-oai-gray-200 dark:hover:bg-oai-gray-800 dark:hover:text-white md:min-h-6"
               >
-                {expanded
-                  ? copy("sessions.thread.collapse", { count: childCount })
-                  : copy("sessions.thread.expand", { count: childCount })}
+                <ChevronRight className={cn("h-3.5 w-3.5 transition-transform", expanded && "rotate-90")} aria-hidden />
+                {expanded ? copy("sessions.thread.collapse", { count: childCount }) : copy("sessions.thread.expand", { count: childCount })}
               </button>
             ) : null}
           </div>
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-oai-gray-500 dark:text-oai-gray-400">
-            {showProjectInMeta ? (
-              <>
-                {session.project_ref ? (
-                  projectLabelNode("hover:text-oai-black dark:hover:text-white")
-                ) : (
-                  <span className="truncate">{projectLabel}</span>
-                )}
-                <span aria-hidden>·</span>
-              </>
-            ) : null}
-            <span className="truncate">{modelUsageLabel(session)}</span>
-            <span aria-hidden>·</span>
-            <span className="tabular-nums">{formatWhen(session.started_at, locale)}</span>
-            {duration ? (
-              <>
-                <span aria-hidden>·</span>
-                <span className="tabular-nums">{duration}</span>
-              </>
-            ) : null}
-          </div>
-          {grokTokenBreakdown ? (
-            <div className="mt-1 text-[11px] tabular-nums text-oai-gray-500 dark:text-oai-gray-400">
-              {grokTokenBreakdown}
-            </div>
-          ) : null}
-          {grokRuntimeBreakdown ? (
-            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] tabular-nums text-oai-gray-400 dark:text-oai-gray-500">
-              <span>{grokRuntimeBreakdown}</span>
-              {grokContextBreakdown ? (
-                <>
-                  <span aria-hidden>·</span>
-                  <span>{grokContextBreakdown}</span>
-                </>
-              ) : null}
-            </div>
-          ) : null}
         </div>
       </div>
-
-      <div className="flex items-start gap-5 pl-[30px] sm:pl-0">
-        <dl className="flex items-start gap-6 text-right">
-          <div className="flex w-16 flex-col-reverse">
-            <dt className="text-[11px] text-oai-gray-400 dark:text-oai-gray-500">{copy("sessions.col.tokens")}</dt>
-            <dd
-              title={Number(session.subagent_total_tokens)
-                ? copy("sessions.thread.tokens_summary", {
-                    own: formatCompactNumber(session.own_total_tokens),
-                    subagents: formatCompactNumber(session.subagent_total_tokens),
-                    combined: formatCompactNumber(session.combined_total_tokens),
-                  })
-                : undefined}
-              className="tabular-nums text-sm font-medium text-oai-black dark:text-white"
-            >
-              {formatCompactNumber(session.total_tokens)}
-              {Number(session.subagent_total_tokens) ? (
-                <span className="block text-[9px] font-normal text-oai-gray-400 dark:text-oai-gray-500">
-                  Σ {formatCompactNumber(session.combined_total_tokens)}
-                </span>
-              ) : null}
-            </dd>
-          </div>
-          <div className="flex w-16 flex-col-reverse">
-            <dt className="text-[11px] text-oai-gray-400 dark:text-oai-gray-500">{copy("sessions.col.cost")}</dt>
-            <dd
-              className="tabular-nums text-sm font-medium text-oai-black dark:text-white"
-              title={session.cost_is_partial ? copy("sessions.cost.partial_title") : undefined}
-            >
-              {session.cost_is_partial ? "≥" : ""}{formatUsdCurrency(session.cost_usd, { currency, rate })}
-            </dd>
-          </div>
-          <div className="hidden w-10 flex-col-reverse sm:flex">
-            <dt className="text-[11px] text-oai-gray-400 dark:text-oai-gray-500">{copy("sessions.col.turns")}</dt>
-            <dd className="tabular-nums text-sm font-medium text-oai-black dark:text-white">{formatCompactNumber(session.turns)}</dd>
-          </div>
-          <div className="hidden w-10 flex-col-reverse sm:flex">
-            <dt className="text-[11px] text-oai-gray-400 dark:text-oai-gray-500">{copy("sessions.col.edits")}</dt>
-            <dd className="tabular-nums text-sm font-medium text-oai-black dark:text-white">{formatCompactNumber(session.edit_turns)}</dd>
-          </div>
-        </dl>
-
-        <button
-          type="button"
-          onClick={handleCopy}
-          disabled={!command}
-          title={command || copy("sessions.resume.unavailable")}
-          aria-label={command ? copy("sessions.resume.copy_aria", { command }) : copy("sessions.resume.unavailable")}
-          className={cn(
-            "-mt-0.5 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500",
-            command
-              ? "text-oai-gray-500 hover:bg-oai-gray-100 hover:text-oai-black dark:text-oai-gray-400 dark:hover:bg-oai-gray-800 dark:hover:text-white"
-              : "cursor-not-allowed text-oai-gray-300 dark:text-oai-gray-600",
-          )}
-        >
-          <Terminal className="h-3.5 w-3.5" aria-hidden />
-          <span className="hidden sm:inline">{copy("sessions.resume.copy")}</span>
-        </button>
-      </div>
+      <dl className="sessions-row-metrics">
+        <div className="sessions-row-value">
+          <dt className="text-xs text-oai-gray-600 dark:text-oai-gray-300 md:sr-only">{copy("sessions.col.tokens")}</dt>
+          <dd
+            title={Number(session.subagent_total_tokens) ? copy("sessions.thread.tokens_summary", { own: formatCompactNumber(session.own_total_tokens), subagents: formatCompactNumber(session.subagent_total_tokens), combined: formatCompactNumber(session.combined_total_tokens) }) : undefined}
+            className="mt-1 text-sm tabular-nums text-oai-black dark:text-white md:mt-0"
+          >
+            {formatCompactNumber(session.total_tokens)}
+            {Number(session.subagent_total_tokens) ? <span className="mt-0.5 block text-xs text-oai-gray-500 dark:text-oai-gray-400">Σ {formatCompactNumber(session.combined_total_tokens)}</span> : null}
+          </dd>
+        </div>
+        <div className="sessions-row-value">
+          <dt className="text-xs text-oai-gray-600 dark:text-oai-gray-300 md:sr-only">{copy("sessions.col.cost")}</dt>
+          <dd className="mt-1 text-sm tabular-nums text-oai-black dark:text-white md:mt-0" title={session.cost_is_partial ? copy("sessions.cost.partial_title") : undefined}>
+            {session.cost_is_partial ? "≥" : ""}{formatUsdCurrency(session.cost_usd, { currency, rate })}
+          </dd>
+        </div>
+        <div className="sessions-row-value">
+          <dt className="text-xs text-oai-gray-600 dark:text-oai-gray-300 md:sr-only">{copy("sessions.col.speed")}</dt>
+          <dd className="mt-1 min-h-5 text-sm tabular-nums text-oai-gray-600 dark:text-oai-gray-300 md:mt-0"><SessionPerformance performance={session.performance} /></dd>
+        </div>
+      </dl>
+      <button
+        type="button"
+        onClick={handleCopy}
+        disabled={!command}
+        title={command || copy("sessions.resume.unavailable")}
+        aria-label={command ? copy("sessions.resume.copy_aria", { command }) : copy("sessions.resume.unavailable")}
+        className="sessions-row-action inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-oai-gray-500 transition hover:bg-oai-gray-100 hover:text-oai-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500 disabled:cursor-not-allowed dark:text-oai-gray-400 dark:hover:bg-oai-gray-800 dark:hover:text-white md:h-8 md:w-8"
+      >
+        <Copy className="h-4 w-4" aria-hidden />
+      </button>
     </li>
   );
 });
@@ -396,7 +259,7 @@ function ThreadModelUsage({ sessions, selectedModel, onSelect }) {
     const byModel = new Map();
     let total = 0;
     for (const session of sessions) {
-      for (const usage of modelUsageRows(session)) {
+      for (const usage of sessionModels(session)) {
         const model = usage.model || copy("sessions.model.unknown");
         const tokens = Number(usage.total_tokens || 0);
         const current = byModel.get(model) || { model, count: 0, tokens: 0 };
@@ -414,7 +277,7 @@ function ThreadModelUsage({ sessions, selectedModel, onSelect }) {
 
   function buttonClass(active) {
     return cn(
-      "rounded-full border px-2.5 py-1 text-xs tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500",
+      "min-h-10 rounded-md border px-2.5 text-xs tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500 md:min-h-7",
       active
         ? "border-oai-brand-500 bg-oai-brand-50 text-oai-brand-700 dark:bg-oai-brand-500/10 dark:text-oai-brand-300"
         : "border-oai-gray-200 text-oai-gray-600 hover:bg-oai-gray-100 dark:border-oai-gray-700 dark:text-oai-gray-300 dark:hover:bg-oai-gray-800",
@@ -422,9 +285,9 @@ function ThreadModelUsage({ sessions, selectedModel, onSelect }) {
   }
 
   return (
-    <li className="ml-6 border-l-2 border-oai-gray-200 py-3 pl-4 dark:border-oai-gray-800">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="mr-1 text-xs font-medium text-oai-gray-500 dark:text-oai-gray-400">
+    <li className="sessions-thread-models py-2.5">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="mr-1 text-xs text-oai-gray-500 dark:text-oai-gray-400">
           {copy("sessions.thread.model_usage")}
         </span>
         <button
@@ -459,21 +322,29 @@ function ThreadModelUsage({ sessions, selectedModel, onSelect }) {
 }
 
 export function SessionsPage() {
+  const [initialFilters] = useState(() => parseSessionFilters(window.location.search));
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [sourceFilter, setSourceFilter] = useState("all");
-  const [rangeFilter, setRangeFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState(initialFilters.source);
+  const [modelFilter, setModelFilter] = useState(initialFilters.model);
+  const [rangeFilter, setRangeFilter] = useState(initialFilters.from || initialFilters.to ? "custom" : "all");
+  const [customFrom, setCustomFrom] = useState(initialFilters.from);
+  const [customTo, setCustomTo] = useState(initialFilters.to);
   const [projectFilter, setProjectFilter] = useState("all");
+  const [groupMode, setGroupMode] = useState("time");
+  const [sortMode, setSortMode] = useState("recent");
+  const [detailSession, setDetailSession] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [expandedThreads, setExpandedThreads] = useState(() => new Set());
   const [threadModelFilters, setThreadModelFilters] = useState(() => new Map());
   const requestIdRef = useRef(0);
   const { resolvedLocale } = useLocale();
+  const { currency, rate } = useCurrency();
 
-  // Fetch the whole list once. The payload is metadata only (~0.5KB/session)
+  // Fetch the whole list once. The payload contains only session metadata
   // over loopback, and the server builds every session regardless of the date
   // range anyway, so a server-side window would cost a round trip without
   // saving any work — and it would make the source/project/search filters mean
@@ -517,6 +388,15 @@ export function SessionsPage() {
     }
     return options.sort((a, b) => a.label.localeCompare(b.label));
   }, [allSessions]);
+  const modelOptions = useMemo(() => {
+    const models = new Set();
+    for (const session of allSessions) {
+      for (const usage of sessionModels(session)) {
+        if (usage.model) models.add(usage.model);
+      }
+    }
+    return [...models].sort().map((model) => ({ value: model, label: model }));
+  }, [allSessions]);
 
   // Typing stays responsive on long lists: the filter runs against a deferred
   // copy of the query, so keystrokes paint before the list re-filters.
@@ -528,20 +408,25 @@ export function SessionsPage() {
     return allSessions.filter((row) => {
       if (sourceFilter !== "all" && row.source !== sourceFilter) return false;
       if (projectFilter !== "all" && row.project_key !== projectFilter) return false;
-      if (!overlapsRange(row, startMs)) return false;
+      if (modelFilter !== "all" && !sessionModels(row).some((usage) => usage.model === modelFilter)) return false;
+      if (rangeFilter === "custom") {
+        if (!overlapsSessionDates(row, customFrom, customTo)) return false;
+      } else if (!overlapsRange(row, startMs)) return false;
       if (!q) return true;
-      const models = modelUsageRows(row).map((usage) => usage.model).join(" ");
+      const models = sessionModels(row).map((usage) => usage.model).join(" ");
       const haystack = `${row.title || ""} ${row.project_key || ""} ${models} ${row.agent_nickname || ""} ${row.agent_role || ""} ${row.project_ref || ""} ${row.session_id || ""}`.toLowerCase();
       return haystack.includes(q);
     });
-  }, [allSessions, sourceFilter, projectFilter, rangeFilter, deferredQuery]);
+  }, [allSessions, sourceFilter, projectFilter, modelFilter, rangeFilter, customFrom, customTo, deferredQuery]);
+
+  const summary = useMemo(() => summarizeSessions(filtered), [filtered]);
 
   const grouped = useMemo(() => {
     const visibleHashes = new Set(filtered.map((row) => row.session_hash));
     const childrenByRoot = new Map();
     const roots = [];
 
-    for (const row of filtered) {
+    for (const row of sortSessions(filtered, sortMode)) {
       const rootHash = row.root_session_hash || row.parent_session_hash;
       if (row.parent_session_hash && rootHash && visibleHashes.has(rootHash)) {
         const children = childrenByRoot.get(rootHash) || [];
@@ -559,9 +444,9 @@ export function SessionsPage() {
       childrenByRoot,
       foldedCount: filtered.length - roots.length,
     };
-  }, [filtered]);
+  }, [filtered, sortMode]);
 
-  const anyFilter = sourceFilter !== "all" || rangeFilter !== "all" || projectFilter !== "all" || searchQuery.trim() !== "";
+  const anyFilter = sourceFilter !== "all" || modelFilter !== "all" || rangeFilter !== "all" || projectFilter !== "all" || searchQuery.trim() !== "";
 
   // Restart the rendered window whenever the result set changes, so a narrower
   // filter doesn't leave the user scrolled into a stale slice.
@@ -569,9 +454,29 @@ export function SessionsPage() {
     setVisibleCount(PAGE_SIZE);
     setExpandedThreads(new Set());
     setThreadModelFilters(new Map());
-  }, [sourceFilter, projectFilter, rangeFilter, deferredQuery, allSessions]);
+  }, [sourceFilter, projectFilter, modelFilter, rangeFilter, customFrom, customTo, deferredQuery, sortMode, groupMode, allSessions]);
 
   const visible = useMemo(() => grouped.roots.slice(0, visibleCount), [grouped.roots, visibleCount]);
+  const visibleGroups = useMemo(() => groupSessions(visible, groupMode), [visible, groupMode]);
+  const detailSubagents = useMemo(() => detailSession
+    ? allSessions.filter((session) => session.session_hash !== detailSession.session_hash
+      && (session.root_session_hash === detailSession.session_hash || session.parent_session_hash === detailSession.session_hash))
+    : NO_SESSIONS, [allSessions, detailSession]);
+  const closeDetail = useCallback(() => setDetailSession(null), []);
+  const setDateRange = useCallback((range) => {
+    setRangeFilter(range);
+    if (range !== "custom") {
+      setCustomFrom("");
+      setCustomTo("");
+    }
+  }, []);
+  const clearFilters = useCallback(() => {
+    setSourceFilter("all");
+    setModelFilter("all");
+    setProjectFilter("all");
+    setSearchQuery("");
+    setDateRange("all");
+  }, [setDateRange]);
   const hasMore = grouped.roots.length > visible.length;
   const showMore = useCallback(() => setVisibleCount((n) => n + PAGE_SIZE), []);
   const toggleThread = useCallback((sessionHash) => {
@@ -610,11 +515,22 @@ export function SessionsPage() {
   }, [hasMore, showMore]);
 
   const sourceOptions = useMemo(
-    () => SOURCE_FILTERS.map((option) => ({ id: option.id, label: option.label() })),
+    () => SOURCE_FILTERS.map((option) => ({ value: option.id, label: option.label() })),
     [resolvedLocale],
   );
   const rangeOptions = useMemo(
-    () => DATE_RANGES.map((option) => ({ id: option.id, label: option.label() })),
+    () => [
+      ...DATE_RANGES.map((option) => ({ value: option.id, label: option.label() })),
+      { value: "custom", label: copy("sessions.filter.range_custom") },
+    ],
+    [resolvedLocale],
+  );
+  const groupOptions = useMemo(
+    () => [{ value: "time", label: copy("sessions.group.time") }, { value: "project", label: copy("sessions.group.project") }],
+    [resolvedLocale],
+  );
+  const sortOptions = useMemo(
+    () => [{ value: "recent", label: copy("sessions.sort.recent") }, { value: "cost", label: copy("sessions.sort.cost") }, { value: "tokens", label: copy("sessions.sort.tokens") }],
     [resolvedLocale],
   );
 
@@ -635,14 +551,10 @@ export function SessionsPage() {
     <div className="flex flex-col flex-1 text-oai-black dark:text-oai-white font-oai antialiased">
       <main className="flex-1 pt-8 sm:pt-10 pb-12 sm:pb-16">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="mb-8 flex flex-row items-start justify-between gap-4">
+          <header className="mb-6 flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <h1 className="mb-3 text-3xl font-semibold tracking-tight text-oai-black dark:text-white sm:text-4xl">
-                {copy("nav.sessions")}
-              </h1>
-              <p className="text-sm text-oai-gray-500 dark:text-oai-gray-400 sm:text-base">
-                {copy("sessions.page.subtitle")}
-              </p>
+              <h1 className="text-2xl font-semibold tracking-tight text-oai-black dark:text-white">{copy("nav.sessions")}</h1>
+              <p className="mt-1 text-sm text-oai-gray-500 dark:text-oai-gray-400">{copy("sessions.page.summary")}</p>
             </div>
             <button
               type="button"
@@ -650,79 +562,82 @@ export function SessionsPage() {
               disabled={refreshing || isLoading}
               aria-label={copy("sessions.page.refresh")}
               title={copy("sessions.page.refresh")}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-oai-gray-200 text-oai-gray-600 transition-colors hover:bg-oai-gray-100 hover:text-oai-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500 disabled:opacity-50 dark:border-oai-gray-800 dark:text-oai-gray-400 dark:hover:bg-oai-gray-800 dark:hover:text-white"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-oai-gray-500 transition-colors hover:bg-oai-gray-100 hover:text-oai-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500 disabled:opacity-50 dark:text-oai-gray-400 dark:hover:bg-oai-gray-800 dark:hover:text-white sm:h-9 sm:w-9"
             >
               <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} aria-hidden />
             </button>
-          </div>
+          </header>
 
-          <div className="mb-2 flex flex-wrap items-center gap-2 pt-1 text-xs text-oai-gray-600 dark:text-oai-gray-300">
-            <SegmentedControl
-              ariaLabel={copy("sessions.filter.source_aria")}
-              options={sourceOptions}
-              value={sourceFilter}
-              onChange={setSourceFilter}
-            />
-
-            <SegmentedControl
-              className="pl-2"
-              ariaLabel={copy("sessions.filter.range_aria")}
-              leading={<Calendar className="h-3.5 w-3.5 shrink-0 text-oai-gray-400" aria-hidden />}
-              options={rangeOptions}
-              value={rangeFilter}
-              onChange={setRangeFilter}
-            />
-
-            <SearchableSelect
-              options={projectOptions}
-              value={projectFilter}
-              onChange={setProjectFilter}
-              allLabel={copy("sessions.filter.project_all")}
-              searchPlaceholder={copy("sessions.filter.project_search")}
-              emptyLabel={copy("sessions.filter.project_empty")}
-              ariaLabel={copy("sessions.filter.project_aria")}
-            />
-
-            <div className="relative w-72 max-w-full">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-oai-gray-400" aria-hidden />
+          <div className="mb-6 space-y-3">
+            <div className="sessions-toolbar">
+            <div className="sessions-toolbar-search relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-oai-gray-500 dark:text-oai-gray-400" aria-hidden />
               <Input
                 type="search"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === "Escape" && searchQuery) {
-                    event.preventDefault();
-                    setSearchQuery("");
-                  }
+                  if (event.key === "Escape" && searchQuery) { event.preventDefault(); setSearchQuery(""); }
                 }}
                 aria-label={copy("sessions.action.search_aria")}
                 placeholder={copy("sessions.search.placeholder")}
-                className="h-8 pl-9 pr-8 !border-oai-gray-200 dark:!border-oai-gray-800 focus:!border-oai-gray-400 focus:!ring-oai-gray-400/20 dark:focus:!border-oai-gray-500 dark:focus:!ring-oai-gray-500/20 [&::-webkit-search-cancel-button]:appearance-none"
+                className="h-11 pl-10 pr-12 text-sm !bg-white dark:!bg-oai-gray-900 !border-oai-gray-200 placeholder:!text-oai-gray-500 dark:!border-oai-gray-800 dark:placeholder:!text-oai-gray-400 sm:h-9 [&::-webkit-search-cancel-button]:appearance-none"
               />
-              <button
-                type="button"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => setSearchQuery("")}
-                aria-label={copy("sessions.action.search_clear")}
-                aria-hidden={!searchQuery}
-                tabIndex={searchQuery ? 0 : -1}
-                className={cn(
-                  "absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-oai-gray-400 transition duration-150 ease-out hover:bg-oai-gray-100 hover:text-oai-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-gray-400/40 dark:hover:bg-oai-gray-800 dark:hover:text-oai-gray-200",
-                  searchQuery ? "scale-100 opacity-100" : "pointer-events-none scale-90 opacity-0",
-                )}
-              >
-                <XIcon className="h-3.5 w-3.5" aria-hidden />
-              </button>
+              {searchQuery ? (
+                <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => setSearchQuery("")} aria-label={copy("sessions.action.search_clear")} className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center rounded-md text-oai-gray-600 hover:bg-oai-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500 dark:text-oai-gray-300 dark:hover:bg-oai-gray-800 sm:h-9 sm:w-9">
+                  <XIcon className="h-4 w-4" aria-hidden />
+                </button>
+              ) : null}
             </div>
+              <Select ariaLabel={copy("sessions.filter.source_aria")} options={sourceOptions} value={sourceFilter} onValueChange={setSourceFilter} className="sessions-filter-trigger h-11 min-w-0 px-3 text-sm sm:h-9" matchTriggerWidth />
+              <Select ariaLabel={copy("sessions.filter.range_aria")} options={rangeOptions} value={rangeFilter} onValueChange={setDateRange} leadingIcon={<Calendar className="h-3.5 w-3.5 shrink-0 text-oai-gray-500 dark:text-oai-gray-400" aria-hidden />} className="sessions-filter-trigger h-11 min-w-0 px-3 text-sm sm:h-9" matchTriggerWidth />
+              <SearchableSelect options={projectOptions} value={projectFilter} onChange={setProjectFilter} allLabel={copy("sessions.filter.project_all")} searchPlaceholder={copy("sessions.filter.project_search")} emptyLabel={copy("sessions.filter.project_empty")} ariaLabel={copy("sessions.filter.project_aria")} className="sessions-filter-trigger !h-11 !w-full !max-w-none !px-3 !text-sm !font-normal sm:!h-9 !bg-white !text-oai-black dark:!bg-oai-gray-900 dark:!text-white [&>svg]:!text-oai-gray-500 dark:[&>svg]:!text-oai-gray-400" />
+              <SearchableSelect options={modelOptions} value={modelFilter} onChange={setModelFilter} allLabel={copy("sessions.filter.model_all")} searchPlaceholder={copy("sessions.filter.model_search")} emptyLabel={copy("sessions.filter.model_empty")} ariaLabel={copy("sessions.filter.model_aria")} className="sessions-filter-trigger sessions-model-filter !h-11 !w-full !max-w-none !px-3 !text-sm !font-normal sm:!h-9 !bg-white !text-oai-black dark:!bg-oai-gray-900 dark:!text-white [&>svg]:!text-oai-gray-500 dark:[&>svg]:!text-oai-gray-400" />
+            </div>
+            {rangeFilter === "custom" ? (
+              <div className="grid max-w-lg grid-cols-2 gap-3">
+                <label className="min-w-0 text-xs text-oai-gray-600 dark:text-oai-gray-300">
+                  <span className="mb-1 block">{copy("sessions.filter.from")}</span>
+                  <input type="date" aria-label={copy("sessions.filter.from")} value={customFrom} onChange={(event) => setCustomFrom(event.target.value)} className="h-11 w-full min-w-0 rounded-md border border-oai-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-oai-brand-500 dark:border-oai-gray-800 dark:bg-oai-gray-900 sm:h-10" />
+                </label>
+                <label className="min-w-0 text-xs text-oai-gray-600 dark:text-oai-gray-300">
+                  <span className="mb-1 block">{copy("sessions.filter.to")}</span>
+                  <input type="date" aria-label={copy("sessions.filter.to")} value={customTo} onChange={(event) => setCustomTo(event.target.value)} className="h-11 w-full min-w-0 rounded-md border border-oai-gray-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-oai-brand-500 dark:border-oai-gray-800 dark:bg-oai-gray-900 sm:h-10" />
+                </label>
+              </div>
+            ) : null}
+          </div>
 
-            <span className="ml-auto shrink-0 tabular-nums text-oai-gray-500 dark:text-oai-gray-400">
-              {grouped.foldedCount > 0
-                ? copy("sessions.thread.result_count", {
-                    roots: grouped.roots.length,
-                    subagents: grouped.foldedCount,
-                  })
-                : copy("sessions.filter.result_count", { filtered: filtered.length, total: allSessions.length })}
-            </span>
+          {!isLoading && data ? (
+            <section className="mb-6 flex items-start gap-3 rounded-lg border border-oai-gray-200 px-4 py-3 dark:border-oai-gray-800">
+              <dl className="sessions-kpis grid min-w-0 flex-1 grid-cols-2 gap-y-3 sm:grid-cols-4">
+                <div><dt className="text-xs text-oai-gray-500 dark:text-oai-gray-400">{copy("sessions.summary.count")}</dt><dd className="mt-1 text-lg font-medium tabular-nums">{formatCompactNumber(summary.count)}</dd></div>
+                <div><dt className="text-xs text-oai-gray-500 dark:text-oai-gray-400">{copy("sessions.col.tokens")}</dt><dd className="mt-1 text-lg font-medium tabular-nums">{formatCompactNumber(summary.tokens)}</dd></div>
+                <div><dt className="text-xs text-oai-gray-500 dark:text-oai-gray-400">{copy("sessions.col.cost")}</dt><dd className="mt-1 text-lg font-medium tabular-nums">{summary.costIsPartial ? "≥" : ""}{formatUsdCurrency(summary.cost, { currency, rate })}</dd></div>
+                <div><dt className="text-xs text-oai-gray-500 dark:text-oai-gray-400">{copy("sessions.summary.speed")}</dt><dd className="mt-1 text-lg font-medium tabular-nums"><SessionPerformance performance={summary.performance} />{summary.performance.estimated_tokens_per_second == null ? "—" : null}</dd></div>
+              </dl>
+              <Popover.Root>
+                <Popover.Trigger aria-label={copy("sessions.summary.scope_help")} className="-mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-oai-gray-500 hover:bg-oai-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500 dark:text-oai-gray-400 dark:hover:bg-oai-gray-800 sm:h-8 sm:w-8"><Info className="h-4 w-4" aria-hidden /></Popover.Trigger>
+                <Popover.Portal>
+                  <Popover.Positioner side="bottom" align="end" sideOffset={8} className="z-[60]">
+                    <Popover.Popup className="max-w-xs rounded-lg border border-oai-gray-200 bg-white p-4 text-sm leading-6 text-oai-gray-700 outline-none dark:border-oai-gray-700 dark:bg-oai-gray-900 dark:text-oai-gray-200">{copy("sessions.summary.scope")}</Popover.Popup>
+                  </Popover.Positioner>
+                </Popover.Portal>
+              </Popover.Root>
+            </section>
+          ) : null}
+
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-3 text-xs tabular-nums text-oai-gray-500 dark:text-oai-gray-400">
+              <span>
+                {grouped.foldedCount > 0 ? copy("sessions.thread.result_count", { roots: grouped.roots.length, subagents: grouped.foldedCount }) : copy("sessions.filter.result_count", { filtered: filtered.length, total: allSessions.length })}
+              </span>
+              {anyFilter ? <button type="button" onClick={clearFilters} className="inline-flex min-h-10 items-center rounded text-oai-gray-700 underline decoration-oai-gray-300 underline-offset-4 hover:text-oai-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500 dark:text-oai-gray-200 dark:decoration-oai-gray-600 dark:hover:text-white sm:min-h-0">{copy("sessions.filter.clear")}</button> : null}
+            </div>
+            <div className="flex min-w-0 items-center gap-2">
+              <Select ariaLabel={copy("sessions.group.aria")} options={groupOptions} value={groupMode} onValueChange={setGroupMode} className="sessions-filter-trigger h-11 min-w-0 max-w-40 px-2.5 text-xs sm:h-8" />
+              <Select ariaLabel={copy("sessions.sort.aria")} options={sortOptions} value={sortMode} onValueChange={setSortMode} className="sessions-filter-trigger h-11 min-w-0 max-w-44 px-2.5 text-xs sm:h-8" align="end" />
+            </div>
           </div>
 
           {truncated ? (
@@ -738,7 +653,7 @@ export function SessionsPage() {
               <button
                 type="button"
                 onClick={() => void load(false)}
-                className="mt-4 inline-flex h-8 items-center rounded-md border border-oai-gray-200 px-3 text-xs font-medium text-oai-gray-700 transition-colors hover:bg-oai-gray-100 hover:text-oai-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500 dark:border-oai-gray-800 dark:text-oai-gray-200 dark:hover:bg-oai-gray-800 dark:hover:text-white"
+                className="mt-4 inline-flex h-11 items-center rounded-md border border-oai-gray-200 px-3 text-xs font-medium text-oai-gray-700 transition-colors hover:bg-oai-gray-100 hover:text-oai-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500 dark:border-oai-gray-800 dark:text-oai-gray-200 dark:hover:bg-oai-gray-800 dark:hover:text-white"
               >
                 {copy("sessions.error.retry")}
               </button>
@@ -762,15 +677,33 @@ export function SessionsPage() {
               {error ? (
                 <p className="mb-4 text-sm text-red-500 dark:text-red-400">{copy("shared.error.prefix", { error })}</p>
               ) : null}
-              <ul className="divide-y divide-oai-gray-200/70 dark:divide-oai-gray-800/70">
-                {visible.map((session) => {
+              <div className="sessions-row-grid sessions-list-header border-b border-oai-gray-200 py-2 text-xs text-oai-gray-500 dark:border-oai-gray-800 dark:text-oai-gray-400" aria-hidden>
+                <span>{copy("sessions.col.session")}</span>
+                <span className="text-right">{copy("sessions.col.tokens")}</span>
+                <span className="text-right">{copy("sessions.col.cost")}</span>
+                <span className="text-right">{copy("sessions.col.speed")}</span>
+                <span className="sr-only">{copy("sessions.col.actions")}</span>
+              </div>
+              <ul className="divide-y divide-oai-gray-200 dark:divide-oai-gray-800">
+                {visibleGroups.map((group) => (
+                  <React.Fragment key={group.key}>
+                    <li className="pb-2 pt-5">
+                      <h2 className="break-words text-xs font-medium text-oai-gray-900 dark:text-oai-gray-100">
+                        {groupMode === "project"
+                          ? group.key || copy("sessions.project.unknown")
+                          : group.key
+                            ? new Date(`${group.key}T12:00:00`).toLocaleDateString(resolvedLocale || undefined, { year: "numeric", month: "short", day: "numeric" })
+                            : copy("sessions.group.unknown_date")}
+                      </h2>
+                    </li>
+                    {group.sessions.map((session) => {
                   const children = grouped.childrenByRoot.get(session.session_hash) || [];
                   const expanded = expandedThreads.has(session.session_hash);
                   const selectedModel = threadModelFilters.get(session.session_hash) || "all";
                   const visibleChildren = selectedModel === "all"
                     ? children
                     : children.filter(function matchesSelectedModel(child) {
-                        return modelUsageRows(child).some((usage) => usage.model === selectedModel);
+                        return sessionModels(child).some((usage) => usage.model === selectedModel);
                       });
 
                   return (
@@ -778,9 +711,11 @@ export function SessionsPage() {
                       <SessionRow
                         session={session}
                         locale={resolvedLocale}
+                        timeOnly={groupMode === "time"}
                         childCount={children.length}
                         expanded={expanded}
-                        onToggle={() => toggleThread(session.session_hash)}
+                        onToggle={toggleThread}
+                        onDetail={setDetailSession}
                       />
                       {expanded && children.length ? (
                         <ThreadModelUsage
@@ -796,19 +731,23 @@ export function SessionsPage() {
                               session={child}
                               locale={resolvedLocale}
                               nested
+                              timeOnly={groupMode === "time"}
+                              onDetail={setDetailSession}
                             />
                           ))
                         : null}
                     </React.Fragment>
                   );
                 })}
+                  </React.Fragment>
+                ))}
               </ul>
               {hasMore ? (
                 <div ref={sentinelRef} className="flex justify-center pt-6">
                   <button
                     type="button"
                     onClick={showMore}
-                    className="inline-flex h-8 items-center rounded-md border border-oai-gray-200 px-3 text-xs font-medium text-oai-gray-600 transition-colors hover:bg-oai-gray-100 hover:text-oai-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500 dark:border-oai-gray-800 dark:text-oai-gray-300 dark:hover:bg-oai-gray-800 dark:hover:text-white"
+                    className="inline-flex h-11 items-center rounded-md border border-oai-gray-200 px-3 text-xs font-medium text-oai-gray-600 transition-colors hover:bg-oai-gray-100 hover:text-oai-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500 dark:border-oai-gray-800 dark:text-oai-gray-300 dark:hover:bg-oai-gray-800 dark:hover:text-white"
                   >
                     {copy("sessions.action.load_more")}
                   </button>
@@ -817,11 +756,12 @@ export function SessionsPage() {
             </>
           )}
 
-          <p className="mt-6 text-xs text-oai-gray-400 dark:text-oai-gray-500">
+          <p className="mt-8 max-w-3xl text-xs leading-5 text-oai-gray-600 dark:text-oai-gray-300">
             {copy("sessions.privacy")}
           </p>
         </div>
       </main>
+      {detailSession ? <SessionDetailModal session={detailSession} subagents={detailSubagents} onClose={closeDetail} /> : null}
     </div>
   );
 }

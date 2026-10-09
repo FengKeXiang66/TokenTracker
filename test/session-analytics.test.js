@@ -360,7 +360,7 @@ test("session analytics reuses unchanged file records during an incremental rebu
   await buildSessionAnalytics({ home, force: true });
   const sidecarPath = path.join(home, ".tokentracker", "tracker", "session.queue.jsonl");
   const cachedRows = fs.readFileSync(sidecarPath, "utf8").trim().split("\n").map(JSON.parse);
-  cachedRows.find((row) => row.project_key === "project-a").model = "cached-proof";
+  cachedRows.find((row) => row.project_key === "project-a").title = "cached-proof";
   fs.writeFileSync(sidecarPath, `${cachedRows.map(JSON.stringify).join("\n")}\n`);
   fs.appendFileSync(changedFile, `${JSON.stringify({
     type: "user",
@@ -371,7 +371,7 @@ test("session analytics reuses unchanged file records during an incremental rebu
   })}\n`);
 
   const rebuilt = await buildSessionAnalytics({ home, cacheTtlMs: 0 });
-  assert.equal(rebuilt.find((row) => row.project_key === "project-a").model, "cached-proof");
+  assert.equal(rebuilt.find((row) => row.project_key === "project-a").title, "cached-proof");
   assert.equal(rebuilt.find((row) => row.project_key === "project-b").turns, 2);
 });
 
@@ -537,9 +537,9 @@ for (const largeFirst of [false, true]) {
     assert.equal(summarizeSessions(fragments).summary.cost_usd, expectedCost);
     const merged = listSessionsForBrowser(fragments).sessions[0];
     assert.equal(merged.cost_usd, expectedCost);
-    assert.equal(merged.model, "claude-sonnet-4-5");
+    assert.equal(merged.model, "mixed");
     assert.equal(merged.total_tokens, 1_100_000);
-    assert.equal(merged.model_usage[0].cost_usd, expectedCost);
+    assert.equal(merged.model_usage.reduce((sum, row) => sum + row.cost_usd, 0), expectedCost);
   });
 }
 
@@ -1077,8 +1077,8 @@ test("model_usage reaches the browser dense whatever the sidecar stored", async 
     { timestamp: "2026-07-23T08:00:02Z", type: "event_msg", payload: { type: "token_count", info: { last_token_usage: usage(100, 20), total_token_usage: usage(120, 0) } } },
   ].map(JSON.stringify).join("\n")}\n`);
 
-  // Claude records never carry model_usage at all, so they exercise the
-  // fallback branch that used to emit a six-field row.
+  // Both providers now persist per-model usage; legacy rows still exercise
+  // the fallback branch that used to emit a six-field row.
   const claudePath = path.join(dir, "claude.jsonl");
   fs.writeFileSync(claudePath, `${[
     { type: "user", sessionId: "dense-1", cwd: dir, timestamp: "2026-07-23T09:00:00Z", message: { content: "do the thing" } },
@@ -1087,10 +1087,11 @@ test("model_usage reaches the browser dense whatever the sidecar stored", async 
 
   const codex = await scanCodexSession(codexPath);
   const claude = await scanClaudeSession(claudePath);
-  assert.equal(Array.isArray(claude.model_usage), false);
+  assert.equal(Array.isArray(claude.model_usage), true);
 
-  const listed = listSessionsForBrowser([codex, claude]).sessions;
-  assert.equal(listed.length, 2);
+  const legacy = { ...claude, session_hash: "legacy", model_usage: undefined };
+  const listed = listSessionsForBrowser([codex, claude, legacy]).sessions;
+  assert.equal(listed.length, 3);
   const keySets = listed.map((row) => {
     assert.ok(Array.isArray(row.model_usage) && row.model_usage.length > 0);
     return Object.keys(row.model_usage[0]).sort();
@@ -1099,6 +1100,7 @@ test("model_usage reaches the browser dense whatever the sidecar stored", async 
   // Both producer paths must emit the identical key set, or dashboard/src/lib/
   // sessions-api.ts is describing a row shape that only one of them sends.
   assert.deepEqual(keySets[0], keySets[1]);
+  assert.deepEqual(keySets[0], keySets[2]);
   for (const field of [
     "model",
     "input_tokens",

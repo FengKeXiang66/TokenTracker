@@ -5,6 +5,7 @@ import { getContextHealth, getSessionInsights } from "../../../lib/api";
 import { useSessionEfficiencyPref } from "../../../hooks/use-session-efficiency-pref.js";
 import { useTokenFormat } from "../../../hooks/useTokenFormat.js";
 import { TOKEN_FORMAT_MODES } from "../../../lib/token-format.js";
+import { useLatestRequestGuard } from "../../../hooks/use-latest-request-guard";
 
 const PLACEHOLDER_MODELS = new Set(["unknown", "synthetic", "openai"]);
 
@@ -47,27 +48,29 @@ function SessionCardHeader() {
 }
 
 export function SessionInsightsCard({ from, to }) {
-  const [state, setState] = useState({ loading: true, sessions: null, context: null });
+  const requestKey = JSON.stringify([from, to]);
+  const [result, setState] = useState({ requestKey: null, loading: true, sessions: null, context: null });
+  const state = result.requestKey === requestKey ? result : { loading: true, sessions: null, context: null };
   const methodologyId = useId();
   const { enabled } = useSessionEfficiencyPref();
+  const beginRequest = useLatestRequestGuard([enabled, from, to]);
   const { formatTokens } = useTokenFormat();
   const formatCompactTokens = (value) => formatTokens(value, { mode: TOKEN_FORMAT_MODES.COMPACT });
   useEffect(() => {
+    const isCurrent = beginRequest();
     if (!enabled) {
-      setState({ loading: false, sessions: null, context: null });
+      setState({ requestKey, loading: false, sessions: null, context: null });
       return undefined;
     }
-    let cancelled = false;
-    setState((previous) => ({ ...previous, loading: true }));
+    setState({ requestKey, loading: true, sessions: null, context: null });
     Promise.all([getSessionInsights({ from, to }), getContextHealth()])
       .then(([sessions, context]) => {
-        if (!cancelled) setState({ loading: false, sessions, context });
+        if (isCurrent()) setState({ requestKey, loading: false, sessions, context });
       })
       .catch(() => {
-        if (!cancelled) setState({ loading: false, sessions: null, context: null });
+        if (isCurrent()) setState({ requestKey, loading: false, sessions: null, context: null });
       });
-    return () => { cancelled = true; };
-  }, [enabled, from, to]);
+  }, [enabled, from, to, requestKey, beginRequest]);
 
   const models = useMemo(
     () => (state.sessions?.by_model || []).filter(isDisplayModel).slice(0, 5),

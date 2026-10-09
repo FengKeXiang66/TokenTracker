@@ -56,6 +56,7 @@ const {
   computeRowCost,
   ensurePricingLoaded,
   getPricingRevision,
+  getModelPricingInfo,
 } = require("./pricing");
 
 const {
@@ -2539,8 +2540,11 @@ function createLocalApiHandler({ queuePath, serverVersion = null }) {
         sa.totals.cache_creation_input_tokens += row.cache_creation_input_tokens || 0;
         sa.totals.reasoning_output_tokens += row.reasoning_output_tokens || 0;
         if (!sa.models.has(mdl))
-          sa.models.set(mdl, { model: mdl, model_id: mdl, totals: { total_tokens: 0, billable_total_tokens: 0, input_tokens: 0, output_tokens: 0, cached_input_tokens: 0, cache_creation_input_tokens: 0, reasoning_output_tokens: 0, total_cost_usd: "0" } });
+          sa.models.set(mdl, { model: mdl, model_id: mdl, pricing: getModelPricingInfo(mdl, { source: src }), totals: { total_tokens: 0, billable_total_tokens: 0, input_tokens: 0, output_tokens: 0, cached_input_tokens: 0, cache_creation_input_tokens: 0, reasoning_output_tokens: 0, total_cost_usd: "0" } });
         const ma = sa.models.get(mdl);
+        const reportedCost = ["grok", "cline"].includes(src) && Number(row.total_cost_usd) > 0;
+        const costSource = reportedCost ? "provider_reported" : "model_pricing";
+        ma.cost_source = ma.cost_source && ma.cost_source !== costSource ? "mixed" : costSource;
         ma.totals.total_tokens += row.total_tokens || 0;
         ma.totals.billable_total_tokens += row.billable_total_tokens ?? row.total_tokens ?? 0;
         ma.totals.input_tokens += row.input_tokens || 0;
