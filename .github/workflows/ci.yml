@@ -202,3 +202,47 @@ jobs:
 
       - name: Build TokenTrackerWin
         run: dotnet build TokenTrackerWin/TokenTrackerWin.csproj --configuration Release
+
+      # Build review artifacts before a release so package/installer failures
+      # are caught without publishing a tag or changing public assets.
+      - name: Install Windows dashboard dependencies
+        run: npm ci --prefix dashboard --no-audit --no-fund
+
+      - name: Build Windows dashboard with pet and quota
+        env:
+          VITE_INSFORGE_BASE_URL: https://srctyff5.us-east.insforge.app
+          VITE_INSFORGE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3OC0xMjM0LTU2NzgtOTBhYi1jZGVmMTIzNDU2NzgiLCJlbWFpbCI6ImFub25AaW5zZm9yZ2UuY29tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNDU5NDd9.T0auta_IrVIh0uXW1bob5QSnzvsnJmN28r5XkSGEuQY
+          TOKENTRACKER_BUILD_PET: "1"
+        run: npm run dashboard:build
+
+      - name: Bundle and verify Windows review package
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy Bypass -File TokenTrackerWin/scripts/bundle-node.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet publish TokenTrackerWin/TokenTrackerWin.csproj -c Release -r win-x64 --self-contained true -o TokenTrackerWin/publish
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item TokenTrackerWin/EmbeddedServer TokenTrackerWin/publish/EmbeddedServer -Recurse
+          node scripts/verify-windows-package.cjs TokenTrackerWin/publish windows-package-manifest.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Compress-Archive -Path TokenTrackerWin/publish/* -DestinationPath TokenTracker-review-win-x64.zip
+
+      - name: Compile Windows review installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path -LiteralPath $iscc)) { throw 'Preinstalled Inno Setup 6 compiler unavailable' }
+          $version = node -p "require('./package.json').version"
+          & $iscc "/DMyAppVersion=$version" TokenTrackerWin/installer/TokenTracker.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload Windows review artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: windows-review-${{ github.event.pull_request.head.sha || github.sha }}
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            TokenTracker-review-win-x64.zip
+            TokenTrackerWin/installer/Output/TokenTracker-Setup-v*.exe
+            windows-package-manifest.json

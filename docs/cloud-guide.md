@@ -18,7 +18,7 @@ Free community uploads use one registered device per account with a bounded dail
 
 Cloud contains usage metrics only. Prompts, responses, code, project and session records, and AI provider credentials stay on your machine. See the [Privacy Policy](PRIVACY.md).
 
-Cross-device monthly reports and budget views are future work, not delivered paid entitlements. Local analysis and exports remain free. Proposed prices need validation against real operating cost and willingness to pay before launch.
+Cross-device monthly reports and budget views are future work, not delivered paid entitlements. Local analysis and exports remain free. Base prices are confirmed; production charging still requires engineering and financial acceptance.
 
 ## Free self-hosting
 
@@ -46,7 +46,7 @@ Resolve an unfinished payment or active automatic renewal before redeeming. Acti
 | Waffo auto-renewal | USD 4.99 | USD 39.99, charged once for the year | Recurring subscription; cancel renewal to stop the next charge |
 | Waffo fixed-term access | USD 4.99 | USD 39.99, charged once for the year | Buy another term manually; no automatic debit |
 
-These are test prices, with the same USD base price worldwide. They exclude tax. Waffo calculates applicable tax and shows the final total before payment; the final charge can differ by tax jurisdiction. Annual figures are the total annual base charge, not a monthly debit. Waffo provides Merchant of Record services under its terms. [Waffo MoR information](https://www.waffo.ai/features/mor)
+These confirmed USD base prices are the same worldwide and exclude tax. Waffo calculates applicable tax and shows the final total before payment; the final charge can differ by tax jurisdiction. Annual figures are the total annual base charge, not a monthly debit. Waffo provides Merchant of Record services under its terms. [Waffo MoR information](https://www.waffo.ai/features/mor)
 
 Auto-renewal supports cards and Apple Pay or Google Pay where available. Fixed-term checkout supports WeChat or cards where available. The payment methods shown by Waffo are authoritative; this plan does not promise Alipay, a CNY price or a particular conversion rate.
 
