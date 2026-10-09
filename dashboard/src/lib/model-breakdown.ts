@@ -150,7 +150,7 @@ function mergeSourcesByAlias(sources: any[]) {
       if (!id) continue;
       let modelRow = merged.models.get(id);
       if (!modelRow) {
-        modelRow = { model: model?.model || id, model_id: id, totals: emptyTotals() };
+        modelRow = { ...model, model: model?.model || id, model_id: id, totals: emptyTotals() };
         merged.models.set(id, modelRow);
       }
       addTotalsInto(modelRow.totals, model?.totals);
@@ -238,6 +238,8 @@ export function buildFleetData(modelBreakdown: any, { copyFn }: AnyRecord = {}) 
               cacheCreate: Math.max(0, toFiniteNumber(rawTotals?.cache_creation_input_tokens) ?? 0),
               reasoning: Math.max(0, toFiniteNumber(rawTotals?.reasoning_output_tokens) ?? 0),
             },
+            pricing: model?.pricing || null,
+            costSource: model?.cost_source || null,
           };
         })
         .filter(Boolean);

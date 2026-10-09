@@ -50,7 +50,6 @@ error.boundary.subtitle,shared,*,ErrorBoundary,subtitle,"This view failed to ren
 error.boundary.hint,shared,*,ErrorBoundary,hint,"Open the console, then reload the page",,active
 error.boundary.no_details,shared,*,ErrorBoundary,details,"No error details",,active
 error.boundary.action.reload,shared,*,ErrorBoundary,action_reload,"Reload",,active
-
 landing.screenshot.alt,landing,LandingPage,LandingPage,screenshot_alt,"TokenTracker dashboard screenshot",,active
 landing.nav.login,landing,LandingPage,LandingPage,nav_login,"LOGIN",,active
 landing.nav.signup,landing,LandingPage,LandingPage,nav_signup,"SIGN UP",,active
@@ -73,12 +72,6 @@ share.meta.og_url,share,SharePage,Meta,og_url,"https://www.tokentracker.cc/share
 share.meta.twitter_card,share,SharePage,Meta,twitter_card,"summary_large_image",,active
 landing.cta.primary,landing,LandingPage,LandingPage,cta_primary,"View Dashboard",,active
 landing.cta.secondary,landing,LandingPage,LandingPage,cta_secondary,"GitHub",,active
-
-
-
-
-
-
 landing.v2.hero.title_line1,landing,LandingPage,MarketingLanding,hero_title_1,"TRACK EVERY",,active
 landing.v2.hero.title_line2,landing,LandingPage,MarketingLanding,hero_title_2,"AI TOKEN",,active
 landing.v2.install.mac_cta,landing,LandingPage,MarketingLanding,mac_cta,"Download for macOS",,active
@@ -134,16 +127,10 @@ landing.v3.leaderboard.anonymous,landing,LandingPage,LeaderboardSection,leaderbo
 landing.v3.leaderboard.tokens_synced,landing,LandingPage,LeaderboardSection,leaderboard_tokens_synced,"{{count}} tokens synced",,active
 landing.v3.download.title,landing,LandingPage,DownloadSection,download_title,"Start tracking in 30 seconds.",,active
 landing.v3.download.subtitle,landing,LandingPage,DownloadSection,download_subtitle,"One command or one download. Free, open source, yours.",,active
-
-
-
-
 identity_card.rank_label,ui,IdentityCard,IdentityCard,rank_label,"Started",,active
 identity_card.streak_label,ui,IdentityCard,IdentityCard,streak_label,"Active days",,active
 identity_card.rank_placeholder,ui,IdentityCard,IdentityCard,rank_placeholder,"—",,active
 identity_card.streak_value,ui,IdentityCard,IdentityCard,streak_value,"{{days}} DAY",,active
-
-
 dashboard.core_index.collapse_label,dashboard,DashboardPage,UsagePanel,toggle,"▾",,active
 dashboard.core_index.expand_label,dashboard,DashboardPage,UsagePanel,toggle,"▸",,active
 dashboard.core_index.collapse_aria,dashboard,DashboardPage,UsagePanel,toggle_aria,"Collapse model breakdown",,active
@@ -156,12 +143,10 @@ usage.metric.output,ui,UsagePanel,UsagePanel,metric_output,"Output",,active
 usage.metric.cached_input,ui,UsagePanel,UsagePanel,metric_cached_input,"Cached input",,active
 usage.metric.reasoning_output,ui,UsagePanel,UsagePanel,metric_reasoning_output,"Reasoning output",,active
 usage.button.refresh,ui,UsagePanel,UsagePanel,button_refresh,"Refresh",,active
-
 dashboard.rolling.title,ui,RollingUsagePanel,RollingUsagePanel,title,"Recent Activity",,active
 dashboard.rolling.last_7d,ui,RollingUsagePanel,RollingUsagePanel,label_last_7d,"Last 7 days",,active
 dashboard.rolling.last_30d,ui,RollingUsagePanel,RollingUsagePanel,label_last_30d,"Last 30 days",,active
 dashboard.rolling.avg_active_day,ui,RollingUsagePanel,RollingUsagePanel,label_avg_active_day,"Daily average",,active
-
 dashboard.projects.title,ui,DataDetails,DataDetails,title,"Project Usage",,active
 dashboard.projects.limit_aria,ui,DataDetails,DataDetails,limit_aria,"Select project limit",,active
 dashboard.projects.limit_top_3,ui,DataDetails,DataDetails,limit_top_3,"TOP 3",,active
@@ -214,8 +199,6 @@ widgets.limits.description,dashboard,WidgetsPage,WidgetsPage,limits_desc,"Live r
 dashboard.cost_breakdown.title,ui,CostAnalysisModal,CostAnalysisModal,title,"Cost Breakdown",,active
 dashboard.cost_breakdown.total_label,ui,CostAnalysisModal,CostAnalysisModal,total_label,"Estimated Total Cost",,active
 dashboard.cost_breakdown.close,ui,CostAnalysisModal,CostAnalysisModal,close_label,"Close",,active
-
-
 trend.monitor.label,ui,TrendMonitor,TrendMonitor,label,"Usage Trend",,active
 trend.monitor.predicted,ui,TrendMonitor,TrendMonitor,predicted_label,"Estimated",,active
 trend.zoom.open_aria,ui,TrendMonitor,TrendMonitor,zoom_open_aria,"Expand to full screen",,active
@@ -243,7 +226,6 @@ trend.zoom.insight.calm,ui,TrendMonitorZoomModal,TrendMonitorZoomModal,zoom_insi
 trend.zoom.insight.steady,ui,TrendMonitorZoomModal,TrendMonitorZoomModal,zoom_insight_steady,"A steady rhythm across {{active}} active stretches, cresting at {{peak}}. The kind of pace that ships things without drama.",,active
 trend.zoom.insight.heavy,ui,TrendMonitorZoomModal,TrendMonitorZoomModal,zoom_insight_heavy,"Heavy lifting: {{active}} stretches running hot, peaking at {{peak}}. This is output from someone who manufactures momentum instead of waiting for it.",,active
 trend.zoom.insight.massive,ui,TrendMonitorZoomModal,TrendMonitorZoomModal,zoom_insight_massive,"Industrial scale. A {{peak}} peak and throughput that never cools. At this volume you are not using the model, you are running a foundry.",,active
-
 heatmap.title,ui,ActivityHeatmap,ActivityHeatmap,title,"Activity Heatmap",,active
 heatmap.empty,ui,ActivityHeatmap,ActivityHeatmap,empty_state,"No activity data yet.",,active
 heatmap.legend.less,ui,ActivityHeatmap,ActivityHeatmap,legend_less,"Less",,active
@@ -273,10 +255,6 @@ heatmap.day.wed,ui,ActivityHeatmap,ActivityHeatmap,day_label,"Wed",,active
 heatmap.day.thu,ui,ActivityHeatmap,ActivityHeatmap,day_label,"Thu",,active
 heatmap.day.fri,ui,ActivityHeatmap,ActivityHeatmap,day_label,"Fri",,active
 heatmap.day.sat,ui,ActivityHeatmap,ActivityHeatmap,day_label,"Sat",,active
-
-
-
-
 daily.sort.date.label,dashboard,DashboardPage,DailyTable,sort_label,"Date",,active
 daily.sort.date.title,dashboard,DashboardPage,DailyTable,sort_title,"Sort by Date",,active
 daily.sort.total.label,dashboard,DashboardPage,DailyTable,sort_label,"Total",,active
@@ -293,9 +271,6 @@ daily.sort.conversations.label,dashboard,DashboardPage,DailyTable,sort_label,"Co
 daily.sort.conversations.title,dashboard,DashboardPage,DailyTable,sort_title,"Sort by Conversations",,active
 details.pagination.prev,dashboard,DashboardPage,DailyTable,pagination_prev,"Prev",,active
 details.pagination.next,dashboard,DashboardPage,DailyTable,pagination_next,"Next",,active
-
-
-
 leaderboard.profile.nav.back,dashboard,LeaderboardProfilePage,Header,nav_back,"Leaderboard",,active
 leaderboard.profile.nav.download,dashboard,LeaderboardProfilePage,Header,nav_download,"Download",Shown only to browser visitors without the app,active
 leaderboard.profile.hero.rank_label,dashboard,LeaderboardProfilePage,Hero,rank_label,"Rank",,active
@@ -307,16 +282,11 @@ leaderboard.generated_at,dashboard,LeaderboardPage,LeaderboardPage,generated_at,
 leaderboard.period.week,dashboard,LeaderboardPage,LeaderboardPage,period_week,"Week",,active
 leaderboard.period.month,dashboard,LeaderboardPage,LeaderboardPage,period_month,"Month",,active
 leaderboard.period.total,dashboard,LeaderboardPage,LeaderboardPage,period_total,"All",,active
-
 leaderboard.me_label,dashboard,LeaderboardPage,LeaderboardPage,me_label,"You",,active
 leaderboard.anon_label,dashboard,LeaderboardPage,LeaderboardPage,anon_label,"Anonymous",,active
 leaderboard.error.unknown,dashboard,LeaderboardPage,LeaderboardPage,error_unknown,"Unknown error",,active
-
-
-
 leaderboard.loading,dashboard,LeaderboardPage,LeaderboardPage,state_loading,"Loading…",,active
 leaderboard.empty,dashboard,LeaderboardPage,LeaderboardPage,state_empty,"No data",,active
-
 leaderboard.column.rank,dashboard,LeaderboardPage,LeaderboardPage,column_rank,"Rank",,active
 leaderboard.column.user,dashboard,LeaderboardPage,LeaderboardPage,column_user,"User",,active
 leaderboard.column.total,dashboard,LeaderboardPage,LeaderboardPage,column_total,"Total",,active
@@ -337,20 +307,12 @@ limits.copilot.otelHint.body,dashboard,LimitsPage,LimitsPage,otel_hint_body,"Lim
 limits.copilot.otelHint.copy,dashboard,LimitsPage,LimitsPage,otel_hint_copy,"Copy",,active
 limits.copilot.otelHint.copied,dashboard,LimitsPage,LimitsPage,otel_hint_copied,"Copied",,active
 leaderboard.column.supplemental,dashboard,LeaderboardPage,LeaderboardPage,column_supplemental,"Supplemental",,active
-
-
 leaderboard.pagination.prev,dashboard,LeaderboardPage,LeaderboardPage,pagination_prev,"Previous",,active
 leaderboard.pagination.next,dashboard,LeaderboardPage,LeaderboardPage,pagination_next,"Next",,active
 leaderboard.pagination.ellipsis,dashboard,LeaderboardPage,LeaderboardPage,pagination_ellipsis,"…",,active
 leaderboard.pagination.page_unknown,dashboard,LeaderboardPage,LeaderboardPage,pagination_unknown,"Page {{page}}",,active
-
-
-
-
 dashboard.session_expired.copy_label,dashboard,DashboardPage,AsciiBox,body,"run npx --yes tokentracker-cli init",,active
 dashboard.session_expired.copied,dashboard,DashboardPage,AsciiBox,body,"copied",,active
-
-
 dashboard.install.prompt,dashboard,DashboardPage,AsciiBox,install_prompt,"Install Node.js 18+ then run:",,active
 dashboard.install.cmd.init,dashboard,DashboardPage,AsciiBox,install_cmd,"npx --yes tokentracker-cli init",,active
 dashboard.install.cmd.init_link_code,dashboard,DashboardPage,AsciiBox,install_cmd,"npx --yes tokentracker-cli init --link-code {{link_code}}",,active
@@ -360,20 +322,13 @@ dashboard.install.copied,dashboard,DashboardPage,AsciiBox,install_copy,"Copied t
 dashboard.install.link_code.loading,dashboard,DashboardPage,AsciiBox,install_status,"Generating private code...",,active
 dashboard.install.link_code.failed,dashboard,DashboardPage,AsciiBox,install_status,"Private code unavailable",,active
 dashboard.install.cmd.sync,dashboard,DashboardPage,AsciiBox,install_cmd,"npx --yes tokentracker-cli sync",,active
-
-
-
 dashboard.daily.title,dashboard,DashboardPage,AsciiBox,title,"Daily Breakdown",,active
 dashboard.daily.empty,dashboard,DashboardPage,AsciiBox,empty_state,"No data yet. Use your AI CLI then run {{cmd}}.",,active
-
 dashboard.identity.title,dashboard,DashboardPage,IdentityCard,title,"Your Profile",,active
 dashboard.identity.subtitle,dashboard,DashboardPage,IdentityCard,subtitle,"Track your coding journey",,active
 dashboard.identity.fallback,dashboard,DashboardPage,IdentityCard,handle_fallback,"Anonymous",,active
 dashboard.overview.layout.drag_handle,dashboard,DashboardPage,SortableCard,drag_handle_aria_label,"Drag to reorder",,active
-
-
 dashboard.screenshot.twitter_text,dashboard,DashboardPage,ScreenshotShare,share_text,"{{total_tokens}} tokens on the record.\n{{model_name}} led with {{model_percent}}%.\n\nMy AI usage, unaudited →",,active
-
 nav.usage,shared,*,Sidebar,nav_usage,"Tokens",,active
 nav.limits,shared,*,Sidebar,nav_limits,"Limits",,active
 nav.widgets,shared,*,Sidebar,nav_widgets,"Menu Bar & Widgets",,active
@@ -1445,11 +1400,8 @@ sessions.card.context_tooltip,dashboard,DashboardPage,SessionInsightsCard,contex
 sessions.card.privacy,dashboard,DashboardPage,SessionInsightsCard,privacy,"Local metadata only. Prompt, response, command output, and diff contents are never retained.",,active
 sessions.card.subagents,dashboard,DashboardPage,SessionInsightsCard,subagents,"Subagent dispatches",,active
 sessions.card.subagent_item,dashboard,DashboardPage,SessionInsightsCard,subagent_item,"{{name}} · {{calls}}",,active
-sessions.page.subtitle,ui,SessionsPage,SessionsPage,subtitle,"Browse your local Claude Code, Codex, and Grok sessions and copy a resume command in one click.",,active
 sessions.page.refresh,ui,SessionsPage,SessionsPage,refresh,"Refresh sessions",,active
-sessions.filter.source_all,ui,SessionsPage,SessionsPage,filter_source_all,"All",,active
 sessions.filter.source_aria,ui,SessionsPage,SessionsPage,filter_source_aria,"Filter by session source",,active
-sessions.filter.range_all,ui,SessionsPage,SessionsPage,filter_range_all,"All",,active
 sessions.filter.range_aria,ui,SessionsPage,SessionsPage,filter_range_aria,"Filter by date range",,active
 sessions.filter.range_7d,ui,SessionsPage,SessionsPage,filter_range_7d,"7d",,active
 sessions.filter.range_30d,ui,SessionsPage,SessionsPage,filter_range_30d,"30d",,active
@@ -1468,11 +1420,9 @@ sessions.col.cost,ui,SessionsPage,SessionsPage,col_cost,"Cost",,active
 sessions.col.edits,ui,SessionsPage,SessionsPage,col_edits,"Edits",,active
 sessions.badge.first_pass,ui,SessionsPage,SessionsPage,badge_first_pass,"First-pass",,active
 sessions.badge.reported_cost,ui,SessionsPage,SessionsPage,badge_reported_cost,"Reported cost",,active
-sessions.badge.reported_usage,ui,SessionsPage,SessionsPage,badge_reported_usage,"Reported usage",,active
 sessions.badge.partial_usage,ui,SessionsPage,SessionsPage,badge_partial_usage,"Partial usage",,active
 sessions.badge.partial_cost,ui,SessionsPage,SessionsPage,badge_partial_cost,"Partial cost","Tokens are fully observed but at least one model in the session has no public rate.",active
 sessions.cost.partial_title,ui,SessionsPage,SessionsPage,cost_partial_title,"Lower bound - some models in this session have no public rate, so their tokens cost $0 here.","Tooltip on the greater-or-equal cost marker.",active
-sessions.grok.token_breakdown,ui,SessionsPage,SessionsPage,grok_token_breakdown,"Input {{input}} · Cache read {{cacheRead}} · Cache write {{cacheWrite}} · Output {{output}} · Reasoning {{reasoning}}",,active
 sessions.grok.runtime_breakdown,ui,SessionsPage,SessionsPage,grok_runtime_breakdown,"Model calls {{calls}} · API {{seconds}}s · Tools {{tools}} · Errors {{errors}}",,active
 sessions.grok.context_breakdown,ui,SessionsPage,SessionsPage,grok_context_breakdown,"Context {{used}} / {{window}} ({{percent}}%)",,active
 sessions.badge.subagent,ui,SessionsPage,SessionRow,badge_subagent,"Subagent",,active
@@ -1487,7 +1437,6 @@ sessions.duration.minutes,ui,SessionsPage,SessionsPage,duration_minutes,"{{minut
 sessions.duration.hours,ui,SessionsPage,SessionsPage,duration_hours,"{{hours}}h {{minutes}}m",,active
 sessions.project.unknown,ui,SessionsPage,SessionsPage,project_unknown,"Untitled session",,active
 sessions.model.unknown,ui,SessionsPage,SessionsPage,model_unknown,"Unknown model",,active
-sessions.resume.copy,ui,SessionsPage,SessionsPage,resume_copy,"Copy command",,active
 sessions.resume.copy_aria,ui,SessionsPage,SessionsPage,resume_copy_aria,"Copy resume command: {{command}}",,active
 sessions.resume.copied,ui,SessionsPage,SessionsPage,resume_copied,"Resume command copied",,active
 sessions.resume.copy_failed,ui,SessionsPage,SessionsPage,resume_copy_failed,"Could not copy command",,active
@@ -1973,3 +1922,80 @@ cloud.gift.error_checkout,cloud,*,RedeemProCode,text,Review your unfinished paym
 cloud.gift.error_active,cloud,*,RedeemProCode,text,You have an active or upcoming Pro gift. Manage it in your account before starting another payment.,,active
 cloud.gift.error_network,cloud,*,RedeemProCode,text,The redemption result could not be confirmed. Retry the same code; an already recorded gift will not be added twice.,,active
 cloud.prompt.deadline_gift,cloud,*,RedeemProCode,text,Your gifted Pro access ends {{date}}. The gift creates no auto-renewal. Your local data stays available afterward.,,active
+sessions.filter.model_all,ui,SessionsPage,SessionInsights,model_all,All models,,active
+sessions.filter.model_search,ui,SessionsPage,SessionInsights,model_search,Search models…,,active
+sessions.filter.model_empty,ui,SessionsPage,SessionInsights,model_empty,No matching models,,active
+sessions.filter.model_aria,ui,SessionsPage,SessionInsights,model_aria,Filter by session model,,active
+sessions.filter.range_custom,ui,SessionsPage,SessionInsights,range_custom,Custom,,active
+sessions.filter.from,ui,SessionsPage,SessionInsights,from,Sessions from,,active
+sessions.filter.to,ui,SessionsPage,SessionInsights,to,Sessions through,,active
+sessions.filter.clear,ui,SessionsPage,SessionInsights,clear,Clear filters,,active
+sessions.group.aria,ui,SessionsPage,SessionInsights,aria,Group sessions,,active
+sessions.group.time,ui,SessionsPage,SessionInsights,time,By date,,active
+sessions.group.project,ui,SessionsPage,SessionInsights,project,By project,,active
+sessions.group.unknown_date,ui,SessionsPage,SessionInsights,unknown_date,Unknown date,,active
+sessions.sort.aria,ui,SessionsPage,SessionInsights,aria,Sort sessions,,active
+sessions.sort.recent,ui,SessionsPage,SessionInsights,recent,Recent,,active
+sessions.sort.cost,ui,SessionsPage,SessionInsights,cost,Highest cost,,active
+sessions.sort.tokens,ui,SessionsPage,SessionInsights,tokens,Most tokens,,active
+sessions.summary.count,ui,SessionsPage,SessionInsights,count,Matching sessions,,active
+sessions.summary.scope,ui,SessionsPage,SessionInsights,scope,"Full-session usage for matched sessions and subagents, each counted once. Dates select overlapping sessions; models select whole sessions.",,active
+sessions.summary.speed,ui,SessionsPage,SessionInsights,speed,Estimated speed,,active
+sessions.performance.speed,ui,SessionsPage,SessionInsights,speed,≈{{speed}} tok/s,,active
+sessions.performance.samples,ui,SessionsPage,SessionInsights,samples,{{count}} timed requests,,active
+sessions.performance.method,ui,SessionsPage,SessionInsights,method,"Output tokens / estimated request time, including response wait. Tool execution and idle time are excluded. This is not pure generation speed.",,active
+sessions.performance.first_response,ui,SessionsPage,SessionInsights,first_response,First response wait,,active
+sessions.performance.first_response_value,ui,SessionsPage,SessionInsights,first_response_value,{{seconds}}s · {{count}} samples,,active
+sessions.performance.first_response_method,ui,SessionsPage,SessionInsights,first_response_method,"Average reported time to first token. Codex measures whole turns, which can include multiple model calls.",,active
+sessions.detail.open_aria,ui,SessionsPage,SessionInsights,open_aria,View statistics for {{title}},,active
+sessions.detail.title,ui,SessionsPage,SessionInsights,title,Session statistics,,active
+sessions.detail.close,ui,SessionsPage,SessionInsights,close,Close session statistics,,active
+sessions.detail.tokens,ui,SessionsPage,SessionInsights,tokens,Token composition,,active
+sessions.detail.models,ui,SessionsPage,SessionInsights,models,Models and cost,,active
+sessions.detail.own,ui,SessionsPage,SessionInsights,own,This session,,active
+sessions.detail.subagents,ui,SessionsPage,SessionInsights,subagents,Subagents,,active
+sessions.detail.signals,ui,SessionsPage,SessionInsights,signals,Observed activity,,active
+sessions.detail.retries,ui,SessionsPage,SessionInsights,retries,Repeated requests,,active
+sessions.detail.tools,ui,SessionsPage,SessionInsights,tools,Tool calls,,active
+sessions.detail.tool_failures,ui,SessionsPage,SessionInsights,tool_failures,Tool failures,,active
+sessions.detail.errors,ui,SessionsPage,SessionInsights,errors,Errors,,active
+sessions.detail.model_calls,ui,SessionsPage,SessionInsights,model_calls,Model calls,,active
+sessions.detail.compactions,ui,SessionsPage,SessionInsights,compactions,Compactions,,active
+sessions.detail.cost_source,ui,SessionsPage,SessionInsights,cost_source,Cost source,,active
+sessions.detail.cost_reported,ui,SessionsPage,SessionInsights,cost_reported,Reported by tool,,active
+sessions.detail.cost_estimated,ui,SessionsPage,SessionInsights,cost_estimated,Model pricing estimate,,active
+sessions.detail.cost_mixed,ui,SessionsPage,SessionInsights,cost_mixed,Reported and estimated,,active
+sessions.detail.cost_unknown,ui,SessionsPage,SessionInsights,cost_unknown,Not reported,,active
+sessions.detail.pricing_unpriced,ui,SessionsPage,SessionInsights,pricing_unpriced,No published rate,,active
+sessions.detail.pricing_free,ui,SessionsPage,SessionInsights,pricing_free,Free model,,active
+sessions.detail.pricing_rates,ui,SessionsPage,SessionInsights,pricing_rates,Base USD / million tokens · Input {{input}} · Output {{output}} · Cache read {{cacheRead}} · Cache write {{cacheWrite}}. Tier and priority rates can differ.,,active
+sessions.detail.reasoning_note,ui,SessionsPage,SessionInsights,reasoning_note,Reasoning is informational and may already be included in output tokens.,,active
+sessions.detail.no_speed,ui,SessionsPage,SessionInsights,no_speed,No reliable timing samples,,active
+usage.filter.source_all,ui,DashboardPage,UsageOverview,source_all,All tools,,active
+dashboard.cost_breakdown.method,ui,DashboardPage,UsageOverview,method,"Model rates estimate API-equivalent cost, not subscription spend. Tool-reported costs take priority; missing rates are excluded.",,active
+dashboard.cost_breakdown.reported,ui,DashboardPage,UsageOverview,reported,Cost reported by the tool,,active
+dashboard.cost_breakdown.mixed,ui,DashboardPage,UsageOverview,mixed,Tool-reported costs and model estimates,,active
+dashboard.cost_breakdown.estimated,ui,DashboardPage,UsageOverview,estimated,Estimated from model pricing,,active
+dashboard.cost_breakdown.unpriced,ui,DashboardPage,UsageOverview,unpriced,No rate found. These tokens are retained but their cost is unknown.,,active
+dashboard.cost_breakdown.no_token_charge,ui,DashboardPage,UsageOverview,no_token_charge,No token charge for this source or model,,active
+dashboard.cost_breakdown.unpriced_label,ui,DashboardPage,UsageOverview,unpriced_label,Unpriced,,active
+dashboard.cost_breakdown.token_mix,ui,DashboardPage,UsageOverview,token_mix,Input {{input}} · Output {{output}} · Cache read {{read}} · Cache write {{write}},,active
+dashboard.cost_breakdown.rates,ui,DashboardPage,UsageOverview,rates,Base USD / million tokens · Input {{input}} · Output {{output}} · Cache read {{read}} · Cache write {{write}}. Tier and priority rates can differ.,,active
+dashboard.cost_breakdown.known_subtotal,ui,DashboardPage,UsageInsights,known_subtotal,Known cost subtotal,,active
+dashboard.cost_breakdown.rate_unknown,ui,DashboardPage,UsageInsights,rate_unknown,Rate unavailable,,active
+sessions.detail.not_recorded,ui,SessionsPage,UsageInsights,not_recorded,Not recorded,,active
+sessions.detail.pricing_litellm,ui,SessionsPage,UsageInsights,pricing_litellm,LiteLLM pricing,,active
+sessions.detail.pricing_curated,ui,SessionsPage,UsageInsights,pricing_curated,Maintained pricing table,,active
+sessions.page.summary,ui,SessionsPage,UsageInsights,summary,"Local sessions, usage and estimated cost.",,active
+sessions.filter.range_label_all,ui,SessionsPage,UsageInsights,range_label_all,Any time,,active
+sessions.summary.scope_help,ui,SessionsPage,UsageInsights,scope_help,About these totals,,active
+sessions.col.session,ui,SessionsPage,UsageInsights,session,Session / project,,active
+sessions.col.speed,ui,SessionsPage,UsageInsights,speed,Speed,,active
+sessions.col.actions,ui,SessionsPage,UsageInsights,actions,Actions,,active
+sessions.detail.consumption,ui,SessionsPage,UsageInsights,consumption,Usage and cost,,active
+sessions.detail.pricing_details,ui,SessionsPage,UsageInsights,pricing_details,Pricing details,,active
+sessions.detail.identifiers,ui,SessionsPage,UsageInsights,identifiers,Session identifiers,,active
+sessions.detail.session_id,ui,SessionsPage,UsageInsights,session_id,Session ID,,active
+sessions.detail.local_path,ui,SessionsPage,UsageInsights,local_path,Local path,,active
+sessions.detail.resume_command,ui,SessionsPage,SessionDetailModal,resume_command,Resume command,,active
+sessions.performance.first_response_value_single,ui,SessionsPage,SessionDetailModal,first_response_single,{{seconds}}s · {{count}} sample,,active

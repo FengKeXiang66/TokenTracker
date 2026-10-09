@@ -664,6 +664,35 @@ async function fetchCompactDims(
   return pending;
 }
 
+function getUsageModelPricing(model: string, source: string) {
+  const lower = model.toLowerCase();
+  const localInference = source === "lmstudio";
+  const subscriptionBacked = source === "pi-github-copilot" || source === "pi-copilot";
+  const modelForPricing = source === "unsloth" && /^(local|unpriced)\//i.test(model)
+    ? "__tokentracker_unpriced_unsloth_model__"
+    : source === "workbuddy" && lower === "auto" ? "hy3-preview-agent" : model;
+  const pricing = localInference || subscriptionBacked
+    ? ZERO_PRICING : getModelPricing(modelForPricing, source);
+  const pricingModel = modelForPricing.toLowerCase();
+  const hasRates = [pricing.input, pricing.output, pricing.cache_read, pricing.cache_write]
+    .some((rate) => Number(rate) > 0);
+  // A matched zero-rate table entry is free. The shared fallback object also
+  // represents missing rates, so only explicit no-charge routes override it.
+  const free = localInference || subscriptionBacked || pricing !== ZERO_PRICING ||
+    (source === "cline" && pricingModel.endsWith(":free")) ||
+    pricingModel.includes("cline-free/") || pricingModel.includes("cline-pass/");
+  return {
+    status: hasRates ? "priced" : free ? "free" : "unpriced",
+    source: localInference ? "local_inference"
+      : subscriptionBacked || pricingModel.includes("cline-pass/") ? "subscription"
+      : hasRates || free ? source === "acode" ? "iflytek_maas" : "curated" : null,
+    input: Number(pricing.input) || 0,
+    output: Number(pricing.output) || 0,
+    cache_read: Number(pricing.cache_read) || 0,
+    cache_write: Number(pricing.cache_write) || 0,
+  };
+}
+
 export default async function (req: Request): Promise<Response> {
   if (req.method === "OPTIONS")
     return new Response(null, { status: 204, headers: corsHeaders });
@@ -841,6 +870,8 @@ export default async function (req: Request): Promise<Response> {
         return {
           model: m.model,
           model_id: m.model_id,
+          pricing: getUsageModelPricing(m.model, s.source),
+          cost_source: "model_pricing",
           totals: { ...m.totals, total_cost_usd: m.totalCostUsd.toFixed(6) },
         };
       })

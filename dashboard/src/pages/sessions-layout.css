@@ -1,0 +1,165 @@
+.sessions-row-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  gap: 12px;
+  align-items: start;
+}
+
+.sessions-row-identity {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.sessions-row-metrics {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sessions-row-action {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.sessions-row-action:disabled {
+  opacity: 0.4;
+}
+
+.sessions-row-value {
+  min-width: 0;
+}
+
+/* Phones wrap the meta line, where any inline dot ends up stranded at a line
+   edge, so spacing alone separates items there; desktop rows fit on one line
+   and get the dots. */
+.sessions-row-meta {
+  column-gap: 12px;
+}
+
+/* On phones the three metrics sit under the identity block; keep them a quiet
+   single line rather than a second card. */
+@media (max-width: 767px) {
+  .sessions-row-metrics dt {
+    font-size: 11px;
+    line-height: 16px;
+  }
+
+  .sessions-row-metrics dd {
+    margin-top: 0;
+  }
+}
+
+.sessions-row-nested .sessions-row-identity,
+.sessions-thread-models {
+  padding-left: 16px;
+}
+
+.sessions-list-header {
+  display: none;
+}
+
+/* Search spans the first row on phones; the four filters pair up below it. */
+.sessions-toolbar {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.sessions-toolbar-search {
+  grid-column: 1 / -1;
+}
+
+.sessions-filter-trigger {
+  border-radius: 6px;
+}
+
+/* SearchableSelect puts its chevron right after the label; push it to the
+   edge so the four triggers line up with the Select ones. */
+.sessions-filter-trigger > svg:last-child {
+  margin-left: auto;
+}
+
+.sessions-model-filter > svg:first-of-type {
+  display: none;
+}
+
+.sessions-kpis > div {
+  min-width: 0;
+}
+
+@media (min-width: 640px) {
+  .sessions-kpis > div + div {
+    border-left: 1px solid rgb(229 229 229);
+    padding-left: 16px;
+  }
+
+  :root.dark .sessions-kpis > div + div {
+    border-left-color: rgb(38 38 38);
+  }
+}
+
+@media (min-width: 768px) {
+  .sessions-row-grid {
+    grid-template-columns: minmax(0, 1fr) 72px 80px 96px 32px;
+    gap: 16px;
+  }
+
+  .sessions-row-metrics {
+    display: contents;
+  }
+
+  .sessions-row-meta {
+    column-gap: 0;
+  }
+
+  .sessions-meta-item + .sessions-meta-item::before {
+    content: "·";
+    padding: 0 6px;
+  }
+
+  .sessions-row-value {
+    text-align: right;
+  }
+
+  .sessions-row-action {
+    grid-column: 5;
+    margin-top: -6px;
+  }
+
+  /* Copy is a secondary action: keep it out of the scan path until the row is
+     hovered or the button itself takes keyboard focus. Touch layouts below
+     768px keep it always visible. */
+  @media (hover: hover) {
+    .sessions-row .sessions-row-action:not(:focus-visible) {
+      opacity: 0;
+    }
+
+    .sessions-row:hover .sessions-row-action:not(:disabled) {
+      opacity: 1;
+    }
+
+    .sessions-row:hover .sessions-row-action:disabled {
+      opacity: 0.4;
+    }
+  }
+
+  .sessions-row-nested .sessions-row-identity,
+  .sessions-thread-models {
+    padding-left: 30px;
+  }
+
+  .sessions-list-header {
+    display: grid;
+  }
+}
+
+@media (min-width: 1024px) {
+  .sessions-toolbar {
+    grid-template-columns: minmax(0, 1fr) repeat(4, minmax(0, 168px));
+  }
+
+  .sessions-toolbar-search {
+    grid-column: auto;
+  }
+}
