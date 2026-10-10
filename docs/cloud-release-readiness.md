@@ -1,5 +1,15 @@
 # Cloud / Pro 发布与验收交接总表
 
+## 发行准备接续，2026-10-10
+
+文档提交 `2384d16b3445ceeced9ecc048e52ac2a5192681e` 的 [CI 38060825861](https://github.com/xiufengsun/TokenTracker/actions/runs/38060825861) 四个 job 和 [CodeQL 38060825856](https://github.com/xiufengsun/TokenTracker/actions/runs/38060825856) 均成功。实际 Windows 人工包证据仍绑定下述 `83e7e0f1`，不升级为其他 archive 的验收。
+
+Owner 本次选择“先不新增扣款，完成其他上线准备”。不创建其余年付/续费订单或扣款，不重做已完成的固定月付退款；其他已开放收费模式仍保留真实验收缺口，未修改生产开关。Windows 安装与登录请求仍待本人完成，完整托盘、系统协议返回和安装生命周期由本人执行。此前这些系统操作被自动审批拒绝，原因仅为 `blocked by policy`；没有更换工具绕过。临时隔离窗口已关闭，接续时应核对实际安装的客户端来源。
+
+统一发行 workflow 新增 Boolean `publish`（默认 true）；准备时必须明确 `-f publish=false`。此模式仍构建六项资产、下载实际资产计算 `SHA256SUMS`，只跳过公开草稿和 Homebrew 通知。它会占用 1.3.2 的版本 tag，固定在 workflow 的准确提交；不得从其他提交重跑同一版本或移动 tag。发行安全专项最终改动通过 80/80；本机日志 `.tmp/windows-cloud/release-final-workflow-tests.log`。完整发行候选以随后实际 workflow/tag/draft 读回为准，尚未将这些准备写成公开发行成功。
+
+正式 catalog 本次独立 GET 为 HTTP200、live/hosted/active，四项套餐为 USD4.99/月和 USD39.99/年，固定期/续费同价，仅 Waffo 入口开启；原 launch_at 保持。`checkout_verified=true` 是已授权开关，不替代其他付款模式或到账验收。私有记录为 `.tmp/windows-cloud/release-final-public-catalog.json`。[公告草稿](cloud-announcement-draft.md)已改为当前正式网站状态、确定的过渡日期和现行条款；仍未发送公告。
+
 ## 当前剩余发行工作，2026-10-10 Windows 接续
 
 功能分支已同步到 `83e7e0f15dc20a1c210b55a4c81931430be12d63`，相对 `39208a10` 仅更新交接文档，应用仍为 1.3.2。[CI 38047796689](https://github.com/xiufengsun/TokenTracker/actions/runs/38047796689) 四个 job 通过，CodeQL 实际 PR check `114201224146` 为 success、0 新注释；PR 仍为 draft、CLEAN/MERGEABLE，main 为 `e6186b35`。公开最新发行仍为 v1.2.2，尚未统一发行 1.3.2。

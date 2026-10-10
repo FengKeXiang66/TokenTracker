@@ -1,38 +1,42 @@
 # Cloud community announcement draft
 
-Review copy only. Do not publish until the launch checklist passes and the owner approves the public announcement. Base prices are confirmed; dates, checkout links, refund terms, and private support must be confirmed before publication. This draft announces a proposal; paid Cloud is not live.
-
-2026-10-09 review: user-facing paid membership is TokenTracker Pro. Production products and webhook preparation are independently read back; payout binding is correct but the API channel remains unverified. Genuine live payment and settlement are pending. Use the [release handoff](cloud-release-readiness.md) before checking any publication gate.
+Review copy only. The hosted website is active; this announcement has not been published. Publish only after the [release handoff](cloud-release-readiness.md) gates pass and the Owner approves the destination. Do not describe the unreleased desktop candidate or untested payment modes as fully accepted.
 
 ## English
 
-We are building TokenTracker Pro for developers who want one managed Cloud usage view across their machines.
+TokenTracker Pro is available on the [official website](https://www.tokentracker.cc/cloud) for developers who want a managed Cloud usage view across their machines.
 
-Local TokenTracker stays complete, free, and open source. Collection, providers, cost and quota tracking, charts, exports, and desktop features continue without a paid account. The shared leaderboard, achievements, and basic public profile remain free, with the same ranking rules for everyone.
+Local tracking stays free and open source, including collection, providers, cost and quota tracking, charts, local exports and desktop features. The shared leaderboard, achievements and basic public profile remain free, with the same ranking rules for everyone.
 
-The proposed Cloud plan covers five registered synchronization devices under one account across CLI, macOS, Windows, Linux, and web. It syncs changed usage every 15 minutes while clients are running and online, with access to 90 days of hourly history and 24 months of daily summaries. Cloud uploads usage metrics only, never prompts, responses, code, project/session records, or provider credentials.
+Pro supports five registered synchronization devices per account. While clients are running and online, changed usage syncs every 15 minutes. Cloud history covers 90 days of hourly data and 24 months of daily summaries. Only usage metrics are uploaded, never prompts, responses, code, project/session records or provider credentials.
 
-The Owner-confirmed base price is USD 4.99/month or USD 39.99/year before tax, worldwide, through Waffo. Auto-renewal and fixed-term purchases have the same base price. Waffo calculates tax and displays the final charge and available payment methods before payment. Canceling automatic renewal preserves the paid term. Eligible accounts can choose a seven-day trial without a card. Existing cloud users will receive a 30-day transition from the announced launch date, followed by 30 days to read and export personal Cloud history if they do not renew. Local use and free community features continue throughout.
+Base prices are USD4.99/month or USD39.99/year before tax. Fixed-term and recurring plans have the same base price; Waffo shows the final charge, tax and available payment methods before payment. Recurring plans require authorization at checkout. Canceling renewal preserves access until the paid term ends; fixed-term purchases do not renew automatically. A seven-day no-card trial, where offered, starts only when activated and does not automatically become a paid subscription.
 
-Checkout, device limits, and history archiving are still being verified. We will announce the launch date and final payment/refund terms after those checks pass. [Read the proposed plan](cloud-guide.md).
+Hosted Pro was enabled on October 10, 2026 at 05:52:14 UTC. Devices registered before that launch retain a 30-day transition ending November 9 at 05:52:14 UTC. Launching Pro does not automatically charge existing free accounts. Archive and deletion schedules remain disabled pending their separate acceptance.
+
+First-time Pro buyers may request a full refund within seven days of their initial monthly or annual payment. Read the [terms](https://www.tokentracker.cc/terms.html), [privacy policy](https://www.tokentracker.cc/privacy.html) and [Cloud guide](cloud-guide.md) for the complete policy. Private support, billing and refund requests: [rynnsun0509@gmail.com](mailto:rynnsun0509@gmail.com).
 
 ## 简体中文
 
-我们在开发 TokenTracker Pro，通过官方托管 Cloud 服务把多台机器的用量汇总到一个账号。
+[TokenTracker Pro 官方网站](https://www.tokentracker.cc/cloud)已开放，通过托管 Cloud 服务把多台机器的用量汇总到一个账号。
 
-本地功能继续完整免费开源。采集、provider、成本与额度、本地图表、导出和桌面功能都保留；社区榜单、成就和基础 Profile 也保留，所有账号使用相同排名公式。
+本地功能继续免费开源，包括采集、provider、成本与额度、本地图表、导出和桌面功能。社区榜单、成就和基础 Profile 继续免费，所有账号使用相同排名公式。
 
-Cloud 方案覆盖 CLI、macOS、Windows、Linux 和网页，最多登记 5 台同步设备。客户端运行且联网时，有变化的数据每 15 分钟同步，可查看最近 90 天小时明细和 24 个月日汇总。只上传用量指标，不上传 prompt、回复、代码、项目/会话记录或 provider 凭证。
+每个账号最多登记 5 台同步设备。客户端运行且联网时，有变化的用量每 15 分钟同步，可查看最近 90 天小时明细和 24 个月日汇总。只上传用量指标，不上传 prompt、回复、代码、项目/会话记录或 provider 凭证。
 
-Owner 已确认全球统一美元未税基础价 $4.99/月、$39.99/年，通过 Waffo 收款。自动续费和按期购买的基础价相同，税费、最终金额和可用付款方式以 Waffo 收银台为准。取消自动续费仍保留已付期限。符合条件的账号可主动开启 7 天无卡试用。已有云用户从公布的上线日期起享有 30 天过渡，未续费时再有 30 天只读导出。本地使用和免费社区功能继续可用。
+未税基础价为 USD4.99/月、USD39.99/年，固定期与自动续费同价。税费、最终金额和可用付款方式以 Waffo 收银台为准。自动续费须在付款时授权；取消续费仍保留已付期限，固定期购买不会自动续费。符合条件时可主动开启 7 天无卡试用，不会自动转为付费订阅。
 
-收费、设备限制和历史归档还在验证。验证完成后会公布上线日期、最终付款和退款规则。[查看方案](cloud-guide.zh-CN.md)。
+正式 Cloud 已于北京时间 2026 年 10 月 10 日 13:52:14 启用。启用前登记的设备享有 30 天过渡期，至北京时间 11 月 9 日 13:52:14。启用 Pro 不会自动向原免费账号扣款。归档和删除计划继续关闭，待独立验收后再启用。
+
+首次购买 Pro 的用户，可在首次月付或年付付款后的 7 天内申请全额退款。完整规则见[服务条款](https://www.tokentracker.cc/terms.html)、[隐私政策](https://www.tokentracker.cc/privacy.html)和[中文指南](cloud-guide.zh-CN.md)。客服、账单及退款请联系私人邮箱 [rynnsun0509@gmail.com](mailto:rynnsun0509@gmail.com)。
 
 ## Publication checklist
 
-- [ ] Waffo KYB and production approval, live checkout, refunds, membership recovery and settlement are verified for both offered payment modes.
-- [ ] Declined-payment retry, late duplicate-payment support and ambiguous provider-back recovery meet the launch gates.
-- [ ] Device counting, free community behavior, trial/transition dates, export, and retention behavior match the user guides.
-- [ ] Final terms explain renewal, cancellation, refunds, checkout taxes, and the private support route.
-- [ ] Launch date and transition end date are displayed in account settings and public copy.
-- [ ] Owner approves the announcement and where it will be published.
+- [x] Public prices, terms, privacy and support route match tracked production source; launch and transition dates are recorded.
+- [x] One genuine fixed-month purchase, full refund, signed callbacks and entitlement revocation are verified. Provider refund success does not establish bank/wallet receipt or merchant payout.
+- [ ] Windows installation, full tray/OS return and actual native export acceptance are complete on the current candidate.
+- [ ] Recurring/yearly payment scope is accepted with its own evidence. Owner chose no additional charges for this preparation; those modes remain unverified, not implicitly accepted or disabled.
+- [ ] Exact main CI, npm publication and the unified six-asset desktop release are complete. A private release draft is preparation only.
+- [ ] Owner approves this copy and the publication destination. No community message has been sent.
+
+Payer refund receipt and the first merchant payout remain separate operator checks. Archive/deletion schedules require their own runbook before enablement; this copy does not announce their activation.
