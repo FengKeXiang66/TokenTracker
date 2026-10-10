@@ -631,28 +631,14 @@ test("unused direct profile-like table grants stay revoked", () => {
   );
 });
 
-// Do not reintroduce Content-Encoding in an edge function.
-//
-// The obvious read of these endpoints is that the big ones should gzip: a
-// 52-week heatmap serializes ~65 KB and a leaderboard page ~77 KB of highly
-// repetitive JSON, and every caller advertises gzip by default. That branch was
-// written twice and shipped once, and it never reached a client.
-//
-// The InsForge gateway decompresses an encoded edge response and forwards it as
-// identity. Measured end to end on 2026-09-20 against the public leaderboard
-// endpoint, cache-busted, with and without `Accept-Encoding: gzip`: 77529 bytes
-// on the wire both times, `Vary: Accept-Encoding` passed through but
-// `Content-Encoding` stripped, `Content-Length` and the ETag both computed over
-// the plain body, and the body itself starting `{"en` rather than the gzip
-// magic 1f 8b.
-//
-// So the compression cost is paid twice and saves nothing. Shrink these
-// responses by sending fewer bytes (the *_compact RPCs above) or fewer requests
-// (the CLI and tray caches). If the gateway ever starts passing an encoding
-// through, delete this test along with the change that proves it.
-test("edge functions do not compress their own responses", () => {
+// The legacy gateway strips gzip, so other handlers remain plain. The deployed
+// model-breakdown wrapper also serves the verified direct function2 route.
+// Its negotiation, fallback and HTTP payload equality have runtime regressions
+// in account-model-breakdown-gzip.test.js; preserve that existing adapter.
+test("other edge functions remain plain alongside the direct model response adapter", () => {
   const edgeDir = path.join(ROOT, "dashboard/edge-patches");
   for (const file of fs.readdirSync(edgeDir).filter((name) => name.endsWith(".ts"))) {
+    if (file === "tokentracker-account-model-breakdown.ts") continue;
     const source = read(`dashboard/edge-patches/${file}`);
     assert.doesNotMatch(
       source,

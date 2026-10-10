@@ -775,7 +775,7 @@ export default async function (req: Request): Promise<Response> {
       p_user_id: userId,
       p_include_unearned: true,
     });
-    if (error) return json({ error: error.message || "badge lookup failed" }, 500);
+    if (error) return json({ error: "Failed to fetch badges" }, 500);
     return json({
       badges: Array.isArray(data) ? data : [],
       badges_include_unearned: true,
@@ -894,8 +894,8 @@ export default async function (req: Request): Promise<Response> {
       timeZone,
       timeZoneOffsetMinutes,
     );
-  } catch (e) {
-    return json({ error: (e as Error).message || "scan failed" }, 500);
+  } catch {
+    return json({ error: "Failed to fetch profile" }, 500);
   }
 
   // ── Aggregate into the modal's shape. Two parallel passes:

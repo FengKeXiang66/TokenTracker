@@ -170,7 +170,7 @@ export default async function (req: Request): Promise<Response> {
     .eq("to_day", to_day)
     .order("rank", { ascending: true })
     .range(offset, offset + limit - 1);
-  if (error) return json({ error: error.message }, 500);
+  if (error) return json({ error: "Failed to fetch leaderboard" }, 500);
 
   let me: unknown = null;
   if (requestedUserId) {
