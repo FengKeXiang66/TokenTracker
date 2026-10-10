@@ -96,7 +96,7 @@ final class NativeBridge {
             let directory: URL
             if let profile = NativeQAProfile.current {
                 directory = URL(fileURLWithPath: profile.runDirectory).appendingPathComponent("Downloads", isDirectory: true)
-                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false,
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
                                                        attributes: [.posixPermissions: 0o700])
             } else {
                 directory = try FileManager.default.url(for: .downloadsDirectory, in: .userDomainMask,
