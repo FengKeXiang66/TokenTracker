@@ -16,6 +16,7 @@ import { getLocalApiAuthHeaders } from "../../lib/local-api-auth";
 import { copy } from "../../lib/copy";
 import { CloudDeadlinePrompt } from "./CloudContextualPrompt.jsx";
 import { RedeemProCode } from "./RedeemProCode.jsx";
+import { CloudUsageExport } from "./CloudUsageExport.jsx";
 import { Button } from "../../ui/components/Button.jsx";
 import { Card } from "../../ui/components/Card.jsx";
 import {
@@ -564,12 +565,11 @@ function CloudMembershipAccount({ account, auth, loading, error, refresh }) {
               variant="ghost"
               className="no-underline"
             >
-              {membership.can_upload_cloud
-                ? copy("cloud.action.open_dashboard")
-                : copy("cloud.action.read_export")}
+              {copy("cloud.export.dashboard")}
             </Button>
           ) : null}
         </div>
+        {membership?.can_read_cloud ? <div className="mt-3"><CloudUsageExport auth={auth} /></div> : null}
         <RedeemProCode account={account} auth={auth} refresh={refresh} />
         {canceling ? (
           <div id="cloud-cancel-confirm" className="mt-4 rounded-lg border border-oai-gray-200 p-4 dark:border-oai-gray-800">

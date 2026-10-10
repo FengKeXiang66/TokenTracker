@@ -1999,3 +1999,19 @@ sessions.detail.session_id,ui,SessionsPage,UsageInsights,session_id,Session ID,,
 sessions.detail.local_path,ui,SessionsPage,UsageInsights,local_path,Local path,,active
 sessions.detail.resume_command,ui,SessionsPage,SessionDetailModal,resume_command,Resume command,,active
 sessions.performance.first_response_value_single,ui,SessionsPage,SessionDetailModal,first_response_single,{{seconds}}s · {{count}} sample,,active
+cloud.export.open,cloud,*,CloudUsageExport,text,"Export Cloud usage",,active
+cloud.export.description,cloud,*,CloudUsageExport,text,"Daily totals for all providers. UTC dates; estimated costs in USD. Only currently readable Cloud days are included.",,active
+cloud.export.from,cloud,*,CloudUsageExport,text,"From (UTC)",,active
+cloud.export.to,cloud,*,CloudUsageExport,text,"To (UTC)",,active
+cloud.export.csv,cloud,*,CloudUsageExport,text,"Download CSV",,active
+cloud.export.json,cloud,*,CloudUsageExport,text,"Download JSON",,active
+cloud.export.busy,cloud,*,CloudUsageExport,text,"Checking Cloud access and preparing your file…",,active
+cloud.export.error_auth,cloud,*,CloudUsageExport,text,"Sign in again, then retry the export.",,active
+cloud.export.error_access,cloud,*,CloudUsageExport,text,"This Cloud history is no longer available for export.",,active
+cloud.export.error_dates,cloud,*,CloudUsageExport,text,"Choose a valid date range.",,active
+cloud.export.error_changed,cloud,*,CloudUsageExport,text,"Your account, backend, dates or access changed. Retry the export.",,active
+cloud.export.error_failed,cloud,*,CloudUsageExport,text,"The export failed. Try CSV or JSON again.",,active
+cloud.export.success,cloud,*,CloudUsageExport,text,"Downloaded {{count}} recorded days from {{from}} to {{to}} (UTC).",,active
+cloud.export.empty,cloud,*,CloudUsageExport,text,"No recorded days. The downloaded file contains scope metadata and no usage rows.",,active
+cloud.export.truncated,cloud,*,CloudUsageExport,text,"Downloaded only the available range, {{from}} to {{to}} (UTC). The file also records your original request.",,active
+cloud.export.dashboard,cloud,*,CloudUsageExport,text,"Open dashboard",,active

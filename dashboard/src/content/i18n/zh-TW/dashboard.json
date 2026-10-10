@@ -1026,5 +1026,21 @@
   "sessions.detail.session_id": "會話 ID",
   "sessions.detail.local_path": "本機路徑",
   "sessions.detail.resume_command": "恢復命令",
-  "sessions.performance.first_response_value_single": "{{seconds}} 秒 · {{count}} 個樣本"
+  "sessions.performance.first_response_value_single": "{{seconds}} 秒 · {{count}} 個樣本",
+  "cloud.export.open": "匯出 Cloud 用量",
+  "cloud.export.description": "按日彙總全部工具的用量。日期為 UTC，費用為美元估算值；僅包含目前可讀取的 Cloud 日期。",
+  "cloud.export.from": "開始日期 (UTC)",
+  "cloud.export.to": "結束日期 (UTC)",
+  "cloud.export.csv": "下載 CSV",
+  "cloud.export.json": "下載 JSON",
+  "cloud.export.busy": "正在核對 Cloud 權限並準備檔案…",
+  "cloud.export.error_auth": "請重新登入後再匯出。",
+  "cloud.export.error_access": "這些 Cloud 歷史已無法匯出。",
+  "cloud.export.error_dates": "請選擇有效的日期範圍。",
+  "cloud.export.error_changed": "帳號、後端、日期或讀取權限已變更，請重新匯出。",
+  "cloud.export.error_failed": "匯出失敗，請重試 CSV 或 JSON。",
+  "cloud.export.success": "已下載 {{from}} 至 {{to}} 的 {{count}} 個有記錄日期 (UTC)。",
+  "cloud.export.empty": "所選範圍沒有記錄。下載檔案包含範圍說明，不包含用量列。",
+  "cloud.export.truncated": "僅下載可讀取的 {{from}} 至 {{to}} (UTC)，檔案也記錄了原先選擇的範圍。",
+  "cloud.export.dashboard": "檢視儀表板"
 }

@@ -77,6 +77,10 @@ describe("Cloud public routing", () => {
     render(<MemoryRouter initialEntries={["/settings?section=account"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "/login?next=%2Fsettings%3Fsection%3Daccount" })).toBeInTheDocument();
   });
+  it("does not carry OAuth credentials into the protected sign-in destination", async () => {
+    render(<MemoryRouter initialEntries={["/dashboard?insforge_code=fixture-only-code&state=private-state&from=2026-10-01"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "/login?next=%2Fdashboard%3Ffrom%3D2026-10-01" })).toBeInTheDocument();
+  });
   it.each([
     ["/cloud", labels.cloud],
     ["/billing/checkout?sku=cloud_usd_yearly", labels.checkout],

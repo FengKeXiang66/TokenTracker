@@ -562,5 +562,21 @@
   "sessions.detail.session_id": "セッション ID",
   "sessions.detail.local_path": "ローカルパス",
   "sessions.detail.resume_command": "再開コマンド",
-  "sessions.performance.first_response_value_single": "{{seconds}}秒 · {{count}} サンプル"
+  "sessions.performance.first_response_value_single": "{{seconds}}秒 · {{count}} サンプル",
+  "cloud.export.open": "Cloud 使用量をエクスポート",
+  "cloud.export.description": "すべてのツールを日別に集計します。日付は UTC、費用は米ドルの推定値です。現在読み取り可能な Cloud の日付のみを含みます。",
+  "cloud.export.from": "開始日 (UTC)",
+  "cloud.export.to": "終了日 (UTC)",
+  "cloud.export.csv": "CSV をダウンロード",
+  "cloud.export.json": "JSON をダウンロード",
+  "cloud.export.busy": "Cloud の権限を確認し、ファイルを準備しています…",
+  "cloud.export.error_auth": "再ログインしてからエクスポートしてください。",
+  "cloud.export.error_access": "この Cloud 履歴はエクスポートできなくなりました。",
+  "cloud.export.error_dates": "有効な期間を選択してください。",
+  "cloud.export.error_changed": "アカウント、バックエンド、期間、または権限が変更されました。再度エクスポートしてください。",
+  "cloud.export.error_failed": "エクスポートに失敗しました。CSV または JSON を再試行してください。",
+  "cloud.export.success": "{{from}} から {{to}} までの記録のある {{count}} 日分をダウンロードしました (UTC)。",
+  "cloud.export.empty": "記録のある日付がありません。ファイルには範囲情報のみが含まれ、使用量の行はありません。",
+  "cloud.export.truncated": "読み取り可能な {{from}} から {{to}} (UTC) のみをダウンロードしました。ファイルには元の選択範囲も記録されています。",
+  "cloud.export.dashboard": "ダッシュボードを表示"
 }

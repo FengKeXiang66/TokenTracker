@@ -44,10 +44,10 @@ it.each([
   expect(sessionStorage.getItem("tt.cloud.return")).toBe(next);
 });
 
-it("keeps desktop OAuth on the existing native callback", async () => {
+it("pins desktop OAuth to the exact native scheme", async () => {
   state.bridge = { postMessage: vi.fn() };
   await startOAuth("/billing/checkout?intent=trial");
-  expect(state.auth.signInWithOAuth).toHaveBeenCalledWith("github", "https://www.tokentracker.cc/auth/callback");
+  expect(state.auth.signInWithOAuth).toHaveBeenCalledWith("github", "tokentracker://auth/callback");
 });
 
 it("does not turn a foreign return destination into an OAuth redirect", async () => {

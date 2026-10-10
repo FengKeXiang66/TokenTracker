@@ -475,7 +475,7 @@ internal sealed class DashboardWindow : Window
 
         // The injected script posts setting changes, and the injected title bar
         // (ApplyNativeChromeAsync) posts "win:*" for the window controls + drag.
-        core.WebMessageReceived += (_, e) =>
+        core.WebMessageReceived += async (sender, e) =>
         {
             string msg;
             try { msg = e.TryGetWebMessageAsString(); }
@@ -493,7 +493,26 @@ internal sealed class DashboardWindow : Window
                 {
                     using var doc = JsonDocument.Parse(msg);
                     if (!doc.RootElement.TryGetProperty("type", out var t)) return;
-                    if (t.GetString() == "oauth"
+                    if (t.GetString() == "saveCloudUsageExport")
+                    {
+                        // Core.WebMessageReceived is emitted by the top-level document;
+                        // iframe messages use the separate CoreWebView2Frame event.
+                        var requestId = doc.RootElement.TryGetProperty("requestId", out var id)
+                            && id.ValueKind == JsonValueKind.String ? id.GetString() ?? "" : "";
+                        if (!Guid.TryParseExact(requestId, "D", out _)) return;
+                        CloudUsageExportResult result;
+                        if (!ReferenceEquals(sender, core) || !ReferenceEquals(core, _webView.CoreWebView2)
+                            || !CloudUsageExport.PermitsSource(e.Source, core.Source, _server.BaseUrl))
+                            result = new(requestId, false, ErrorCode: "forbidden_source");
+                        else
+                        {
+                            try { result = CloudUsageExport.Save(doc.RootElement, CloudUsageExport.GetDownloadsDirectory()); }
+                            catch { result = new(requestId, false, ErrorCode: "save_failed"); }
+                        }
+                        var json = JsonSerializer.Serialize(result);
+                        await core.ExecuteScriptAsync("window.dispatchEvent(new CustomEvent('tokentracker:cloud-export-result',{detail:" + json + "}));");
+                    }
+                    else if (t.GetString() == "oauth"
                         && doc.RootElement.TryGetProperty("url", out var u) && u.GetString() is { } url)
                     {
                         Log($"oauth open urlPresent={!string.IsNullOrEmpty(url)} urlLen={url.Length}");
@@ -606,6 +625,7 @@ internal sealed class DashboardWindow : Window
         //     rules apply — letting the acrylic backdrop show through.
         //  3. Wrap localStorage.setItem to notify native when tray-facing settings change.
         await core.AddScriptToExecuteOnDocumentCreatedAsync(
+            "window.__TOKENTRACKER_CLOUD_EXPORT__=true;" +
             "try{if(!localStorage.getItem('tokentracker-theme')){" +
             "localStorage.setItem('tokentracker-theme','dark');" +
             "document.documentElement.classList.add('dark');}" +

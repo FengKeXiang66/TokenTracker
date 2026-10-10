@@ -106,6 +106,15 @@ function show() {
 }
 
 describe("Cloud membership management", () => {
+  it("provides Cloud file export controls directly in the read-only account card", async () => {
+    mocks.account.membership.can_upload_cloud = false;
+    show();
+    await screen.findByText("Work laptop");
+    await click(screen.getByRole("button", { name: "Export Cloud usage" }));
+    expect(screen.getByRole("button", { name: "Download CSV" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Download JSON" })).toBeInTheDocument();
+    expect(screen.getByLabelText("From (UTC)")).toBeInTheDocument();
+  });
   it.each([[], [{ id: "revoked-recent", state: "revoked", duration_days: 30 }]])(
     "honors current gift access even when recent history omits its active gift %j", async (gifts) => {
       mocks.account.membership.has_gift = true;
@@ -556,8 +565,9 @@ describe("Cloud membership management", () => {
     );
     expect(screen.getByText(/Free daily community uploads and leaderboard participation continue/)).toHaveTextContent(/pause other active devices/);
     expect(
-      screen.getByRole("link", { name: "View and export Cloud history" }),
+      screen.getByRole("link", { name: "Open dashboard" }),
     ).toHaveAttribute("href", "/dashboard");
+    expect(screen.getByRole("button", { name: "Export Cloud usage" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Resume order/ })).toHaveAttribute(
       "href",
       `/billing/checkout?order=${orderId}`,

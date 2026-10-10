@@ -562,5 +562,21 @@
   "sessions.detail.session_id": "세션 ID",
   "sessions.detail.local_path": "로컬 경로",
   "sessions.detail.resume_command": "재개 명령",
-  "sessions.performance.first_response_value_single": "{{seconds}}초 · 표본 {{count}}개"
+  "sessions.performance.first_response_value_single": "{{seconds}}초 · 표본 {{count}}개",
+  "cloud.export.open": "Cloud 사용량 내보내기",
+  "cloud.export.description": "모든 도구의 일별 합계입니다. 날짜는 UTC, 비용은 USD 추정치이며 현재 읽을 수 있는 Cloud 날짜만 포함합니다.",
+  "cloud.export.from": "시작 날짜 (UTC)",
+  "cloud.export.to": "종료 날짜 (UTC)",
+  "cloud.export.csv": "CSV 다운로드",
+  "cloud.export.json": "JSON 다운로드",
+  "cloud.export.busy": "Cloud 권한을 확인하고 파일을 준비하고 있습니다…",
+  "cloud.export.error_auth": "다시 로그인한 후 내보내기를 재시도하세요.",
+  "cloud.export.error_access": "이 Cloud 기록은 더 이상 내보낼 수 없습니다.",
+  "cloud.export.error_dates": "유효한 날짜 범위를 선택하세요.",
+  "cloud.export.error_changed": "계정, 백엔드, 날짜 또는 권한이 변경되었습니다. 내보내기를 다시 시도하세요.",
+  "cloud.export.error_failed": "내보내기에 실패했습니다. CSV 또는 JSON을 다시 시도하세요.",
+  "cloud.export.success": "{{from}}~{{to}}의 기록이 있는 {{count}}일을 다운로드했습니다 (UTC).",
+  "cloud.export.empty": "기록이 있는 날짜가 없습니다. 파일에는 범위 정보만 있고 사용량 행은 없습니다.",
+  "cloud.export.truncated": "읽을 수 있는 {{from}}~{{to}} (UTC)만 다운로드했습니다. 원래 선택한 범위도 파일에 기록됩니다.",
+  "cloud.export.dashboard": "대시보드 보기"
 }

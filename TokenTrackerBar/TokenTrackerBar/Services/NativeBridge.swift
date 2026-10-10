@@ -82,6 +82,43 @@ final class NativeBridge {
 
     // MARK: - Message dispatch
 
+    func saveCloudUsageExport(message: [String: Any], source: WKWebView, permitted: Bool) {
+        let requestID = (message["requestId"] as? String) ?? ""
+        guard UUID(uuidString: requestID) != nil else { return }
+        var result: [String: Any] = ["requestId": requestID, "saved": false]
+        do {
+            guard permitted else {
+                result["errorCode"] = "forbidden_source"
+                postCloudExportResult(result, to: source)
+                return
+            }
+            let export = try CloudUsageExport(message: message)
+            let directory: URL
+            if let profile = NativeQAProfile.current {
+                directory = URL(fileURLWithPath: profile.runDirectory).appendingPathComponent("Downloads", isDirectory: true)
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false,
+                                                       attributes: [.posixPermissions: 0o700])
+            } else {
+                directory = try FileManager.default.url(for: .downloadsDirectory, in: .userDomainMask,
+                                                        appropriateFor: nil, create: true)
+            }
+            result["filename"] = try export.save(in: directory)
+            result["saved"] = true
+        } catch let failure as CloudUsageExport.Failure {
+            result["errorCode"] = failure.rawValue
+        } catch {
+            result["errorCode"] = "save_failed"
+        }
+        postCloudExportResult(result, to: source)
+    }
+
+    private func postCloudExportResult(_ result: [String: Any], to source: WKWebView) {
+        guard let bytes = try? JSONSerialization.data(withJSONObject: result),
+              let json = String(data: bytes, encoding: .utf8) else { return }
+        source.evaluateJavaScript("window.dispatchEvent(new CustomEvent('tokentracker:cloud-export-result', {detail: \(json)}));",
+                                  completionHandler: nil)
+    }
+
     func handle(message: Any) {
         if let profile = NativeQAProfile.current {
             guard let dict = message as? [String: Any], profile.permitsNativeMessage(dict) else {

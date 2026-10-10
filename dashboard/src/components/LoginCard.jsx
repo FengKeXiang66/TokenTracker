@@ -140,7 +140,7 @@ export function LoginCard({
       return `${window.location.origin}/dashboard`;
     }
     return getNativeOAuthBridge()
-      ? `${window.location.origin}/auth/callback`
+      ? "tokentracker://auth/callback"
       : `${window.location.origin}/`;
   }, []);
 

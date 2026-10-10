@@ -334,7 +334,10 @@ export default function App() {
     normalizedPath !== "/auth/callback" &&
     normalizedPath !== "/auth/native-callback";
   if (publicHostNeedsLogin) {
-    const next = encodeURIComponent(location.pathname + location.search);
+    const params = new URLSearchParams(location.search);
+    for (const key of ["insforge_code", "code", "state", "access_token", "refresh_token"]) params.delete(key);
+    const query = params.toString();
+    const next = encodeURIComponent(location.pathname + (query ? `?${query}` : ""));
     return <Navigate to={`/login?next=${next}`} replace />;
   }
 

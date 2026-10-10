@@ -967,5 +967,21 @@
   "sessions.detail.session_id": "会话 ID",
   "sessions.detail.local_path": "本地路径",
   "sessions.detail.resume_command": "恢复命令",
-  "sessions.performance.first_response_value_single": "{{seconds}} 秒 · {{count}} 个样本"
+  "sessions.performance.first_response_value_single": "{{seconds}} 秒 · {{count}} 个样本",
+  "cloud.export.open": "导出 Cloud 用量",
+  "cloud.export.description": "按日汇总全部工具的用量。日期为 UTC，费用是美元估算值；仅包含当前可读取的 Cloud 日期。",
+  "cloud.export.from": "开始日期 (UTC)",
+  "cloud.export.to": "结束日期 (UTC)",
+  "cloud.export.csv": "下载 CSV",
+  "cloud.export.json": "下载 JSON",
+  "cloud.export.busy": "正在核对 Cloud 权限并准备文件…",
+  "cloud.export.error_auth": "请重新登录后再导出。",
+  "cloud.export.error_access": "这些 Cloud 历史已无法导出。",
+  "cloud.export.error_dates": "请选择有效的日期范围。",
+  "cloud.export.error_changed": "账号、后端、日期或读取权限已变化，请重新导出。",
+  "cloud.export.error_failed": "导出失败，请重试 CSV 或 JSON。",
+  "cloud.export.success": "已下载 {{from}} 至 {{to}} 的 {{count}} 个有记录日期 (UTC)。",
+  "cloud.export.empty": "所选范围没有记录。下载文件包含范围说明，不包含用量行。",
+  "cloud.export.truncated": "仅下载可读取的 {{from}} 至 {{to}} (UTC)，文件也记录了原先选择的范围。",
+  "cloud.export.dashboard": "查看仪表盘"
 }
