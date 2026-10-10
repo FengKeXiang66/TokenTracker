@@ -144,11 +144,11 @@ describe("known-account access token binding", () => {
     state.token = null;
     const refresh = deferred();
     client.auth.refreshSession.mockReturnValueOnce(refresh.promise);
-    fireEvent.click(screen.getByRole("button", { name: /Create secure payment order/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Continue to payment/ }));
     await waitFor(() => expect(client.auth.refreshSession).toHaveBeenCalledTimes(1));
     await signInB(auth);
     await act(async () => { refresh.resolve({ data: { accessToken: state.token } }); await refresh.promise; });
-    await waitFor(() => expect(screen.getByRole("button", { name: /Create secure payment order/ })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: /Continue to payment/ })).toBeEnabled());
 
     expect(request).not.toHaveBeenCalled();
     expect(readCloudPurchase("account-a")).toMatchObject({ userId: "account-a", sku: "cloud_usd_monthly" });

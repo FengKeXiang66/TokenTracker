@@ -263,8 +263,8 @@ function RestoreCloudOrder({ recent, pendingOrders, conflictOrders }) {
   if (recent?.order_id && !orders.some((order) => order.id === recent.order_id))
     orders.unshift({ id: recent.order_id });
   return (
-    <div>
-      <h3 className="text-sm font-semibold">{copy("cloud.restore.title")}</h3>
+    <details open={orders.length !== 0 || Boolean(recent?.request_id)}>
+      <summary className="min-h-10 cursor-pointer text-sm font-semibold leading-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">{copy("cloud.restore.title")}</summary>
       <p className="mt-2 text-xs leading-5 text-oai-gray-500 dark:text-oai-gray-400">
         {copy("cloud.restore.detail")}
       </p>
@@ -341,7 +341,7 @@ function RestoreCloudOrder({ recent, pendingOrders, conflictOrders }) {
           </p>
         ) : null}
       </form>
-    </div>
+    </details>
   );
 }
 

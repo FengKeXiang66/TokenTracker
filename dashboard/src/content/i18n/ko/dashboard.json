@@ -578,5 +578,13 @@
   "cloud.export.success": "{{from}}~{{to}}의 기록이 있는 {{count}}일을 다운로드했습니다 (UTC).",
   "cloud.export.empty": "기록이 있는 날짜가 없습니다. 파일에는 범위 정보만 있고 사용량 행은 없습니다.",
   "cloud.export.truncated": "읽을 수 있는 {{from}}~{{to}} (UTC)만 다운로드했습니다. 원래 선택한 범위도 파일에 기록됩니다.",
-  "cloud.export.dashboard": "대시보드 보기"
+  "cloud.export.dashboard": "대시보드 보기",
+  "cloud.renewal.auto": "자동 갱신됩니다. 언제든 취소할 수 있으며 결제한 기간은 유지됩니다.",
+  "cloud.renewal.manual": "한 번만 결제합니다. 자동 갱신되지 않습니다.",
+  "cloud.action.create_checkout": "결제하기 · {{amount}}",
+  "cloud.checkout.review": "요금제와 결제 조건을 확인하세요. Waffo에서 결제 전에 최종 금액을 표시합니다.",
+  "cloud.action.buy_pro": "Pro 구매",
+  "cloud.price.fixed_monthly_total": "한 번 결제하여 한 달간 이용합니다.",
+  "cloud.price.fixed_annual_total": "한 번 결제하여 일 년간 이용합니다. 월 {{equivalent}}에 해당합니다.",
+  "cloud.checkout.help_title": "결제에 문제가 있나요?"
 }

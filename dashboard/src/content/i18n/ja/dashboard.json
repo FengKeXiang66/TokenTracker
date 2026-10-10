@@ -578,5 +578,13 @@
   "cloud.export.success": "{{from}} から {{to}} までの記録のある {{count}} 日分をダウンロードしました (UTC)。",
   "cloud.export.empty": "記録のある日付がありません。ファイルには範囲情報のみが含まれ、使用量の行はありません。",
   "cloud.export.truncated": "読み取り可能な {{from}} から {{to}} (UTC) のみをダウンロードしました。ファイルには元の選択範囲も記録されています。",
-  "cloud.export.dashboard": "ダッシュボードを表示"
+  "cloud.export.dashboard": "ダッシュボードを表示",
+  "cloud.renewal.auto": "自動更新。いつでも解約でき、支払い済み期間は引き続き利用できます。",
+  "cloud.renewal.manual": "一度だけの支払い。自動更新はありません。",
+  "cloud.action.create_checkout": "支払いへ進む · {{amount}}",
+  "cloud.checkout.review": "プランと支払い条件を確認してください。Waffo は支払い前に最終金額を表示します。",
+  "cloud.action.buy_pro": "Pro を購入",
+  "cloud.price.fixed_monthly_total": "1 か月分を一度だけ支払います。",
+  "cloud.price.fixed_annual_total": "1 年分を一度だけ支払います。月額換算 {{equivalent}}。",
+  "cloud.checkout.help_title": "支払いでお困りですか？"
 }

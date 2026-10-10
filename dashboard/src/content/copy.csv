@@ -1684,7 +1684,7 @@ cloud.action.start_trial,cloud,*,Cloud,text,Start {{days}}-day free trial,,activ
 cloud.action.sign_in_continue,cloud,*,Cloud,text,Sign in to continue,,active
 cloud.action.open_dashboard,cloud,*,Cloud,text,Open dashboard,,active
 cloud.action.choose_plan,cloud,*,Cloud,text,Choose a plan,,active
-cloud.action.create_checkout,cloud,*,Cloud,text,Create secure payment order · {{amount}},,active
+cloud.action.create_checkout,cloud,*,Cloud,text,Continue to payment · {{amount}},,active
 cloud.action.resume_order,cloud,*,Cloud,text,Resume order,,active
 cloud.action.open_payment,cloud,*,Cloud,text,Open secure checkout,,active
 cloud.action.check_payment,cloud,*,Cloud,text,I've paid · Check status,,active
@@ -1700,8 +1700,8 @@ cloud.trial.no_card,cloud,*,Cloud,text,No card required. No automatic charge.,,a
 cloud.trial.disclosure,cloud,*,Cloud,text,"Try Pro cloud features for {{days}} days, ending {{date}}. No payment card or auto-renewal. The avatar frame and badge require a paid membership.",,active
 cloud.trial.expiry,cloud,*,Cloud,text,"After the trial, personal Cloud sync stops. You have 30 days to view and export retained Cloud data. Daily community uploads from one selected device, leaderboard participation and local tracking stay free.",,active
 cloud.trial.ends,cloud,*,Cloud,text,Your Pro trial ends {{date}}.,,active
-cloud.renewal.manual,cloud,*,Cloud,text,"Fixed term, manual renewal. No automatic debit.",,active
-cloud.renewal.auto,cloud,*,Cloud,text,Waffo subscription. Renews automatically until canceled. Cancel anytime; keep the paid term.,,active
+cloud.renewal.manual,cloud,*,Cloud,text,Pay once. No automatic renewal.,,active
+cloud.renewal.auto,cloud,*,Cloud,text,Renews automatically. Cancel anytime; keep the paid term.,,active
 cloud.feature.sync,cloud,*,Cloud,text,Changed data syncs every {{minutes}} minutes. Pause or reconnect sync devices from your account.,,active
 cloud.feature.history,cloud,*,Cloud,text,"{{days}} days of hourly detail and {{months}} months of daily history, with Cloud data exports.",,active
 cloud.feature.pro_identity,cloud,*,Cloud,text,Pro avatar frame and badge. Rankings stay based on usage.,,active
@@ -1723,7 +1723,7 @@ cloud.checkout.trial_title,cloud,*,Cloud,text,Start your Pro trial,,active
 cloud.checkout.back,cloud,*,Cloud,text,Back to plans,,active
 cloud.checkout.local_free,cloud,*,Cloud,text,Your complete local app stays free with every plan.,,active
 cloud.checkout.sign_in,cloud,*,Cloud,text,Sign in to the TokenTracker account that should receive this membership. Your plan selection will be kept.,,active
-cloud.checkout.review,cloud,*,Cloud,text,"Review the base price and renewal terms. Create the order, then open Waffo checkout to see the final total and pay.",,active
+cloud.checkout.review,cloud,*,Cloud,text,Check your plan and payment terms. Waffo shows the final total before you pay.,,active
 cloud.checkout.summary,cloud,*,Cloud,text,Pro includes,,active
 cloud.checkout.tax,cloud,*,Cloud,text,Listed USD prices exclude tax. Waffo calculates applicable tax and shows the final total before you pay.,,active
 cloud.checkout.choose_plan,cloud,*,Cloud,text,Choose a Pro plan to continue.,,active
@@ -2015,3 +2015,7 @@ cloud.export.success,cloud,*,CloudUsageExport,text,"Downloaded {{count}} recorde
 cloud.export.empty,cloud,*,CloudUsageExport,text,"No recorded days. The downloaded file contains scope metadata and no usage rows.",,active
 cloud.export.truncated,cloud,*,CloudUsageExport,text,"Downloaded only the available range, {{from}} to {{to}} (UTC). The file also records your original request.",,active
 cloud.export.dashboard,cloud,*,CloudUsageExport,text,"Open dashboard",,active
+cloud.action.buy_pro,cloud,*,Cloud,text,Buy Pro,,active
+cloud.price.fixed_monthly_total,cloud,*,Cloud,text,One payment for one month.,,active
+cloud.price.fixed_annual_total,cloud,*,Cloud,text,One payment for one year. Equivalent to {{equivalent}}/month.,,active
+cloud.checkout.help_title,cloud,*,Cloud,text,Having trouble with payment?,,active

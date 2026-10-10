@@ -1031,6 +1031,30 @@ html.native-windows-app .tt-native-glass-shell aside[data-native-sidebar] {
   --brand-primary: #404040;
 }
 
+.tt-sidebar-account-control {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.tt-sidebar-account-control:focus-visible {
+  outline: 2px solid #404040 !important;
+  outline-offset: 2px;
+}
+
+.dark .tt-sidebar-account-control:focus-visible {
+  outline-color: #d4d4d4 !important;
+}
+
+.tt-sidebar-pro-fallback {
+  background-color: #78629e;
+  --tw-ring-color: #78629e;
+}
+
+.dark .tt-sidebar-pro-fallback {
+  background-color: #716486;
+  --tw-ring-color: #716486;
+}
+
 .dark .tt-cloud-theme {
   --tt-cloud-ink: #f5f5f5;
   --tt-cloud-muted: #d4d4d4;
@@ -1070,6 +1094,11 @@ html.native-windows-app .tt-native-glass-shell aside[data-native-sidebar] {
   --tw-ring-color: var(--tt-cloud-focus);
   outline: 2px solid var(--tt-cloud-ink) !important;
   outline-offset: 3px;
+}
+
+.tt-cloud-theme button,
+.tt-cloud-theme a.inline-flex {
+  min-height: 44px;
 }
 
 .tt-cloud-theme input:focus-visible {

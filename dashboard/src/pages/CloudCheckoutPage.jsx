@@ -70,6 +70,7 @@ export function CloudCheckoutPage() {
   const [restartingCheckout, setRestartingCheckout] = useState(false);
   const mutationLock = useRef(false);
   const generation = useRef(0);
+  const refreshedTerminal = useRef(null);
   const mounted = useRef(true);
   const userId = auth?.signedIn ? auth.user?.id : null;
   const orderScope = useRef(orderId);
@@ -143,8 +144,16 @@ export function CloudCheckoutPage() {
         return null;
       setOrderResult({ ...value, ownerId: userId });
       setError(null);
-      if (cloudOrderState(value.order, value.membership) === "success")
+      const nextState = cloudOrderState(value.order, value.membership);
+      if (nextState === "success")
         setActionError(null);
+      if (["success", "refunded"].includes(nextState)) {
+        const key = `${userId}:${orderId}:${nextState}`;
+        if (refreshedTerminal.current !== key) {
+          refreshedTerminal.current = key;
+          void refreshAccount();
+        }
+      }
       if (
         ["success", "expired", "canceled", "refunded"].includes(
           cloudOrderState(value.order, value.membership),
@@ -164,11 +173,12 @@ export function CloudCheckoutPage() {
     } finally {
       if (id === generation.current) setLoadingOrder(false);
     }
-  }, [orderId, userId, requestAuth, selfHostedInstance]);
+  }, [orderId, userId, requestAuth, selfHostedInstance, refreshAccount]);
 
   useEffect(() => {
     setOrderResult(null);
     setError(null);
+    refreshedTerminal.current = null;
     setLoadingOrder(Boolean(orderId && userId));
     void refreshOrder();
     return () => {
@@ -346,14 +356,9 @@ export function CloudCheckoutPage() {
         <Button as={Link} to="/dashboard" className="w-full no-underline">
           {copy("cloud.action.open_dashboard")}
         </Button>
-        <Button
-          as={Link}
-          to="/settings?section=account"
-          variant="secondary"
-          className="w-full no-underline"
-        >
+        <Link to="/settings?section=account" className="flex min-h-10 items-center justify-center text-sm underline underline-offset-4">
           {copy("cloud.action.manage_membership")}
-        </Button>
+        </Link>
       </div>
     );
   } else if (state === "review" && !orderId && hasGiftAccess) {
@@ -415,7 +420,6 @@ export function CloudCheckoutPage() {
           <Button
             as={Link}
             to={`/billing/checkout?order=${encodeURIComponent(recent.order_id)}`}
-            variant="secondary"
             className="w-full no-underline"
           >
             {copy("cloud.action.resume_order")}
@@ -425,13 +429,12 @@ export function CloudCheckoutPage() {
           <Button
             as={Link}
             to={`/billing/checkout?sku=${encodeURIComponent(recent.sku)}`}
-            variant="secondary"
             className="w-full no-underline"
           >
             {copy("cloud.action.resume_purchase")}
           </Button>
         ) : null}
-        <Button
+        {!recent?.order_id && !(recent?.request_id && recent.sku !== sku) ? <Button
           onClick={createOrder}
           disabled={
             busy || !launched || !providerAvailable || !billingMode || Boolean(recent?.order_id) || paymentConflict
@@ -441,7 +444,7 @@ export function CloudCheckoutPage() {
           {copy("cloud.action.create_checkout", {
             amount: formatCloudMoney(amount, currency),
           })}
-        </Button>
+        </Button> : null}
       </div>
     );
   } else if (order) {
@@ -475,8 +478,8 @@ export function CloudCheckoutPage() {
             <Button
               onClick={reconcile}
               disabled={busy}
-              variant="secondary"
-              className="w-full"
+              variant="ghost"
+              className="mx-auto flex underline underline-offset-4"
             >
               {busy
                 ? copy("cloud.action.checking")
@@ -488,33 +491,41 @@ export function CloudCheckoutPage() {
           </>
         ) : null}
         {canRestartCheckout ? (
-          <div className="space-y-3">
+          <details open={state !== "awaiting"} className="border-t border-oai-gray-200 pt-4 dark:border-oai-gray-800">
+            <summary className="min-h-10 cursor-pointer text-sm font-medium leading-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+              {copy("cloud.checkout.help_title")}
+            </summary>
+            <div className="space-y-3 pt-2">
             <p className="text-xs leading-5 text-oai-gray-500 dark:text-oai-gray-400">
               {copy("cloud.checkout.restart_detail")}
             </p>
             <Button
               onClick={restartCheckout}
               disabled={busy}
-              variant="secondary"
+              variant={state === "awaiting" ? "secondary" : "primary"}
               className="w-full"
             >
               {restartingCheckout
                 ? copy("cloud.action.restarting_checkout")
                 : copy("cloud.action.restart_checkout")}
             </Button>
-          </div>
+            </div>
+          </details>
         ) : null}
         {["canceled", "expired"].includes(state) && !paymentConflict ? (
-          <Button as={Link} to="/cloud" className="w-full no-underline">
+          <Link to="/cloud" className="flex min-h-10 items-center justify-center text-sm underline underline-offset-4">
             {order.status === "paid" ? copy("cloud.action.renew") : copy("cloud.action.choose_plan")}
-          </Button>
+          </Link>
         ) : null}
         {state === "refunded" ? (
           <Button as={Link} to="/settings?section=account" className="w-full no-underline">
             {copy("cloud.action.manage_membership")}
           </Button>
         ) : null}
-        <div className="border-t border-oai-gray-200 pt-4 dark:border-oai-gray-800">
+        <details className="border-t border-oai-gray-200 pt-4 dark:border-oai-gray-800">
+          <summary className="min-h-10 cursor-pointer text-xs leading-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+            {copy("cloud.checkout.order_id")} · {order.id.slice(0, 8)}
+          </summary>
           <p className="mb-2 text-xs text-oai-gray-500 dark:text-oai-gray-400">
             {cloudProviderLabel(order.provider)}
           </p>
@@ -531,7 +542,7 @@ export function CloudCheckoutPage() {
               })}
             </p>
           ) : null}
-        </div>
+        </details>
       </div>
     );
   } else {
@@ -583,9 +594,9 @@ export function CloudCheckoutPage() {
                 <p className="text-sm leading-6 text-oai-gray-500 dark:text-oai-gray-400">
                   {copy("cloud.checkout.return_app_hint")}
                 </p>
-                <Button as="a" href={desktopReturnUrl} variant="secondary" className="w-full no-underline">
+                <a href={desktopReturnUrl} className="inline-flex min-h-10 items-center text-sm underline underline-offset-4">
                   {copy("cloud.action.open_app")}
-                </Button>
+                </a>
               </div>
             ) : null}
           </Card>

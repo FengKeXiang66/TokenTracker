@@ -7,6 +7,7 @@ import {
   CloudPaymentConflictNotice,
   SelfHostedCloudState,
   cloudMembershipLabel,
+  formatCloudDate,
 } from "../components/cloud/CloudBillingParts.jsx";
 import { SegmentedControl } from "../components/settings/Controls.jsx";
 import {
@@ -30,7 +31,7 @@ export function CloudPage() {
   },[]);
   const navigate = useNavigate();
   const { catalog, loading, error, refresh } = useCloudCatalog();
-  const { account, auth, loading: accountLoading, error: accountError } = useCloudAccount();
+  const { account, auth, loading: accountLoading, error: accountError, refresh: refreshAccount } = useCloudAccount();
   const [billingMode, setBillingMode] = useState("recurring");
   const [term, setTerm] = useState(12);
   const price = catalog?.prices?.find(
@@ -62,6 +63,10 @@ export function CloudPage() {
   const trialUnavailable = membership?.trial_available === false;
   const trialAvailable = !auth?.signedIn || membership?.trial_available === true;
   const accountPending = Boolean(auth?.loading || (auth?.signedIn && (accountLoading || accountError || !membership)));
+  const managesCurrentPlan = membership?.status === "active" || openSubscription || hasGiftAccess;
+  const offersTrial = !hasCloud && !openSubscription && !hasGiftAccess && !trialUnavailable;
+  const purchaseLabel = copy(billingMode === "fixed" ? "cloud.action.buy_pro" : "cloud.action.subscribe");
+  const purchaseUnavailable = !price || !launched || loading || error || accountPending || !providerAvailable || paymentConflict;
 
   const checkout = (trial = false) => {
     const params = trial
@@ -96,37 +101,6 @@ export function CloudPage() {
         </div>
 
         {paymentConflict ? <div className="mb-6"><CloudPaymentConflictNotice /></div> : null}
-
-        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div
-            role="group"
-            aria-label={copy("cloud.selector.term")}
-            className="overflow-x-auto [&_button]:min-h-10 [&_button]:focus-visible:outline-none [&_button]:focus-visible:ring-2 [&_button]:focus-visible:ring-inset [&_button]:focus-visible:ring-oai-brand"
-          >
-            <SegmentedControl
-              options={[
-                { value: 1, label: copy("cloud.term.monthly") },
-                { value: 12, label: copy("cloud.term.yearly") },
-              ]}
-              value={term}
-              onChange={setTerm}
-            />
-          </div>
-          <div
-            role="group"
-            aria-label={copy("cloud.selector.billing_mode")}
-            className="overflow-x-auto [&_button]:min-h-10 [&_button]:focus-visible:outline-none [&_button]:focus-visible:ring-2 [&_button]:focus-visible:ring-inset [&_button]:focus-visible:ring-oai-brand"
-          >
-            <SegmentedControl
-              options={[
-                { value: "recurring", label: copy("cloud.billing_mode.recurring") },
-                { value: "fixed", label: copy("cloud.billing_mode.fixed") },
-              ]}
-              value={billingMode}
-              onChange={setBillingMode}
-            />
-          </div>
-        </div>
 
         <div className="grid gap-5 md:grid-cols-2">
           <Card
@@ -187,7 +161,7 @@ export function CloudPage() {
             className="order-1 border-oai-gray-500 dark:border-oai-gray-500 md:order-2"
             bodyClassName="sm:p-7"
           >
-            <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-lg font-semibold">
                 {copy("cloud.plan.title")}
               </h2>
@@ -200,6 +174,20 @@ export function CloudPage() {
             <p className="min-h-[3rem] text-sm leading-6 text-oai-gray-500 dark:text-oai-gray-400">
               {copy("cloud.plan.subtitle")}
             </p>
+            <div
+              role="group"
+              aria-label={copy("cloud.selector.term")}
+              className="mt-5 [&>div]:flex [&_button]:min-h-11 [&_button]:flex-1 [&_button]:focus-visible:outline-none [&_button]:focus-visible:ring-2 [&_button]:focus-visible:ring-inset [&_button]:focus-visible:ring-oai-brand"
+            >
+              <SegmentedControl
+                options={[
+                  { value: 1, label: copy("cloud.term.monthly") },
+                  { value: 12, label: copy("cloud.term.yearly") },
+                ]}
+                value={term}
+                onChange={setTerm}
+              />
+            </div>
             <div className="my-6" aria-live="polite">
               <p className="flex flex-wrap items-baseline gap-2">
                 <span className="text-4xl font-semibold tracking-tight tabular-nums">
@@ -215,7 +203,11 @@ export function CloudPage() {
               </p>
               <p className="mt-2 text-sm leading-6 text-oai-gray-500 dark:text-oai-gray-400">
                 {price
-                  ? term === 12
+                  ? billingMode === "fixed"
+                    ? copy(term === 12 ? "cloud.price.fixed_annual_total" : "cloud.price.fixed_monthly_total", {
+                        equivalent: formatCloudMoney(Math.round(price.amount_cents / 12), currency),
+                      })
+                    : term === 12
                     ? copy("cloud.price.annual_total", {
                         total: formatCloudMoney(price.amount_cents, currency),
                         equivalent: formatCloudMoney(
@@ -229,7 +221,26 @@ export function CloudPage() {
                   : copy("cloud.price.waiting")}
               </p>
             </div>
-            {hasCloud || openSubscription || hasGiftAccess ? (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={billingMode === "recurring"}
+              aria-label={copy("cloud.billing_mode.recurring")}
+              aria-describedby="pro-renewal-description"
+              onClick={() => setBillingMode((value) => value === "recurring" ? "fixed" : "recurring")}
+              className="mb-5 flex min-h-14 w-full items-center justify-between gap-5 rounded-md border-y border-oai-gray-200 py-3 text-left dark:border-oai-gray-800"
+            >
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">{copy("cloud.billing_mode.recurring")}</span>
+                <span id="pro-renewal-description" className="mt-1 block text-xs leading-5 text-oai-gray-600 dark:text-oai-gray-300">
+                  {copy(billingMode === "recurring" ? "cloud.renewal.auto" : "cloud.renewal.manual")}
+                </span>
+              </span>
+              <span aria-hidden className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${billingMode === "recurring" ? "bg-oai-gray-900 dark:bg-oai-gray-100" : "bg-oai-gray-300 dark:bg-oai-gray-700"}`}>
+                <span className={`h-[18px] w-[18px] rounded-full transition-transform motion-reduce:transition-none ${billingMode === "recurring" ? "translate-x-[23px] bg-white dark:bg-oai-gray-900" : "translate-x-[3px] bg-white"}`} />
+              </span>
+            </button>
+            {managesCurrentPlan ? (
               <Button
                 as={Link}
                 to="/settings?section=account"
@@ -238,11 +249,11 @@ export function CloudPage() {
                 {copy("cloud.action.manage_membership")}
               </Button>
             ) : null}
-            {!hasCloud && !openSubscription && !hasGiftAccess && !trialUnavailable ? (
+            {!managesCurrentPlan && offersTrial ? (
               <Button
                 type="button"
                 onClick={() => checkout(true)}
-                disabled={!launched || loading || error || accountPending || !trialAvailable}
+                disabled={!launched || loading || error || accountPending || !trialAvailable || paymentConflict}
                 className="w-full"
               >
                 {copy("cloud.action.try", {
@@ -251,30 +262,39 @@ export function CloudPage() {
                 <ArrowRight size={16} className="ml-2" aria-hidden />
               </Button>
             ) : null}
-            {hasCloud || openSubscription || trialUnavailable || (trialAvailable && !accountPending) ? (
+            {!managesCurrentPlan && !offersTrial ? (
+              <Button type="button" onClick={() => checkout()} disabled={purchaseUnavailable} className="w-full">
+                {purchaseLabel}
+                <ArrowRight size={16} className="ml-2" aria-hidden />
+              </Button>
+            ) : null}
+            {hasCloud || openSubscription || (trialUnavailable && !hasCloud) || (trialAvailable && !accountPending) ? (
               <p className="mt-2 text-center text-xs leading-5 text-oai-gray-500 dark:text-oai-gray-400">
                 {hasCloud || openSubscription
                   ? cloudMembershipLabel(membership?.status)
                   : trialUnavailable ? copy("cloud.error.trial") : copy("cloud.trial.no_card")}
               </p>
             ) : null}
-            {!openSubscription && !hasGiftAccess ? <Button
+            {hasCloud && !managesCurrentPlan ? <p className="mt-2 text-center text-xs leading-5 text-oai-gray-600 dark:text-oai-gray-300">
+              {membership?.status === "transition" && membership.transition_ends_at
+                ? copy("cloud.membership.expires", { date: formatCloudDate(membership.transition_ends_at) })
+                : membership?.status === "trial" && membership.trial_ends_at
+                  ? copy("cloud.membership.expires", { date: formatCloudDate(membership.trial_ends_at) })
+                  : null}
+              <Link to="/settings?section=account" className="ml-2 inline-flex min-h-8 items-center underline underline-offset-4">{copy("cloud.action.manage_membership")}</Link>
+            </p> : null}
+            {!openSubscription && !hasGiftAccess && (offersTrial || (managesCurrentPlan && billingMode === "fixed")) ? <Button
               type="button"
-              variant={trialUnavailable && !hasCloud ? "primary" : "secondary"}
+              variant="ghost"
               onClick={() => checkout()}
-              disabled={!price || !launched || loading || error || accountPending || !providerAvailable || paymentConflict}
-              className="mt-3 w-full"
+              disabled={purchaseUnavailable}
+              className="mx-auto mt-2 flex underline underline-offset-4"
             >
-              {copy("cloud.action.subscribe")}
+              {managesCurrentPlan ? copy("cloud.action.renew") : purchaseLabel}
             </Button> : null}
             {hasGiftAccess ? <p className="mt-3 text-xs leading-5 text-oai-gray-600 dark:text-oai-gray-300">
               {copy("cloud.gift.error_active")}
             </p> : null}
-            <p className="mt-3 text-xs leading-5 text-oai-gray-500 dark:text-oai-gray-400">
-              {billingMode === "fixed"
-                ? copy("cloud.renewal.manual")
-                : copy("cloud.renewal.auto")}
-            </p>
             {price ? (
               <p className="mt-2 text-xs leading-5 text-oai-gray-500 dark:text-oai-gray-400">
                 {copy("cloud.checkout.tax")}
@@ -294,6 +314,7 @@ export function CloudPage() {
         </div>
 
         <div className="mt-5">
+          {accountError ? <BillingNotice error={accountError} context="account" onRetry={refreshAccount} /> : null}
           {error ? <BillingNotice error={error} onRetry={refresh} /> : null}
           {!error && loading ? (
             <BillingNotice>{copy("cloud.catalog.loading")}</BillingNotice>

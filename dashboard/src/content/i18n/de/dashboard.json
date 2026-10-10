@@ -589,5 +589,13 @@
   "cloud.export.success": "{{count}} erfasste Tage von {{from}} bis {{to}} (UTC) heruntergeladen.",
   "cloud.export.empty": "Keine erfassten Tage. Die Datei enthält Angaben zum Umfang, aber keine Nutzungszeilen.",
   "cloud.export.truncated": "Nur der verfügbare Zeitraum {{from}} bis {{to}} (UTC) wurde heruntergeladen. Die Datei enthält auch deine ursprüngliche Auswahl.",
-  "cloud.export.dashboard": "Dashboard anzeigen"
+  "cloud.export.dashboard": "Dashboard anzeigen",
+  "cloud.renewal.auto": "Automatische Verlängerung. Jederzeit kündbar; der bezahlte Zeitraum bleibt erhalten.",
+  "cloud.renewal.manual": "Einmal zahlen. Keine automatische Verlängerung.",
+  "cloud.action.create_checkout": "Zur Zahlung · {{amount}}",
+  "cloud.checkout.review": "Prüfe Tarif und Zahlungsbedingungen. Waffo zeigt den endgültigen Betrag vor der Zahlung.",
+  "cloud.action.buy_pro": "Pro kaufen",
+  "cloud.price.fixed_monthly_total": "Einmalzahlung für einen Monat.",
+  "cloud.price.fixed_annual_total": "Einmalzahlung für ein Jahr. Entspricht {{equivalent}}/Monat.",
+  "cloud.checkout.help_title": "Probleme mit der Zahlung?"
 }
