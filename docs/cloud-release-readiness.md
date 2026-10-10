@@ -1,6 +1,40 @@
 # Cloud / Pro 上线前交接总表
 
-## 最新通过的工程提交：1.3.0 / 6abe2701
+## 当前源码与验收状态：1.3.1 / 282ffa95
+
+2026-10-10，源码 `282ffa95370a8c84a3911908079a46a38b70a88e` 已推送并独立读回。[CI 38024326226](https://github.com/xiufengsun/TokenTracker/actions/runs/38024326226) 四个 job 与 [CodeQL 38024326217](https://github.com/xiufengsun/TokenTracker/actions/runs/38024326217) 全部通过。实际CodeQL门禁114132236221为success、0条新注释，未关闭主干原有告警。Windows Node24/包内 Node22 各 **3869 通过/40 条件跳过/0 失败或取消**，.NET **119 通过/1 个 Windows 符号链接权限跳过**，完整应用及安装器编译通过；Mac Node **3903/4 跳过**、原生 **247 项**；Linux Node **3899/8 跳过**及 **4 项架构检查**，Rust 格式/clippy/测试通过。独立前端 **1243 项/143 个文件**绑定 c7，282 仅改两处原生源码，前端 Git blobs 相同。
+
+c7 的 Windows [首次 Build](https://github.com/xiufengsun/TokenTracker/actions/runs/38023611765/job/114129674138) 缺少 System.IO，原失败保留。补显式 using 后，官方 .NET8.0.425 完整生产 csproj 交叉构建与上述真实 Windows CI 都退出码 0。Mac QA 目录复用修复及真实保存结果见下文。
+
+现有付费 InsForge 的 **14 个正式 handler 已替换**，**19 个受审产物仍绑定 `9c19419c`**。源码/hash 独立读回一致，direct/gateway 共 28 项探测通过；43 个函数中的其余 29 个 metadata 不变。前置 preview 回归 59/59；首轮 post 的 48 通过/11 个 `cloud_access_unavailable` 503 原样保留，同期 PostgREST 有数据库连接故障；第二轮完整真实 HTTP **59/59**。当前回归通过不证明所有失败请求的深层原因或永久稳定。live 保持 preview，收费、促销和归档关闭。私有来源为 `.tmp/rollout-20261010/review/deployment-result.json`、`cloud-gate-investigation-index.json`。
+
+供应商完整 gzip 备份 **843,788,653 字节**已在 PostgreSQL **15.18** 隔离副本恢复：**143 表、13,156,108 行**，元数据、**5,616 项有效权限比较**及回滚验证通过。仅调整一行备份头兼容性，原 dump 字节保留。来源为 `.tmp/rollout-20261010/restore/supplier-restore-result.json`、`supplier-full-metadata-parity-result.json`、`supplier-effective-privilege-parity-result.json`、`supplier-rollback-result.json`。不代称公开 VPS、平台 storage 或真实用户迁移已经完成。
+
+282 的普通/QA Mac 新包 build、签名 strict 检查退出码 0，签名前 706 个嵌入文件一致；签名后 705 个嵌入文件字节一致，唯一 Node 签名字节差异单独记录。36 个源码 Git blob 精确绑定 282，相对 c7 仅两个原生文件变化；来源为 `.tmp/rollout-20261010/native/package-parity-282-final.json`。
+
+测试包未正式发行。Cloud 日汇总 CSV/JSON、三端文件保存确认和初始登录 gate 已实现，文件记录 UTC、估算 USD、请求范围及实际可读范围。此前 21 项 redirect/SDK HTTP200 PKCE 为预检；最新 23 个 provider redirect 已读回且其他配置相同。
+
+普通 GitHub OAuth 已真实返回 /billing/checkout?intent=trial，显示 preview/试用关闭，URL 无凭据、session intent 清除。
+
+网页 CSV/JSON 真实下载已验证：CSV 3667 字节/12 行（10 个有记录日期），JSON 4376 字节/10 行，schema、UTC 和估算 USD 元数据匹配；验收摘要记录范围、数量和 hash；导出文件仅在私有0600位置保留，不公开用量行或金额，私有来源为 `.tmp/rollout-20261010/ui/downloads/csv-proof.json`、`json-proof.json`。首次网页 JSON 曾显示通用错误且无下载，未捕获根因，原失败保留；正常重试的 6 个 HTTP200 中只有 4 个属于导出，另 2 个为背景 daily。
+
+WKWebView 首 CSV 成功、第二 JSON 的 QA 重复建目录失败也保留；282 修复后的真实 Mac 第二轮 8 个事件均通过：CSV618字节、同名-1副本618字节、JSON554字节均与真实A快照hash一致、权限0600；实际iframe禁止、路径穿越拒绝、写失败反馈及恢复均有回执。第一轮report/profile/bootstrap/原CSV hash保留。索引为 `.tmp/rollout-20261010/native-auth/mac-ipc-independent-result.json`，新QA签名binary SHA以7548f66a开头，NativeBridge源码SHA以375c4d55开头。
+
+实际桌面截图 `.tmp/rollout-20261010/ui/export-native-desktop.png` 已取得且private0600；390px DOM无横向溢出、两个日期label、Tab输入焦点outline2px见 `export-mobile-keyboard.json`。随后Mac锁屏，Cua解锁失败，未继续UI或换工具；最后390px像素截图待Owner解锁，不撤销已完成的功能、桌面像素和DOM/键盘证据。以上页面/前端均为c7且与282 frontend Git blobs一致；普通非QA原生OAuth的OS返回尚未由网页OAuth或QA文件保存代替。 Windows 新 WebView2 下载和 OS/完整入口验收见 [设备清单](windows-cloud-acceptance.md)。
+
+当前Windows审核archive已独立下载，与GitHub digest一致；984个文件大小/hash、109个源码blob以及实际checkout tree与282逐项匹配，ZIP/安装器具体hash见 [Windows包来源](windows-cloud-acceptance.md)。本机4项可用私钥/管理key模式零命中，不冒称Windows生产私钥扫描或GUI/安装器运行。最后公开catalog HTTP200，live/hosted/preview、launch_at=NULL、checkout_verified=false。
+
+| 当前剩余门槛 | 负责人和动作 |
+| --- | --- |
+| 当前 CI 与验收证据收尾 | 工程等安装器步骤结束，下载并核对新 Windows artifact；Mac 第二轮文件索引已完成。最后390px像素截图等待 Owner 解锁，其他已完成验收保留 |
+| 正式 HTTPS 发布与回滚 | 工程按受审版本发布完整 Dashboard，验证订单归属、返回、失焦和重开恢复；preview 登录已接续，不再要求 Owner 重新提供 Vercel 会话 |
+| Windows 实际设备 | Owner 提供测试电脑和必要系统确认；工程验证新导出、OS 返回 App、完整 Main/托盘、单实例/JobObject、安装/升级/卸载及数据保留 |
+| 真实付款与结算 | Owner 确认付款方式、金额上限并本人付款；工程核对签名通知、账本、权益、账期、取消及退款；收入满足合同条件后核对首笔提款和到账 |
+| 最终条款和启用 | Owner 确认退款、续费、隐私、客服条款及明确启动时间；其后才实施收费、公告和统一发行 |
+
+以下历史记录保留原始 SHA、环境和失败，不作为当前版本验收。Windows 原码生成/resume 的 NTFS 管理入口是可选能力，仍 fail-closed；可使用已验证的 Mac/Linux 管理程序，不列为正式收费的必需 Owner 门槛。
+
+## 1.3.0 / 6abe2701 工程记录（历史）
 
 受审提交 **6abe270167182afe5511939b10a950e2b0a2776e** 的 [CI 37989219495](https://github.com/xiufengsun/TokenTracker/actions/runs/37989219495) 全部通过：Windows Node24 与实际包内 Node22 各 **3858 通过/40 条件跳过/0 失败或取消**，.NET **117/117**；macOS Node **3892/4 跳过**及 **239 原生测试**；Linux Node **3888/8 跳过**、Rust 格式/clippy/测试通过。CodeQL 实际门禁 **114019867015 success / 0 新注释**，分析 1926208544 的 merge tree 与该提交相同；14 条主干已有告警仍保留，未禁用查询。通知与同步锁夹具修复现已在 Mac/Linux 全量执行；实际已核验 Windows 包内模块的组合专项另为 **67 通过/4 POSIX 跳过**。
 
@@ -128,7 +162,7 @@ Windows CI 已扩大为完整 Node 回归，并在 Dashboard 构建后运行；S
 - 不把扫描全部告警写为清零：仍有 87 项 server-only RLS 无客户端 policy，以及一项数据库缓存命中率 73.29% 的性能告警。客户端角色无 BYPASSRLS，服务角色有访问权限；未增加公共 policy、未 suppress 告警、未更改付费实例规格。性能趋势和服务端权限仍按运行手册复核。
 - 本轮仅用于验收的 A/B auth 账号已通过官方管理 API 删除，旧密码登录均为 401；gift 白名单仅移除本轮两项，原有两项保持。未删除财务记录或个人账号。验收凭据文件已移除密码/token；这些历史测试不能复用已撤销凭据。
 
-## 正式后台准备的独立读回
+## 早期正式后台准备的独立读回（历史）
 
 - InsForge CLI 0.2.8 已安装、登录并关联现有 tokentracker 项目。此机器的系统 Node16 不满足 CLI 要求，CLI 专用 shim 使用已校验的 Node22.22.2，其他工具和系统 Node 不变；npm 更新可能覆盖 shim。项目配置和凭据均不提交。
 - 备份 pre-pro-acceptance-20261009 已读回 completed。没有在生产执行恢复；隔离恢复演练仍为独立门槛。
@@ -140,7 +174,7 @@ Windows CI 已扩大为完整 Node 回归，并在 Dashboard 构建后运行；S
 - 正式 catalog 返回 preview、配置可识别、checkout_verified=false；真实测试账号发起 checkout 返回 503 checkout_not_launched，在创建订单前拒绝。生产 orders/payments/subscriptions 均为 0。
 - **提款账户已绑定目标商户且 payoutEnable=true，但正式 API 返回 channelStatus=unverified、channelVerifiedAt=NULL。** 已登录后台可见账户；按 [Waffo 官方流程](https://docs.waffo.ai/merchant/payout-accounts)，新账户在首笔真实提款核对收款人后才标为 Verified。当前状态可能与尚无真实提款有关，不凭此字段认定配置错误；无需重复新增账户。真实付款、账单和到账尚未验证。
 
-## 仍阻止正式收费发布的事项
+## 此前的正式收费发布门槛（历史）
 
 | 门槛 | 下一步与负责人 |
 | --- | --- |
@@ -158,7 +192,7 @@ Windows CI 已扩大为完整 Node 回归，并在 Dashboard 构建后运行；S
 
 ## Owner 当前事项
 
-密钥生成、账户添加/关联和价格确认已经完成，无需重复。剩余本人事项为：确认结算合同，并在真实收入满足提款条件后核对首笔提款/到账，当前 unverified 不单独证明配置错误；登录受保护的 Vercel Preview 以便继续前端验收；提供隔离恢复环境，或明确 InsForge 分支预算及运行时限；实际完成受控支付与必要的系统确认；确定最终条款及启用时间。专用 Windows 设备上的协议与安装生命周期还需要可执行的验收环境。工程尚未完成的部署和发行检查不能转写成 Owner 已验收；后台应继续保持 preview。
+剩余本人事项为：确认最终条款、受控付款的方式和金额上限并完成必要系统确认；真实收入满足合同条件后核对首笔提款/到账；提供 Windows 测试电脑接续 OS/完整入口、安装生命周期和新导出验收；明确正式启用及统一发行时间。当前 unverified 不单独证明结算配置错误。Vercel 登录、隔离数据库恢复和正式函数替换已由工程接续，不再列为 Owner 待办。无需新服务器或重复设置密钥、价格、产品及提款账户；剩余 CI、页面与设备验收继续由工程跟进，后台保持 preview。
 
 ## 文档入口
 

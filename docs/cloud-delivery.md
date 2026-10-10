@@ -1,5 +1,15 @@
 # Cloud 交付与托管沙盒验收
 
+## 当前交付：1.3.1 / 282ffa95
+
+`282ffa95370a8c84a3911908079a46a38b70a88e` 已推送且远端读回一致。[CI 38024326226](https://github.com/xiufengsun/TokenTracker/actions/runs/38024326226) 四个 job 与 [CodeQL 38024326217](https://github.com/xiufengsun/TokenTracker/actions/runs/38024326217) 全部通过：Windows Node24/包内 Node22 各3869通过/40条件跳过，.NET119通过/1个链接权限跳过；Mac Node3903/4跳过及247原生；Linux Node3899/8跳过、4架构及Rust通过。前端1243项/143文件与c7相同源码。保留c7生产WPF缺System.IO的首次失败；两项原生修复已通过完整编译和真实Mac保存验收。普通/QA Mac新包按282重建和签名，706个嵌入文件的源码核对及Node签名差异分开记录，36源码blob与Git一致。
+
+正式后端 14 个 handler 已替换，19 个产物来源仍为 `9c19419c`；其他 29 个函数 metadata 保留，direct/gateway 28 项探测通过。首轮 post 的 48 通过/11 个上游连接故障 503 保留；post2 真实 HTTP 59/59。供应商 843,788,653 字节 gzip 在 PG15.18 隔离副本完成 143 表/13,156,108 行恢复、元数据和 5,616 项有效权限比较及回滚验证，原 dump 保留。公开 VPS/storage/真实用户迁移不由此代替。后端继续使用原付费 InsForge，收费和归档关闭。
+
+Cloud 账户已接入真正的日汇总 CSV/JSON 文件导出，注明 UTC、美元估算及实际可读范围，原生保存收到文件确认后才显示完成。固定 custom scheme 和初始 SDK 登录 gate 已核对；最新 23 个 redirect 读回且其他配置相同。普通 GitHub OAuth 已真实返回 checkout trial，显示 preview/试用关闭，URL 无凭据、session intent 清除。网页 CSV3667字节/12行（10日）、JSON4376字节/10行已实际下载，schema/UTC/估算USD元数据正确，私有 `.tmp/rollout-20261010/ui/downloads/csv-proof.json`、`json-proof.json` 仅记录范围/数量/hash，实际导出文件私有0600保留。网页首次JSON通用错误且无下载的根因未捕获，保留失败；重试的6个HTTP200仅4个导出、2个背景daily。WKWebView首CSV成功/第二JSON目录已存在失败保留；282修复后Mac第二轮8个实际事件全部通过，3文件CSV618/同名-1的618/JSON554字节与真A快照同hash、0600；iframe禁止、路径穿越、写失败反馈/复原以及first-epoch保留均通过，见 `.tmp/rollout-20261010/native-auth/mac-ipc-independent-result.json`。桌面真实截图及390px DOM/日期label/Tab焦点outline2px证据在 `.tmp/rollout-20261010/ui/`，最后390px像素截图因锁屏/Cua解锁失败待Owner解锁；未换工具继续，不撤销已完成部分。普通非QA原生OAuth OS返回仍待独立证明。Windows 新导出、OS 返回和完整生命周期仍按 [设备交接](windows-cloud-acceptance.md)证明。当前事实、私有来源及 Owner 清单见 [总表](cloud-release-readiness.md)。
+
+## 早期 checkpoint 记录（历史）
+
 最新通过的工程提交 **1.3.0 / 6abe2701**：[CI 37989219495](https://github.com/xiufengsun/TokenTracker/actions/runs/37989219495) 全部通过，Windows Node24/实际包内 Node22 各 3858/40 条件跳过，.NET 117/117、安装器编译上传；Mac 3892/4 跳过及 239 原生、Linux 3888/8 跳过、Rust 通过。CodeQL gate 114019867015 为 success/0 新注释。相对 c93c9080 仅交接和两个测试夹具改变，实际该来源包内组合专项 67/4 POSIX 跳过；下方实际包验收仍保留 c93c9080 来源。最新只读部署清单为 19 候选/16 回滚快照/2 匹配/14 待替换/3 历史缺失，无正式替换；Preview 仍需 Vercel 登录，生产仍 hosted/preview、live 交易均 0。完整 hash、精确来源与未完成的资金/恢复/页面/Windows 生命周期门槛见 [总表](cloud-release-readiness.md)，后续文档 head 的检查以 [当前 PR](https://github.com/xiufengsun/TokenTracker/pull/772/checks) 为准。
 
 后续仅同步锁测试夹具调整：7bd905d6 的 Windows 包内 Node22 出现 1 项 native publication 未处理 SYNC_BUSY，不记为全通过。成功用例改用真实锁冲突信号和受控时钟，立即处理拒绝；独立真实超时拒绝与原始 token/队列断言保留。隔离 Node22/Node24 各 27/27；完整 CI 以 [PR 当前 head](https://github.com/xiufengsun/TokenTracker/pull/772/checks) 为准。应用源码未变，下面实际包仍证明 c93c9080 的来源。
@@ -87,7 +97,7 @@ Pro后端104项目标及6项独立原handler/SDK用例通过。真实账本的�
 
 上述付款和退款都是供应商测试环境操作，不代表真实银行或手机钱包扣款、生产收款许可或结算到账。私有证据不放入公共文档。测试 webhook 已核对身份后删除并独立确认不存在，临时返回通道已停止；账本和证据保留。新固定 HTTPS 返回页已就绪，现有供应商 session 的旧 success URL 不会随配置变化，本轮重开通用返回页只验证原生接续，不伪称新付款回调。
 
-## 尚未完成的工程验收
+## 早期工程验收记录（历史）
 
 真实双实例验收复现了本地认证代理的外部源漏洞，并完成入口修复。5 条实际外源路径均 403，无凭据或允许跨域响应头；合法本地和原生无 Origin 恢复返回 200。原生 OAuth 一次性标记的外源读取也已通过先失败/修复/真实 serve 验证，42 项认证目标和 15 项 serve 目标通过。标准 Dashboard 已验证 A444→C未登录/本地333→C555→A未登录/本地333→A444，两方向旧 JWT 均 409，旧实例远程设备消失。剩余自部署场景见 [验收清单](self-hosting-remaining-acceptance.md)。
 
@@ -109,12 +119,10 @@ HTTPS QA页的外部协议点击被Browser Use明确拦截，未换工具或命�
 
 ## Owner 剩余事项（当前）
 
-1. 密钥生成、价格确认和账户关联已完成；正式密钥已通过签名 API 绑定商户／店铺并接入八项 server secret，四个正式产品与 webhook 已准备。无需重复这些步骤，私钥继续保存在私有位置。
-2. 提款账户已添加且 API 确认绑定正确。channelStatus=unverified、channelVerifiedAt=NULL 与实际到账证明分开记录；按 [Waffo 官方说明](https://docs.waffo.ai/merchant/payout-accounts)，新账户在首笔真实提款核对收款人后才标 Verified，当前状态可能只是尚无首笔提款，不单独证明配置错误。Owner 确认合同费率、币种与条件，真实收入满足提款条件后完成首笔提款并私下核对账单及到账，账户号码不进入仓库。
-3. 在专用 Windows 设备完成工具不能代行的系统确认和“返回 App”外部协议点击；工程负责提供可复核的最新包与步骤，继续完整托盘和安装／升级／卸载验收。当前正常邮箱登录与价格显示已实测，完整生命周期仍不能由编译代替。见 [Windows 交接](windows-cloud-acceptance.md)，不需要 Windows 服务器。
-4. 确定最终退款／续费／隐私／客服条款，以及受控实际付款的金额上限和付款方式并本人付款。工程核对真实回调、账本、完整账期、退款和恢复；适用门槛通过后确定生产启用时间、公告和统一发行。USD4.99/月、USD39.99/年的未税基础价已经确认。
-5. 登录受保护的[最新 Vercel Preview](https://dashboard-bdtmuqdm2-sunxiufeng1992-8555s-projects.vercel.app)，以便工程继续完整前端验收；提供可用的隔离恢复环境，或明确 InsForge 分支预算与运行时限。工程负责备份恢复与部署验证，不要求 Owner 手工改代码。
+1. 确定最终退款、续费、隐私、客服条款及受控实际付款的金额上限和方式，并本人付款。工程核对真实回调、账本、完整账期、退款和恢复；门槛通过后由 Owner 明确生产启用时间及统一发行。
+2. 核对合同费率、币种和提款条件，真实收入满足条件后完成首笔提款并私下核对到账。当前 channelStatus=unverified 不单独证明配置错误，已完成的账户绑定、价格、产品和正式密钥无需重复。
+3. 在专用 Windows 测试电脑完成 OS 返回 App、完整 Main/托盘、单实例/JobObject、安装/升级/卸载、数据保留及新增 CSV/JSON WebView2 实际文件检查。工程准备最新包和步骤，不通过其他工具绕过此前拒绝的系统操作，见 [Windows 交接](windows-cloud-acceptance.md)。
 
-你不需要自己改代码或手工部署，也不用为 Cloud 托管验收另选购服务器。当前已直接使用原付费 InsForge，沙盒与 live 按环境行隔离，正式业务路径保持原状。剩余工程验收仍由开发侧安排；身份审核、真实资金试点、结算及公开发布需要 Owner 参与或授权。
+不需要自己改代码、提供新恢复环境或另选服务器。工程已沿用原付费 InsForge 完成隔离数据库恢复和正式 handler 替换，沙盒/live 仍按环境隔离，正式收费关闭。Vercel 登录已接续；剩余 CI、真实页面和原生验收由开发侧完成。Windows 原码生成/resume 为可选管理能力，未验证 NTFS ACL 时关闭，可由 Mac/Linux 安全管理程序代行。
 
 部署与回滚步骤见 [收款运维手册](cloud-billing-operations.md)，自部署实现和剩余门槛见 [后端安装指南](self-hosting-backend.md) 与 [实现状态](self-hosting-status.md)。

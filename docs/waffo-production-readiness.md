@@ -18,7 +18,7 @@ Owner 已完成结算／提现账户添加与关联，无需重复。最新签�
 - 生产发布、退款与取消的接口契约已复核。测试密钥不能通过切换请求头变成正式密钥。
 - Live checkout 增加前置校验。`WAFFO_LIVE_PRIVATE_KEY_SHA256` 必须匹配经 Owner 核验的正式私钥 PEM 解码后的 DER 字节。产品必须有生产版本，且 Store 的生产权限已开启。指纹只绑定文件，不证明密钥所属环境；仍要按正式后台或供应商 API 核对来源。
 
-## 仍需按顺序完成
+## 当前状态与后续验收
 
 | 项目 | 当前状态和工程动作 |
 | --- | --- |
@@ -27,14 +27,16 @@ Owner 已完成结算／提现账户添加与关联，无需重复。最新签�
 | 产品发布 | 四个 production SKU 已发布并读回 active、价格／货币／完整月年账期一致，无关既有产品不变；应用收费仍关闭 |
 | 接收与返回地址 | 正式 webhook 已部署并注册、拒绝无签名请求。完整正式 HTTPS Dashboard /billing/checkout 仍待受审发布；QA 静态页不能代替 |
 | 实际支付方式 | 根据正式产品类型与货币读回收银台。文档提供 card、Apple Pay、Google Pay、WeChat；支付宝是商户结算渠道，不作为当前买家付款权益承诺 |
-| 真实试点 | 发布与试点授权后核对真实付款、账本、权益、取消、退款和后续结算。正式年付版本、完整首期与下次扣款日期由工程验证 |
+| 真实试点 | 发布与试点授权后核对真实付款、账本、权益、取消、退款和后续结算。正式产品版本和月/年账期已核对；真实交易中的首期与下次扣款日期仍由工程读回 |
 
 公开费率不等于当前账户合同。正式启用前核对卡/钱包固定费用、退款费用及最低提现手续费，避免用测试交易估算实际净收入。[官方费率](https://docs.waffo.ai/mor/fees)、[结算流程](https://docs.waffo.ai/merchant/payout-flow)。
 
 ## 启用门槛
 
-未完成以上验收时，live policy 保持 preview，正式 checkout_verified 和促销开关保持关闭。[PR #772](https://github.com/xiufengsun/TokenTracker/pull/772) 已公开可见、仍为 draft，未合并；没有发布上线公告、开启真实收费或公开发行。最新通过的工程提交、后端 19 候选/14 待替换以及仍未完成的发布门槛见 [总表](cloud-release-readiness.md)。
+未完成以上验收时，live policy 保持 preview，正式 checkout_verified 和促销开关保持关闭。[PR #772](https://github.com/xiufengsun/TokenTracker/pull/772) 已公开可见、仍为 draft，未合并；没有发布上线公告、开启真实收费或公开发行。当前源码为已推送的1.3.1/282ffa95，19个产物仍绑定9c19419c，14个正式handler已替换；282 CodeQL已success，CI四个job及完整ZIP/安装器编译上传全部success，c7 CodeQL success和Windows生产Build缺System.IO的首失败分别保留。普通GitHub OAuth已真实返回preview结账页；最新23项redirect独立读回且其他配置相同，网页CSV/JSON实际下载和修复后Mac8事件/三文件保存通过，前端源c7与282 frontend Git blobs一致，具体索引与桌面/DOM/键盘证据见总表；最后390px像素截图因锁屏待Owner解锁，不冒称普通非QA原生OAuth OS返回通过。物理Windows和真实付款/结算仍未由此代替。完整门槛见 [总表](cloud-release-readiness.md)。
 
 后端继续用现有付费InsForge。Windows工作已接续整合，最新普通支付返回的OS/GUI及安装器步骤仍需实际设备，见[交接文档](windows-cloud-acceptance.md)。Browser Use拒绝的外部协议点击需人工执行，不通过其他工具绕过；这些设备步骤不阻塞其余工程准备。
 
 平台契约见 [认证与环境](https://docs.waffo.ai/api-reference/authentication)、[首次发布](https://docs.waffo.ai/api-reference/endpoints/subscription-products/publish-product)和 [Store 部分更新](https://docs.waffo.ai/api-reference/endpoints/stores/update-store)。
+
+Owner 当前只需集中确认最终条款和真实试点的方式/金额上限、本人付款及必要系统确认、收入满足条件后的首笔提款/到账，以及明确正式启动。密钥、产品、价格、提款账户已设置，无需重复；preview登录和隔离数据库恢复已由工程接续，不需另购云服务器。Windows实际OS/GUI门槛按设备交接执行，可选gift私有码管理NTFS能力不阻塞收费准备。

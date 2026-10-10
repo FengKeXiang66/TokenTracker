@@ -1,5 +1,9 @@
 # Pro 赠送码
 
+2026-10-10 当前源码为已推送的 `1.3.1 / 282ffa95`，正式 handler 已按受审 `9c19419c` 产物替换，生产仍 preview。282 CodeQL已success，CI四个job与ZIP/安装器构建全部通过，精确当前状态见 [总表](cloud-release-readiness.md)；UI/前端源c7与282 frontend Git blobs一致，Mac QA导出结果不作为Windows完整GUI兑换或普通非QA原生OAuth OS返回证明；下文 Windows/Mac 礼遇记录保留各自原始来源，不自动升级为本轮完整 GUI 兑换证明。
+
+Windows 管理员的原码生成/resume 及私有文件入口仍 unsupported、fail-closed，因为 owner-only NTFS ACL 尚未验证。它是可选能力，可由已验证的 Mac/Linux 管理程序发码，不是必须由 Owner 完成的正式收费门槛；应用内兑换不受影响。新 Cloud 用量 CSV/JSON 的普通 Downloads 保存也不证明私有码文件 ACL。以下已删除的 Windows A/B 是此前账号，不是本轮仍仅在 RAM 保管凭据的两个隔离 preview QA 账号。
+
 2026-10-10 Windows 接续：gift 远端源码与当前构建完全一致，四个基础表 RLS 开启，管理 RPC 的匿名/客户端执行权限拒绝。两个专用真实 auth 账号完成 16 项 API 验证，包括无效码不授予权益、刷新轮换与本人隔离。Windows 普通账号 UI 登录/退出/重载/切换已完成 7 项验证；专用 A/B 账号在验收后删除、密码失效，原有白名单保留。该结果不是成功 Windows GUI 兑换证明；Windows 原码生成的 NTFS 守卫没有放宽。最新候选和证据见 [总表](cloud-release-readiness.md)。
 
 赠送码由 TokenTracker 后端发放会员权益。Waffo 继续处理付费订阅，赠送不创建订单、付款或自动续费。

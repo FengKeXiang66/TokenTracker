@@ -78,6 +78,8 @@ On the verified official v2.3.3 stack, the generated handler reads reserved `INS
 
 Build the dashboard with its own `VITE_INSFORGE_BASE_URL` and `VITE_INSFORGE_ANON_KEY`. Keep API/database credentials and signing secrets on the server. Client instance selection, credential clearing and packaged desktop routing require their own verification; this backend package does not change an existing desktop binary.
 
+The 1.3.1 desktop client starts OAuth with the exact `tokentracker://auth/callback` redirect. Allow that URI on your own InsForge instance when enabling its OAuth provider. Web sign-in also needs your own dashboard origin and its `/dashboard` callback in the redirect list. The desktop flow keeps PKCE in its original WebView and no longer depends on an arbitrary loopback port or an official hosted relay. Verify the actual provider return and code exchange on the selected instance before marking native sign-in supported.
+
 ## Back up and restore an instance
 
 Check the running PostgreSQL version and both client-tool versions before choosing `pg_dump` and `pg_restore`. The verified image runs PostgreSQL 15.18 but its default tools are 18.4; restoring that default dump into PostgreSQL 15 fails on `transaction_timeout`. The image also supplies matching 15.18 tools under `/usr/lib/postgresql/15/bin/`, which completed the local restore drill.

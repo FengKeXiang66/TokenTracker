@@ -1,6 +1,16 @@
 # Windows 客户端验收交接
 
-## 最新通过的工程提交：1.3.0 / 6abe2701
+## 当前版本与待设备验收：1.3.1 / 282ffa95
+
+源码 `282ffa95370a8c84a3911908079a46a38b70a88e` 已推送并独立读回。[CI 38024326226](https://github.com/xiufengsun/TokenTracker/actions/runs/38024326226) 四个 job 和 [CodeQL 38024326217](https://github.com/xiufengsun/TokenTracker/actions/runs/38024326217) 全部通过；真实Windows Node24/包内Node22各3869通过/40条件跳过，.NET119通过/1个符号链接权限跳过，完整应用、ZIP和安装器编译通过。c7生产WPF缺System.IO的[首次失败](https://github.com/xiufengsun/TokenTracker/actions/runs/38023611765/job/114129674138)保留，282补齐命名空间后已在真实Windows CI通过。UI/前端与c7 Git blobs一致，旧实机记录仍保留其原来源。
+
+当前审核包来自 artifact **11660137708**，已下载核对 **196,010,118 字节/SHA256 bf51c875be85e84bd8d72aa0cf9cc14599ac5b61791c4c36825431d7e2f092b5**，与GitHub digest相同。实际checkout `6f0cca42309a41c438e1184676198c5c59d2677a` 的tree与282相同，**984个文件大小/hash、109个嵌入源码Git blob**全部匹配。ZIP **115,731,783 字节/SHA256 448ced01f706adf70bc45391281326ed9790ad2b88fbc71605707c3850457b01**；安装器 **81,400,200 字节/SHA256 5b547a5877e97e8d6d07f0dfee34d451bc5829c0c1a4c642dde3022df6b2766a**。本机可用4项私钥/管理key模式零命中，Windows保存的生产私钥未在本Mac获得，未声称覆盖。证据 `.tmp/rollout-20261010/native/windows-package-282-independent.json`。本轮没有执行Windows GUI或安装器；下载及编译不代替设备验收。
+
+Mac QA第二轮文件保存的8事件/3文件全部通过，证据见总表；网页OAuth成功也不等于普通非QA原生OS返回通过。本轮仍需真实 Windows 设备证明 OS 返回 App、完整 Main/托盘、单实例/JobObject、安装/升级/卸载、个人数据保留，以及新增 CSV/JSON WebView2 文件保存。导出文件应来自本人当前后端、记录 UTC/估算 USD/实际日期范围；切换账号或实例后的晚结果不显示成功。新文件不能覆盖已有同名文件；正常导出使用 Downloads 的继承 ACL，不把它当 owner-only NTFS 私有码管理证明。此前工具拒绝的系统操作不换工具绕过。
+
+Windows gift 管理员的原码生成/resume 仍为可选且 fail-closed，应用内兑换不受影响；可由已验证的 Mac/Linux 管理程序发码，不作为必须等 Windows 才能启用收费的门槛。官方后端继续使用现有付费 InsForge，不需要 Windows 服务器。工程准备当前源码的新包及 hash 后接续，下面包均保留其原始来源。
+
+## 1.3.0 / 6abe2701 工程记录（历史）
 
 [CI 37989219495](https://github.com/xiufengsun/TokenTracker/actions/runs/37989219495) 全部通过：Windows Node24/实际包内 Node22 各 **3858 通过/40 条件跳过/0 失败或取消**，.NET **117/117**，安装器编译与上传成功；macOS **3892/4 跳过及 239 原生**、Linux **3888/8 跳过**和 Rust 通过。CodeQL 门禁 **114019867015 success / 0 新注释**；通知文件竞态现已在 Mac/Linux 实际通过。该提交只更新交接与两个夹具，应用/构建/workflow 输入仍与 c93c9080 相同；实际 c93c9080 包内通知与同步锁组合专项另为 **67 通过/4 POSIX 跳过**。下方 984/109/30/55 的人工包验收保留其实际来源，不升级为新 archive 已人工验收。
 
@@ -56,7 +66,7 @@ UTC 20:00 正式后台再次只读核对仍 hosted/preview、launch_at=NULL，li
 
 本轮已在原 Windows 工作区重新拉取功能分支。当前源码和本机回归统一记录在 [上线前交接总表](cloud-release-readiness.md)。下文按来源保留 Mac 交叉包和 10 月 8 日实机记录；这些包都不是后续合入主干后源码的正式发行产物。
 
-## 当前 Windows 接续证据
+## 1.3.0 阶段 Windows 接续证据（历史）
 
 896baa52：安装包中的 Node22.22.2 补查暴露 native recursive copy 的 Unicode 路径退出码 3221226505。已用隔离目录复现，技能导入/链接 fallback 的 fs.cpSync 在 Windows 使用恒真 filter 保留全部条目并选择 JS 遍历，同步安全 guard 不变。新增子进程测试复制中文用户目录和 UTF-8 嵌套文件，并强制链接 EPERM 验证真实复制；TRAE trim fixture 保留真实完整运行库检查。
 
@@ -183,6 +193,6 @@ ZIP SHA256 为 `c09b7b269effc413f40aec59e352df219f0f59f505a17b5aa7c30793b36932f5
 
 ## 接续入口
 
-在另一台电脑上使用已推送的 `feat/cloud-subscriptions` 分支及本页包 hash 接续。不要从 `main` 的普通发行包推断已包含本轮 Pro 代码。本地 ZIP 未作为正式 Release 发布，可由工程侧转交并校验，或在 Windows 从该分支重新构建。
+在另一台电脑上使用已推送的 `feat/cloud-subscriptions` 分支及工程新提供的包 hash 接续。下文旧包 hash 仅用于对应历史来源。不要从 `main` 的普通发行包推断已包含本轮 Pro 代码。本地 ZIP 未作为正式 Release 发布，可由工程侧转交并校验，或在 Windows 从该分支重新构建。
 
-继续读取 [上线前交接总表](cloud-release-readiness.md)、[交付清单](cloud-delivery.md) 和 [收款运维手册](cloud-billing-operations.md)。用户已授权提交和推送 `feat/cloud-subscriptions`，由主任务统一执行；仍不发布公开 PR、收费公告或启用生产收费。商户审核已通过，正式凭据、生产部署和真实结算门槛独立保留。
+继续读取 [上线前交接总表](cloud-release-readiness.md)、[交付清单](cloud-delivery.md) 和 [收款运维手册](cloud-billing-operations.md)。用户已授权提交和推送 `feat/cloud-subscriptions`，由主任务统一执行；现有 [PR #772](https://github.com/xiufengsun/TokenTracker/pull/772) 保持 draft、未合并，收费公告及生产收费仍未启用。商户审核、正式凭据/产品/webhook 设置和14个正式handler替换已完成；真实资金、结算、最后条款及明确启动仍独立交接。
