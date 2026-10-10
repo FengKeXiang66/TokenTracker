@@ -137,7 +137,7 @@ export function LoginCard({
     if (typeof window === "undefined") return "";
     const next = new URLSearchParams(window.location.search).get("next");
     if (!getNativeOAuthBridge() && /^\/(cloud|billing\/checkout)(\?|$)/.test(next || "")) {
-      return `${window.location.origin}/login?next=${encodeURIComponent(next)}`;
+      return `${window.location.origin}/dashboard`;
     }
     return getNativeOAuthBridge()
       ? `${window.location.origin}/auth/callback`

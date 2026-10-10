@@ -2,7 +2,7 @@
 /** @vitest-environment-options {"url":"https://www.tokentracker.cc"} */
 import React from "react";
 import { cleanup, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App.jsx";
 
@@ -59,6 +59,9 @@ vi.mock("./pages/SelfHostPage.jsx", () => ({
 vi.mock("./pages/DashboardPage.jsx", () => ({
   DashboardPage: () => <h1>{labels.dashboard}</h1>,
 }));
+vi.mock("./pages/LoginPage.jsx", () => ({
+  LoginPage: () => <h1>{useLocation().pathname + useLocation().search}</h1>,
+}));
 vi.mock("@vercel/analytics/react", () => ({ Analytics: () => null }));
 vi.mock("@vercel/speed-insights/react", () => ({ SpeedInsights: () => null }));
 
@@ -70,6 +73,10 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Cloud public routing", () => {
+  it("retains the protected account route when authentication must be restored", async () => {
+    render(<MemoryRouter initialEntries={["/settings?section=account"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "/login?next=%2Fsettings%3Fsection%3Daccount" })).toBeInTheDocument();
+  });
   it.each([
     ["/cloud", labels.cloud],
     ["/billing/checkout?sku=cloud_usd_yearly", labels.checkout],

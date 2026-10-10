@@ -334,7 +334,8 @@ export default function App() {
     normalizedPath !== "/auth/callback" &&
     normalizedPath !== "/auth/native-callback";
   if (publicHostNeedsLogin) {
-    return <Navigate to="/login" replace />;
+    const next = encodeURIComponent(location.pathname + location.search);
+    return <Navigate to={`/login?next=${next}`} replace />;
   }
 
   let content = null;

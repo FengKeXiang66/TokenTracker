@@ -243,7 +243,11 @@ mod appimage_registration_tests {
         let started = Instant::now();
         let mut command = Command::new("sh");
         command
-            .args(["-c", "sleep 10 & echo $! > \"$1\"; wait", "sh"])
+            .args([
+                "-c",
+                "sleep 10 & printf '%s\\n' \"$!\" > \"$1.tmp\"; mv \"$1.tmp\" \"$1\"; wait",
+                "sh",
+            ])
             .arg(&pid_path);
         let result =
             run_command_with_timeout(&mut command, "timeout probe", Duration::from_millis(250));
