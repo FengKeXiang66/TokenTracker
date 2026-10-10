@@ -1,6 +1,6 @@
 # TokenTracker Pro
 
-TokenTracker Pro is the planned paid membership for the managed Cloud service. The Owner confirmed the USD 4.99/month and USD 39.99/year base prices on 2026-10-09; paid checkout, enforcement, and history retention are not yet active in production. We will announce the launch date after payment and account flows are verified. [简体中文](cloud-guide.zh-CN.md)
+TokenTracker Pro is the paid membership for the managed Cloud service. [Web purchase](https://www.tokentracker.cc/cloud) is available from 2026-10-10 at USD 4.99/month or USD 39.99/year before tax, with the same base price for recurring and fixed-term purchases. Devices registered before the launch retain their 30-day transition until 2026-11-09 at 05:52:14 UTC; free accounts are not automatically charged. Historical archival/deletion jobs and the unified desktop release remain separate. [简体中文](cloud-guide.zh-CN.md)
 
 ## What stays free
 
@@ -12,13 +12,13 @@ The shared leaderboard, achievements, and basic public profile remain available 
 
 Cloud is the officially hosted cross-device analytics service. Current capabilities combine device usage in one account, analyze estimated costs by provider/model/device and period, provide web access to retained history and existing exports, and synchronize/manage devices without maintaining a VPS.
 
-One account covers the CLI, macOS, Windows, Linux, and the web dashboard. The proposed Cloud plan includes up to five registered synchronization devices, changed usage every 15 minutes while the client is running and online, and access to 90 days of hourly detail and 24 months of daily summaries. CLI and desktop installations sharing a registered machine identity use one slot. This identifies synchronization devices, without hardware attestation. Pausing a device frees its slot and keeps its history; resuming requires an available slot.
+One account covers the CLI, macOS, Windows, Linux, and the web dashboard. The Pro plan includes up to five registered synchronization devices, changed usage every 15 minutes while the client is running and online, and access to 90 days of hourly detail and 24 months of daily summaries. CLI and desktop installations sharing a registered machine identity use one slot. This identifies synchronization devices, without hardware attestation. Pausing a device frees its slot and keeps its history; resuming requires an available slot.
 
 Free community uploads use one registered device per account with a bounded daily batch. Local installations remain unlimited. If Cloud expires with several active devices, pause the others and keep one for free community uploads. This retains existing history. The ranking formula is the same for both plans.
 
 Cloud contains usage metrics only. Prompts, responses, code, project and session records, and AI provider credentials stay on your machine. See the [Privacy Policy](PRIVACY.md).
 
-Cross-device monthly reports and budget views are future work, not delivered paid entitlements. Local analysis and exports remain free. Base prices are confirmed; production charging still requires engineering and financial acceptance.
+Cross-device monthly reports and budget views are future work, not delivered paid entitlements. Local analysis and exports remain free. Formal purchase is open at the confirmed base prices; actual payment, refund and settlement verification remain separate acceptance work.
 
 ## Free self-hosting
 

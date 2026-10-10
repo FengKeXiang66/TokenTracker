@@ -1,8 +1,8 @@
 # Pro 赠送码
 
-2026-10-10 当前源码为已推送的 `1.3.1 / 282ffa95`，正式 handler 已按受审 `9c19419c` 产物替换，生产仍 preview。282 CodeQL已success，CI四个job与ZIP/安装器构建全部通过，精确当前状态见 [总表](cloud-release-readiness.md)；UI/前端源c7与282 frontend Git blobs一致，Mac QA导出结果不作为Windows完整GUI兑换或普通非QA原生OAuth OS返回证明；下文 Windows/Mac 礼遇记录保留各自原始来源，不自动升级为本轮完整 GUI 兑换证明。
+2026-10-10 正式网页与价格已启用，production source 为已推送的 `f51520ee`、live policy 为 active；应用/原生源码仍为 `1.3.1 / 282ffa95`，正式 handler 按受审 `9c19419c` 产物替换。f515 与 282 的 CI/CodeQL 均通过，真实付款/退款/结算和实际 live 赠送尚未验收。精确当前状态见 [总表](cloud-release-readiness.md)；UI/前端源c7与282 frontend Git blobs一致，Mac QA导出结果不作为Windows完整GUI兑换或普通非QA原生OAuth OS返回证明；下文 Windows/Mac 礼遇记录保留各自原始来源，不自动升级为本轮完整 GUI 兑换证明。
 
-Windows 管理员的原码生成/resume 及私有文件入口仍 unsupported、fail-closed，因为 owner-only NTFS ACL 尚未验证。它是可选能力，可由已验证的 Mac/Linux 管理程序发码，不是必须由 Owner 完成的正式收费门槛；应用内兑换不受影响。新 Cloud 用量 CSV/JSON 的普通 Downloads 保存也不证明私有码文件 ACL。以下已删除的 Windows A/B 是此前账号，不是本轮仍仅在 RAM 保管凭据的两个隔离 preview QA 账号。
+Windows 管理员的原码生成/resume 及私有文件入口仍 unsupported、fail-closed，因为 owner-only NTFS ACL 尚未验证。它是可选能力，可由已验证的 Mac/Linux 管理程序发码，不是必须由 Owner 完成的正式收费门槛；应用内兑换不受影响。新 Cloud 用量 CSV/JSON 的普通 Downloads 保存也不证明私有码文件 ACL。以下已删除的 Windows A/B 是此前账号，不是本轮仍仅在 RAM 保管凭据的两个隔离 QA 账号。
 
 2026-10-10 Windows 接续：gift 远端源码与当前构建完全一致，四个基础表 RLS 开启，管理 RPC 的匿名/客户端执行权限拒绝。两个专用真实 auth 账号完成 16 项 API 验证，包括无效码不授予权益、刷新轮换与本人隔离。Windows 普通账号 UI 登录/退出/重载/切换已完成 7 项验证；专用 A/B 账号在验收后删除、密码失效，原有白名单保留。该结果不是成功 Windows GUI 兑换证明；Windows 原码生成的 NTFS 守卫没有放宽。最新候选和证据见 [总表](cloud-release-readiness.md)。
 
@@ -41,7 +41,7 @@ node scripts/pro-gift-codes.cjs generate --environment sandbox \
 
 `list`查看最近最多100个批次，`codes --batch UUID`查看该批次最多1000个领取记录和码尾号，`disable --batch UUID`停用未领取码，`revoke --grant UUID`撤回单个已领取权益。每条命令都需要同样的环境与私有配置参数。也可通过`INSFORGE_BASE_URL`、`INSFORGE_SERVICE_ROLE_KEY`传入服务端配置。
 
-正式环境仍受现有发布门槛控制。自部署保持免费，不显示官方兑换入口；当前验收先在已有InsForge的受控沙盒完成，不启用正式收费或批量给真实用户发码。
+2026-10-10 正式网页购买已按 Owner 授权启用，正式赠送 handler 已部署并核对来源；本轮没有向真实用户批量发码，正式赠送记录仍为 0。发码须明确选 live 环境和目标批次，不复制沙盒码。自部署保持免费，不显示官方兑换入口；下面验收记录只证明其注明的沙盒账号、环境与源码，不冒称正式发码或 Windows GUI 已验收。
 
 ## 验收记录
 

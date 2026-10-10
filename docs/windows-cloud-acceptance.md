@@ -1,5 +1,7 @@
 # Windows 客户端验收交接
 
+2026-10-10 正式网页与价格已启用，production source 为 `f51520eed4cf1238638e1d335bd0934db87638db`，相对 282 仅更新三个公开 HTML 说明文件，应用/原生源码不变。未税 USD4.99/月、USD39.99/年；live active 的原设备过渡期至 11 月 9 日 13:52:14（UTC+8），不能在设备测试时重置启动时间。真实付款/退款/结算未验收。本文的 282 包证据保留其精确来源，未冒充 f515 新包或实际 GUI 运行；网页启用不代替物理 Windows 步骤。最新部署与私有证据见 [发布总表](cloud-release-readiness.md)。
+
 ## 当前版本与待设备验收：1.3.1 / 282ffa95
 
 源码 `282ffa95370a8c84a3911908079a46a38b70a88e` 已推送并独立读回。[CI 38024326226](https://github.com/xiufengsun/TokenTracker/actions/runs/38024326226) 四个 job 和 [CodeQL 38024326217](https://github.com/xiufengsun/TokenTracker/actions/runs/38024326217) 全部通过；真实Windows Node24/包内Node22各3869通过/40条件跳过，.NET119通过/1个符号链接权限跳过，完整应用、ZIP和安装器编译通过。c7生产WPF缺System.IO的[首次失败](https://github.com/xiufengsun/TokenTracker/actions/runs/38023611765/job/114129674138)保留，282补齐命名空间后已在真实Windows CI通过。UI/前端与c7 Git blobs一致，旧实机记录仍保留其原来源。
@@ -195,4 +197,4 @@ ZIP SHA256 为 `c09b7b269effc413f40aec59e352df219f0f59f505a17b5aa7c30793b36932f5
 
 在另一台电脑上使用已推送的 `feat/cloud-subscriptions` 分支及工程新提供的包 hash 接续。下文旧包 hash 仅用于对应历史来源。不要从 `main` 的普通发行包推断已包含本轮 Pro 代码。本地 ZIP 未作为正式 Release 发布，可由工程侧转交并校验，或在 Windows 从该分支重新构建。
 
-继续读取 [上线前交接总表](cloud-release-readiness.md)、[交付清单](cloud-delivery.md) 和 [收款运维手册](cloud-billing-operations.md)。用户已授权提交和推送 `feat/cloud-subscriptions`，由主任务统一执行；现有 [PR #772](https://github.com/xiufengsun/TokenTracker/pull/772) 保持 draft、未合并，收费公告及生产收费仍未启用。商户审核、正式凭据/产品/webhook 设置和14个正式handler替换已完成；真实资金、结算、最后条款及明确启动仍独立交接。
+继续读取 [发布交接总表](cloud-release-readiness.md)、[交付清单](cloud-delivery.md) 和 [收款运维手册](cloud-billing-operations.md)。用户已授权提交和推送 `feat/cloud-subscriptions`，由主任务统一执行；现有 [PR #772](https://github.com/xiufengsun/TokenTracker/pull/772) 保持 draft、未合并。正式价格、完整网页和生产购买已按本次授权启用，商户审核、正式凭据/产品/webhook 和 14 个正式 handler 替换已完成。真实资金/结算、物理设备验收、统一桌面发行及公告仍独立交接，不再要求重复启用。
