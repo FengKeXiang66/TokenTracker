@@ -4,21 +4,23 @@ Review copy only. The hosted website is active; this announcement has not been p
 
 ## English
 
-TokenTracker Pro is available on the [official website](https://www.tokentracker.cc/cloud) for developers who want a managed Cloud usage view across their machines.
+TokenTracker Cloud is available on the [official website](https://www.tokentracker.cc/cloud) for developers who want a managed Cloud usage view across their machines.
 
 Local tracking stays free and open source, including collection, providers, cost and quota tracking, charts, local exports and desktop features. The shared leaderboard, achievements and basic public profile remain free, with the same ranking rules for everyone.
 
-Pro supports five registered synchronization devices per account. While clients are running and online, changed usage syncs every 15 minutes. Cloud history covers 90 days of hourly data and 24 months of daily summaries. Only usage metrics are uploaded, never prompts, responses, code, project/session records or provider credentials.
+Cloud supports five registered synchronization devices per account. While clients are running and online, changed usage syncs every 15 minutes. Cloud history covers 90 days of hourly data and 24 months of daily summaries. Only usage metrics are uploaded, never prompts, responses, code, project/session records or provider credentials.
 
 Base prices are USD4.99/month or USD39.99/year before tax. Fixed-term and recurring plans have the same base price; Waffo shows the final charge, tax and available payment methods before payment. Recurring plans require authorization at checkout. Canceling renewal preserves access until the paid term ends; fixed-term purchases do not renew automatically. A seven-day no-card trial, where offered, starts only when activated and does not automatically become a paid subscription.
 
-Hosted Pro was enabled on October 10, 2026 at 05:52:14 UTC. Devices registered before that launch retain a 30-day transition ending November 9 at 05:52:14 UTC. Launching Pro does not automatically charge existing free accounts. Archive and deletion schedules remain disabled pending their separate acceptance.
+Hosted Cloud was enabled on October 10, 2026 at 05:52:14 UTC. Devices registered before that launch retain a 30-day transition ending November 9 at 05:52:14 UTC. Launching Cloud does not automatically charge existing free accounts. Archive and deletion schedules remain disabled pending their separate acceptance.
 
-First-time Pro buyers may request a full refund within seven days of their initial monthly or annual payment. Read the [terms](https://www.tokentracker.cc/terms.html), [privacy policy](https://www.tokentracker.cc/privacy.html) and [Cloud guide](cloud-guide.md) for the complete policy. Private support, billing and refund requests: [rynnsun0509@gmail.com](mailto:rynnsun0509@gmail.com).
+First-time Cloud buyers may request a full refund within seven days of their initial monthly or annual payment. Read the [terms](https://www.tokentracker.cc/terms.html), [privacy policy](https://www.tokentracker.cc/privacy.html) and [Cloud guide](cloud-guide.md) for the complete policy. Private support, billing and refund requests: [rynnsun0509@gmail.com](mailto:rynnsun0509@gmail.com).
 
 ## 简体中文
 
-[TokenTracker Pro 官方网站](https://www.tokentracker.cc/cloud)已开放，通过托管 Cloud 服务把多台机器的用量汇总到一个账号。
+[TokenTracker Cloud 官方网站](https://www.tokentracker.cc/cloud)已开放，通过托管 Cloud 服务把多台机器的用量汇总到一个账号。
+
+随着使用量增长，官方托管同步、存储、带宽、备份和维护需要持续投入。云服务订阅用于支持这些服务及其长期维护。
 
 本地功能继续免费开源，包括采集、provider、成本与额度、本地图表、导出和桌面功能。社区榜单、成就和基础 Profile 继续免费，所有账号使用相同排名公式。
 
@@ -26,9 +28,9 @@ First-time Pro buyers may request a full refund within seven days of their initi
 
 未税基础价为 USD4.99/月、USD39.99/年，固定期与自动续费同价。税费、最终金额和可用付款方式以 Waffo 收银台为准。自动续费须在付款时授权；取消续费仍保留已付期限，固定期购买不会自动续费。符合条件时可主动开启 7 天无卡试用，不会自动转为付费订阅。
 
-正式 Cloud 已于北京时间 2026 年 10 月 10 日 13:52:14 启用。启用前登记的设备享有 30 天过渡期，至北京时间 11 月 9 日 13:52:14。启用 Pro 不会自动向原免费账号扣款。归档和删除计划继续关闭，待独立验收后再启用。
+正式 Cloud 已于北京时间 2026 年 10 月 10 日 13:52:14 启用。启用前登记的设备享有 30 天过渡期，至北京时间 11 月 9 日 13:52:14。启用 Cloud 不会自动向原免费账号扣款。归档和删除计划继续关闭，待独立验收后再启用。
 
-首次购买 Pro 的用户，可在首次月付或年付付款后的 7 天内申请全额退款。完整规则见[服务条款](https://www.tokentracker.cc/terms.html)、[隐私政策](https://www.tokentracker.cc/privacy.html)和[中文指南](cloud-guide.zh-CN.md)。客服、账单及退款请联系私人邮箱 [rynnsun0509@gmail.com](mailto:rynnsun0509@gmail.com)。
+首次购买 Cloud 的用户，可在首次月付或年付付款后的 7 天内申请全额退款。完整规则见[服务条款](https://www.tokentracker.cc/terms.html)、[隐私政策](https://www.tokentracker.cc/privacy.html)和[中文指南](cloud-guide.zh-CN.md)。客服、账单及退款请联系私人邮箱 [rynnsun0509@gmail.com](mailto:rynnsun0509@gmail.com)。
 
 ## Publication checklist
 

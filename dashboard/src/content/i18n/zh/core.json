@@ -422,9 +422,9 @@
   "leaderboard.github.tooltipPrefix": "可在",
   "leaderboard.github.tooltipSettingsLink": "设置",
   "leaderboard.github.tooltipSuffix": "中配置你的主页",
-  "leaderboard.pro.badge": "Pro",
-  "leaderboard.pro.badge_aria": "TokenTracker Pro 会员",
-  "leaderboard.pro.tooltip": "Pro 会员，排名仍按用量计算。",
+  "leaderboard.pro.badge": "Cloud",
+  "leaderboard.pro.badge_aria": "TokenTracker Cloud 订阅用户",
+  "leaderboard.pro.tooltip": "云服务会员，排名仍按用量计算。",
   "settings.account.signOut": "退出登录",
   "settings.account.signIn": "登录",
   "settings.account.signedOutHint": "登录后可管理云同步和排行榜偏好。",
@@ -823,7 +823,7 @@
   "settings.appearance.token_grouping.hint": "精确数字使用 3 位或中文 4 位分组；紧凑模式的悬停数值也会使用该设置。",
   "settings.appearance.token_grouping.thousand": "3位",
   "settings.appearance.token_grouping.wan": "4位",
-  "legal.nav.pricing": "Pro 定价",
+  "legal.nav.pricing": "云服务定价",
   "legal.nav.terms": "服务条款",
   "legal.nav.support": "联系客服"
 }

@@ -351,6 +351,14 @@ export function CloudPage() {
         <div className="mt-10 grid gap-7 border-t border-oai-gray-200 pt-7 dark:border-oai-gray-800 sm:grid-cols-2">
           <div>
             <h2 className="text-sm font-semibold">
+              {copy("cloud.faq.cost_title")}
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-oai-gray-500 dark:text-oai-gray-400">
+              {copy("cloud.faq.cost_body")}
+            </p>
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold">
               {copy("cloud.faq.local_title")}
             </h2>
             <p className="mt-2 text-sm leading-6 text-oai-gray-500 dark:text-oai-gray-400">

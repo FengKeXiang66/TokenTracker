@@ -354,9 +354,9 @@
   "leaderboard.github.tooltipPrefix": "可在",
   "leaderboard.github.tooltipSettingsLink": "設定",
   "leaderboard.github.tooltipSuffix": "中配置你的主頁",
-  "leaderboard.pro.badge": "Pro",
-  "leaderboard.pro.badge_aria": "TokenTracker Pro 會員",
-  "leaderboard.pro.tooltip": "Pro 會員，排名仍依用量計算。",
+  "leaderboard.pro.badge": "Cloud",
+  "leaderboard.pro.badge_aria": "TokenTracker Cloud 訂閱使用者",
+  "leaderboard.pro.tooltip": "雲服務會員，排名仍依用量計算。",
   "settings.account.signOut": "退出登入",
   "settings.account.signIn": "登入",
   "settings.account.signedOutHint": "登入後可管理雲同步和排行榜偏好。",
@@ -764,7 +764,7 @@
   "settings.appearance.token_grouping.hint": "精確數字使用 3 位或中文 4 位分組；精簡模式的懸停數值也會使用該設定。",
   "settings.appearance.token_grouping.thousand": "3位",
   "settings.appearance.token_grouping.wan": "4位",
-  "legal.nav.pricing": "Pro 定價",
+  "legal.nav.pricing": "雲服務定價",
   "legal.nav.terms": "服務條款",
   "legal.nav.support": "聯絡客服"
 }

@@ -1,6 +1,6 @@
-# TokenTracker Pro
+# TokenTracker Cloud
 
-TokenTracker Pro is the paid membership for the managed Cloud service. [Web purchase](https://www.tokentracker.cc/cloud) is available from 2026-10-10 at USD 4.99/month or USD 39.99/year before tax, with the same base price for recurring and fixed-term purchases. Devices registered before the launch retain their 30-day transition until 2026-11-09 at 05:52:14 UTC; free accounts are not automatically charged. Historical archival/deletion jobs and the unified desktop release remain separate. [简体中文](cloud-guide.zh-CN.md)
+TokenTracker Cloud is the optional paid service for officially hosted synchronization and usage history. [Web purchase](https://www.tokentracker.cc/cloud) is available from 2026-10-10 at USD 4.99/month or USD 39.99/year before tax, with the same base price for recurring and fixed-term purchases. Devices registered before the launch retain their 30-day transition until 2026-11-09 at 05:52:14 UTC; free accounts are not automatically charged. Historical archival/deletion jobs and the unified desktop release remain separate. [简体中文](cloud-guide.zh-CN.md)
 
 ## What stays free
 
@@ -10,9 +10,11 @@ The shared leaderboard, achievements, and basic public profile remain available 
 
 ## What Cloud adds
 
+Official hosted synchronization, storage, bandwidth, backups and maintenance require ongoing resources as usage grows. Cloud subscriptions support this service and its continued maintenance; the complete local app remains free and open source.
+
 Cloud is the officially hosted cross-device analytics service. Current capabilities combine device usage in one account, analyze estimated costs by provider/model/device and period, provide web access to retained history and existing exports, and synchronize/manage devices without maintaining a VPS.
 
-One account covers the CLI, macOS, Windows, Linux, and the web dashboard. The Pro plan includes up to five registered synchronization devices, changed usage every 15 minutes while the client is running and online, and access to 90 days of hourly detail and 24 months of daily summaries. CLI and desktop installations sharing a registered machine identity use one slot. This identifies synchronization devices, without hardware attestation. Pausing a device frees its slot and keeps its history; resuming requires an available slot.
+One account covers the CLI, macOS, Windows, Linux, and the web dashboard. The Cloud plan includes up to five registered synchronization devices, changed usage every 15 minutes while the client is running and online, and access to 90 days of hourly detail and 24 months of daily summaries. CLI and desktop installations sharing a registered machine identity use one slot. This identifies synchronization devices, without hardware attestation. Pausing a device frees its slot and keeps its history; resuming requires an available slot.
 
 Free community uploads use one registered device per account with a bounded daily batch. Local installations remain unlimited. If Cloud expires with several active devices, pause the others and keep one for free community uploads. This retains existing history. The ranking formula is the same for both plans.
 
@@ -26,9 +28,9 @@ Self-hosted software is free under MIT. You pay for your server, domain and back
 
 The complete self-hosted path is currently a technical preview. A clean private application installer and local official-platform authentication/sync/restore have been verified; standard Dashboard instance switching also has actual evidence. Public VPS HTTPS, native routes and a reviewed version upgrade remain pending. Read the [self-hosting guide](self-hosting.md) before attempting deployment; a complete one-command VPS installer is not available.
 
-## Gifted Pro access
+## Gifted Cloud access
 
-An eligible signed-in account can redeem a privately issued 30-, 90- or 365-day Pro code in its account settings. A code is claimed once; repeating the same claim does not add another term. The server shows the actual dates and a separate gift history. Gifts do not create Waffo payments or automatic renewal.
+An eligible signed-in account can redeem a privately issued 30-, 90- or 365-day Cloud code in its account settings. A code is claimed once; repeating the same claim does not add another term. The server shows the actual dates and a separate gift history. Gifts do not create Waffo payments or automatic renewal.
 
 Resolve an unfinished payment or active automatic renewal before redeeming. Active or upcoming gifts prevent new paid checkout so the periods do not overlap. Disabling an unclaimed batch and revoking an already claimed gift are different operations. Gift redemption is unavailable on a free private self-hosted instance; production availability will follow the reviewed rollout.
 
@@ -50,7 +52,7 @@ These confirmed USD base prices are the same worldwide and exclude tax. Waffo ca
 
 Auto-renewal supports cards and Apple Pay or Google Pay where available. Fixed-term checkout supports WeChat or cards where available. The payment methods shown by Waffo are authoritative; this plan does not promise Alipay, a CNY price or a particular conversion rate.
 
-A fixed-term renewal adds to the remaining paid term. Canceling automatic renewal preserves the already-paid term. Cancellation and refund are separate actions; canceling does not refund a payment. Final refund terms and a private support route must be available before launch.
+A fixed-term renewal adds to the remaining paid term. Canceling automatic renewal preserves the already-paid term. Cancellation and refund are separate actions; canceling does not refund a payment. The published Terms of Service describe refunds; private billing support is rynnsun0509@gmail.com.
 
 Manage a current subscription before buying another plan. A fixed paid term must end before starting a recurring subscription, to avoid overlapping charges. Historical purchases retain their original payment provider and currency.
 

@@ -184,7 +184,7 @@ describe("Cloud pricing and checkout", () => {
     expect(mocks.refresh).not.toHaveBeenCalled();
     paid = true;
     fireEvent.focus(window);
-    await screen.findByRole("heading", { name: terminal === "refunded" ? "This payment has been refunded" : "Your Pro membership is active" });
+    await screen.findByRole("heading", { name: terminal === "refunded" ? "This payment has been refunded" : "Your Cloud membership is active" });
     expect(mocks.refresh).toHaveBeenCalledTimes(1);
     fireEvent.focus(window);
     await act(async () => { await Promise.resolve(); });
@@ -196,7 +196,7 @@ describe("Cloud pricing and checkout", () => {
       mocks.accountMembership = { status: "active", access_source: "gift", has_gift: true, trial_available: false };
       mocks.gifts = gifts;
       const view = show("/cloud", CloudPage);
-      expect(screen.queryByRole("button", { name: "Subscribe to Pro" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Subscribe to Cloud" })).not.toBeInTheDocument();
       expect(screen.getByRole("link", { name: "Manage membership" })).toHaveAttribute("href", "/settings?section=account");
       view.unmount();
       show("/billing/checkout?sku=cloud_usd_monthly");
@@ -209,26 +209,26 @@ describe("Cloud pricing and checkout", () => {
     mocks.accountMembership = { status: "free", has_gift: hasGift, trial_available: false };
     mocks.gifts = [];
     const view = show("/cloud", CloudPage);
-    expect(screen.getByRole("button", { name: "Subscribe to Pro" })).toBeEnabled();
-    expect(screen.queryByText(/active or upcoming Pro gift/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Subscribe to Cloud" })).toBeEnabled();
+    expect(screen.queryByText(/active or upcoming Cloud gift/)).not.toBeInTheDocument();
     view.unmount();
     show("/billing/checkout?sku=cloud_usd_monthly");
     expect(screen.getByRole("button", { name: /Continue to payment/ })).toBeEnabled();
-    expect(screen.queryByText(/active or upcoming Pro gift/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/active or upcoming Cloud gift/)).not.toBeInTheDocument();
   });
   it.each(["active", "pending"])("keeps new payments and trials unavailable while a gift is %s", (state) => {
     mocks.gifts = [{ id: "gift-1", state }];
     show("/cloud", CloudPage);
-    expect(screen.getByText(/active or upcoming Pro gift/)).toBeInTheDocument();
+    expect(screen.getByText(/active or upcoming Cloud gift/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Manage membership" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Subscribe to Pro" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Subscribe to Cloud" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Start 7-day free trial/ })).not.toBeInTheDocument();
     expect(mocks.request).not.toHaveBeenCalled();
   });
   it.each(["/billing/checkout?sku=cloud_usd_monthly", "/billing/checkout?intent=trial"])("routes a direct gift-holder checkout to membership management %s", (path) => {
     mocks.gifts = [{ id: "gift-1", state: "pending" }];
     show(path);
-    expect(screen.getByText(/active or upcoming Pro gift/)).toBeInTheDocument();
+    expect(screen.getByText(/active or upcoming Cloud gift/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Manage membership" })).toHaveAttribute("href", "/settings?section=account");
     expect(screen.queryByRole("button", { name: /Continue to payment|Start 7-day trial/ })).not.toBeInTheDocument();
     expect(mocks.request).not.toHaveBeenCalled();
@@ -237,7 +237,7 @@ describe("Cloud pricing and checkout", () => {
     mocks.request.mockRejectedValue({ code: "gift_membership_active" });
     show("/billing/checkout?sku=cloud_usd_monthly");
     await click(screen.getByRole("button", { name: /Continue to payment/ }));
-    expect(screen.getByRole("alert")).toHaveTextContent(/active or upcoming Pro gift/);
+    expect(screen.getByRole("alert")).toHaveTextContent(/active or upcoming Cloud gift/);
     expect(screen.getByRole("link", { name: "Manage membership" })).toBeInTheDocument();
     expect(readCloudPurchase("account-1")).toMatchObject({ sku: "cloud_usd_monthly", request_id: expect.any(String) });
   });
@@ -249,7 +249,7 @@ describe("Cloud pricing and checkout", () => {
     show(`/billing/checkout?order=${orderId.toUpperCase()}`);
     expect(screen.getByRole("link", { name: "Open in TokenTracker" })).toHaveAttribute("href",
       `tokentracker://billing/return?order=${orderId}`);
-    expect(screen.queryByRole("heading", { name: "Your Pro access is ready" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Your Cloud access is ready" })).not.toBeInTheDocument();
     expect(mocks.request).not.toHaveBeenCalled();
   });
   it("keeps the app return available on a Windows touch desktop", () => {
@@ -278,7 +278,7 @@ describe("Cloud pricing and checkout", () => {
     show(Page === CloudPage ? "/cloud" : `/billing/checkout?order=${orderId}`, Page);
     expect(screen.getByRole("heading", { name: "Your free self-hosted instance" })).toBeInTheDocument();
     expect(screen.getByText(/operator manages server capacity, backups and history retention/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Subscribe to Pro" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Subscribe to Cloud" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Continue to payment/ })).not.toBeInTheDocument();
     expect(screen.queryByText("$39.99")).not.toBeInTheDocument();
     expect(mocks.request).not.toHaveBeenCalled();
@@ -298,20 +298,20 @@ describe("Cloud pricing and checkout", () => {
     expect(screen.queryByRole("button", { name: "Close checkout and try again" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Open secure checkout" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Choose a plan" })).not.toBeInTheDocument();
-    if (status === "paid") expect(screen.getByRole("heading", { name: "Your Pro membership is active" })).toBeInTheDocument();
+    if (status === "paid") expect(screen.getByRole("heading", { name: "Your Cloud membership is active" })).toBeInTheDocument();
     expect(mocks.external).not.toHaveBeenCalled();
   });
   it.each([CloudPage, CloudCheckoutPage])("blocks a new purchase when the account has a conflicting payment", (Page) => {
     mocks.pendingOrders = [{ id: orderId, retry_payment_conflict_at: "2026-10-07T15:00:00Z" }];
     show(Page === CloudPage ? "/cloud" : "/billing/checkout?sku=cloud_usd_yearly", Page);
     expect(screen.getByRole("alert")).toHaveTextContent(/contact support/);
-    expect(screen.getByRole("button", { name: Page === CloudPage ? "Subscribe to Pro" : /Continue to payment/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: Page === CloudPage ? "Subscribe to Cloud" : /Continue to payment/ })).toBeDisabled();
     expect(mocks.request).not.toHaveBeenCalled();
   });
   it.each(["paid", "closed"])("blocks new purchases from a %s conflict order even with no pending orders", (status) => {
     mocks.conflictOrders = [{ id: orderId, status, retry_payment_conflict_at: "2026-10-07T15:00:00Z" }];
     show("/cloud", CloudPage);
-    expect(screen.getByRole("button", { name: "Subscribe to Pro" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Subscribe to Cloud" })).toBeDisabled();
     expect(screen.getByRole("alert")).toHaveTextContent(/duplicate charge/);
     cleanup();
     show("/billing/checkout?sku=cloud_usd_yearly");
@@ -343,7 +343,7 @@ describe("Cloud pricing and checkout", () => {
       id: orderId, request_id: purchase.request_id,
     } }));
     expect(mocks.external).not.toHaveBeenCalled();
-    expect(screen.queryByRole("heading", { name: "Your Pro membership is active" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Your Cloud membership is active" })).not.toBeInTheDocument();
   });
   it("reuses a persisted restart identity after a timeout and a terminal-order reload", async () => {
     const oldOrder = { ...prices[3], id: orderId, provider: "waffo", status: "expired", payment_state: "unpaid" };
@@ -406,7 +406,7 @@ describe("Cloud pricing and checkout", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(/server has recorded payment/);
     expect(screen.getByTestId("location")).toHaveTextContent(`order=${orderId}`);
     await act(async () => { fireEvent.focus(window); });
-    await screen.findByRole("heading", { name: "Your Pro membership is active" });
+    await screen.findByRole("heading", { name: "Your Cloud membership is active" });
     expect(screen.queryByRole("button", { name: "Close checkout and try again" })).not.toBeInTheDocument();
     expect(readCloudPurchase("account-1")).toBeNull();
     expect(mocks.external).not.toHaveBeenCalled();
@@ -463,7 +463,7 @@ describe("Cloud pricing and checkout", () => {
     mocks.request.mockReturnValue(new Promise((resolve) => { resolveCatalog = resolve; }));
     show("/billing/checkout?sku=cloud_usd_monthly");
     expect(mocks.request).toHaveBeenCalledWith("catalog", expect.objectContaining({ signal: expect.any(AbortSignal) }));
-    expect(screen.getAllByText("Loading Pro availability…").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Loading Cloud availability…").length).toBeGreaterThan(0);
     expect(screen.queryByText(/No automatic debit/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Renews automatically/)).not.toBeInTheDocument();
     expect(screen.queryByText("/month")).not.toBeInTheDocument();
@@ -510,7 +510,7 @@ describe("Cloud pricing and checkout", () => {
     const requests=mocks.request.mock.calls.length;
     await act(async () => { vi.advanceTimersByTime(30_000); });
     expect(mocks.request.mock.calls.length).toBe(requests);
-    expect(screen.queryByRole("heading", { name: "Your Pro membership is active" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Your Cloud membership is active" })).not.toBeInTheDocument();
   });
   it("keeps an expired paid period distinct from an unpaid expired checkout", async () => {
     saveCloudPurchase("account-1", { order_id: orderId, retry_order_id: orderId, retry_request_id: successorId });
@@ -521,7 +521,7 @@ describe("Cloud pricing and checkout", () => {
     show(`/billing/checkout?order=${orderId}`);
     await screen.findByRole("heading", { name: "This membership period has ended" });
     expect(screen.getByText(/payment remains in your account history/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Renew Pro" })).toHaveAttribute("href", "/cloud");
+    expect(screen.getByRole("link", { name: "Renew Cloud" })).toHaveAttribute("href", "/cloud");
     expect(screen.queryByRole("button", { name: "Close checkout and try again" })).not.toBeInTheDocument();
     expect(readCloudPurchase("account-1")).toBeNull();
   });
@@ -562,7 +562,7 @@ describe("Cloud pricing and checkout", () => {
     const reconciles=mocks.request.mock.calls.filter(([action])=>action === "reconcile");
     expect(reconciles).toHaveLength(2);
     expect(reconciles.every(([,options])=>options.body.id === orderId)).toBe(true);
-    expect(screen.queryByRole("heading", { name: "Your Pro membership is active" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Your Cloud membership is active" })).not.toBeInTheDocument();
   });
   it.each([1, 3])(
     "hands billing option %s to the owned Waffo checkout without granting membership",
@@ -612,26 +612,26 @@ describe("Cloud pricing and checkout", () => {
     await click(screen.getByRole("switch", { name: "Auto-renewal", exact: true }));
     expect(screen.getByText("$39.99")).toBeInTheDocument();
     expect(screen.getByText(/Pay once. No automatic renewal/)).toBeInTheDocument();
-    await click(screen.getByRole("button", { name: "Buy Pro" }));
+    await click(screen.getByRole("button", { name: "Buy Cloud" }));
     expect(screen.getByTestId("location")).toHaveTextContent("sku=cloud_usd_yearly_fixed");
     await click(screen.getByRole("button", { name: "Monthly", exact: true }));
     expect(screen.getByText("$4.99")).toBeInTheDocument();
-    await click(screen.getByRole("button", { name: "Buy Pro" }));
+    await click(screen.getByRole("button", { name: "Buy Cloud" }));
     expect(screen.getByTestId("location")).toHaveTextContent("sku=cloud_usd_monthly_fixed");
     await click(screen.getByRole("switch", { name: "Auto-renewal", exact: true }));
     expect(screen.getByText("$4.99")).toBeInTheDocument();
     expect(screen.getByText(/Renews automatically/)).toBeInTheDocument();
-    await click(screen.getByRole("button", { name: "Subscribe to Pro" }));
+    await click(screen.getByRole("button", { name: "Subscribe to Cloud" }));
     expect(screen.getByTestId("location")).toHaveTextContent("sku=cloud_usd_monthly");
     expect(screen.getByText("Complete local features, forever.")).toBeInTheDocument();
   });
   it("replaces a used trial with a primary purchase action without implying another no-card trial", async () => {
     mocks.accountMembership = { status: "expired", trial_available: false };
     show("/cloud", CloudPage);
-    expect(screen.queryByRole("button", { name: /Try Pro free/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Try Cloud free/ })).not.toBeInTheDocument();
     expect(screen.queryByText("No card required. No automatic charge.")).not.toBeInTheDocument();
     expect(screen.getByText(/cannot start another free trial/)).toBeInTheDocument();
-    const subscribe = screen.getByRole("button", { name: "Subscribe to Pro" });
+    const subscribe = screen.getByRole("button", { name: "Subscribe to Cloud" });
     expect(subscribe).toBeEnabled();
     expect(subscribe).toHaveClass("bg-oai-black");
     await click(subscribe);
@@ -641,11 +641,11 @@ describe("Cloud pricing and checkout", () => {
   it.each([true, false])("preserves the primary no-card trial for an eligible or signed-out user, signedIn=%s", async (signedIn) => {
     mocks.signedIn = signedIn;
     show("/cloud", CloudPage);
-    const trial = screen.getByRole("button", { name: "Try Pro free for 7 days" });
+    const trial = screen.getByRole("button", { name: "Try Cloud free for 7 days" });
     expect(trial).toBeEnabled();
     expect(trial).toHaveClass("bg-oai-black");
     expect(screen.getByText("No card required. No automatic charge.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Subscribe to Pro" })).not.toHaveClass("bg-oai-black");
+    expect(screen.getByRole("button", { name: "Subscribe to Cloud" })).not.toHaveClass("bg-oai-black");
     await click(trial);
     expect(screen.getByTestId("location")).toHaveTextContent("intent=trial");
     expect(mocks.request).not.toHaveBeenCalled();
@@ -655,8 +655,8 @@ describe("Cloud pricing and checkout", () => {
     mocks.subscriptions = [{ status, cancel_at_period_end: false }];
     show("/cloud", CloudPage);
     expect(screen.getByRole("link", { name: "Manage membership" })).toHaveAttribute("href", "/settings?section=account");
-    expect(screen.queryByRole("button", { name: "Subscribe to Pro" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Try Pro free/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Subscribe to Cloud" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Try Cloud free/ })).not.toBeInTheDocument();
     expect(screen.queryByText("No card required. No automatic charge.")).not.toBeInTheDocument();
     expect(mocks.request).not.toHaveBeenCalled();
   });
@@ -665,8 +665,8 @@ describe("Cloud pricing and checkout", () => {
     mocks.accountLoading = state === "loading";
     mocks.accountError = state === "error" ? { code: "billing_network_error" } : null;
     show("/cloud", CloudPage);
-    expect(screen.getByRole("button", { name: /Try Pro free/ })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Subscribe to Pro" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Try Cloud free/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Subscribe to Cloud" })).toBeDisabled();
     expect(screen.queryByText("No card required. No automatic charge.")).not.toBeInTheDocument();
     expect(mocks.request).not.toHaveBeenCalled();
   });
@@ -679,10 +679,10 @@ describe("Cloud pricing and checkout", () => {
     mocks.phase = "preview";
     show("/cloud", CloudPage);
     expect(
-      screen.getByRole("button", { name: "Subscribe to Pro" }),
+      screen.getByRole("button", { name: "Subscribe to Cloud" }),
     ).toBeDisabled();
     expect(
-      screen.getByRole("button", { name: /Try Pro free/ }),
+      screen.getByRole("button", { name: /Try Cloud free/ }),
     ).toBeDisabled();
     cleanup();
     mocks.phase = "active";
@@ -717,13 +717,13 @@ describe("Cloud pricing and checkout", () => {
       expect.objectContaining({ body: {} }),
     );
     await screen.findByRole("heading", {
-      name: "Your Pro trial has started",
+      name: "Your Cloud trial has started",
     });
   });
   it.each([
-    ["en", "Start 7-day free trial", "Starting your Pro trial", "Preparing your payment order"],
-    ["zh", "开始 7 天免费试用", "正在开通 Pro 试用", "正在准备支付订单"],
-    ["zh-TW", "開始 7 天免費試用", "正在開通 Pro 試用", "正在準備付款訂單"],
+    ["en", "Start 7-day free trial", "Starting your Cloud trial", "Preparing your payment order"],
+    ["zh", "开始 7 天免费试用", "正在开通云服务试用", "正在准备支付订单"],
+    ["zh-TW", "開始 7 天免費試用", "正在開通雲服務試用", "正在準備付款訂單"],
   ])("describes a pending %s trial activation without presenting a payment order", async (locale, action, waiting, payment) => {
     setCopyLocale(locale);
     let resolveTrial;
@@ -787,13 +787,13 @@ describe("Cloud pricing and checkout", () => {
     expect(mocks.external).toHaveBeenCalledWith(url);
     await act(async () => { fireEvent.focus(window); });
     expect(screen.getByRole("heading", { name: "Waiting for payment" })).toBeInTheDocument();
-    expect(screen.queryByText("Your Pro membership is active")).not.toBeInTheDocument();
+    expect(screen.queryByText("Your Cloud membership is active")).not.toBeInTheDocument();
     mocks.request.mockResolvedValue({
       order: { ...order, status: "paid" },
       membership: { status: "active", expires_at: "2027-10-04" },
     });
     await act(async () => { fireEvent.focus(window); });
-    await screen.findByRole("heading", { name: "Your Pro membership is active" });
+    await screen.findByRole("heading", { name: "Your Cloud membership is active" });
   });
   it("offers server reconciliation even for an expired checkout", async () => {
     mocks.request.mockResolvedValue({

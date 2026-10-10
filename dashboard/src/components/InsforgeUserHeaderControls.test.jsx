@@ -35,11 +35,11 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
-describe("current server Pro identity", () => {
+describe("current server Cloud identity", () => {
   it.each(["payment", "gift", "mixed"])("accepts authoritative current %s access even without capped history", (source) => {
     expect(isCurrentProAccount(pro(source), now)).toBe(true);
   });
-  it("keeps Pro when the visible capped history contains only future periods", () => {
+  it("keeps Cloud when the visible capped history contains only future periods", () => {
     const paid = pro(); paid.payments = Array.from({ length: 20 }, () => ({ starts_at: end, ends_at: "2027-01-01T00:00:00Z" }));
     expect(isCurrentProAccount(paid, now)).toBe(true);
     const gifted = pro("gift"); gifted.gifts = Array.from({ length: 100 }, () => ({ state: "pending", starts_at: end, ends_at: "2027-01-01T00:00:00Z" }));
@@ -77,16 +77,16 @@ describe("current server Pro identity", () => {
   });
 });
 
-describe("sidebar Pro avatar", () => {
-  it.each([false, true])("has a purple frame and accessible Pro badge when collapsed=%s", async (collapsed) => {
+describe("sidebar Cloud avatar", () => {
+  it.each([false, true])("has a purple frame and accessible Cloud badge when collapsed=%s", async (collapsed) => {
     const action = vi.fn();
     const view = render(<InsforgeUserHeaderControls variant="sidebar" collapsed={collapsed} onAfterAction={action} />);
-    const button = await screen.findByRole("button", { name: /TokenTracker Pro member/ });
+    const button = await screen.findByRole("button", { name: /TokenTracker Cloud subscriber/ });
     expect(view.container.querySelector(".leaderboard-pro-avatar")).not.toBeNull();
-    expect(screen.getByText("Pro")).toHaveClass("leaderboard-pro-badge");
+    expect(screen.getByText("Cloud")).toHaveClass("leaderboard-pro-badge");
     expect(button).toHaveClass("focus-visible:ring-2");
     expect(button).toHaveClass("tt-sidebar-account-control");
-    if (collapsed) expect(screen.getByText("Pro")).toHaveClass("absolute");
+    if (collapsed) expect(screen.getByText("Cloud")).toHaveClass("absolute");
     await userEvent.tab(); expect(button).toHaveFocus();
     await userEvent.keyboard("{Enter}");
     expect(mocks.navigate).toHaveBeenCalledWith("/settings");
@@ -94,40 +94,40 @@ describe("sidebar Pro avatar", () => {
   });
   it("retains frame and badge after an avatar image fails", async () => {
     const view = render(<InsforgeUserHeaderControls variant="sidebar" />);
-    await screen.findByText("Pro");
+    await screen.findByText("Cloud");
     fireEvent.error(view.container.querySelector("img"));
     expect(screen.getByText("AL")).toBeInTheDocument();
     expect(screen.getByText("AL")).toHaveClass("tt-sidebar-pro-fallback");
     expect(screen.getByText("AL")).not.toHaveClass("bg-oai-brand-600");
     expect(view.container.querySelector(".leaderboard-pro-avatar")).not.toBeNull();
-    expect(screen.getByText("Pro")).toBeInTheDocument();
+    expect(screen.getByText("Cloud")).toBeInTheDocument();
   });
-  it("shows gifted Pro with no avatar or display name", async () => {
+  it("shows gifted Cloud with no avatar or display name", async () => {
     mocks.auth.user = { id: "fixture-owner" }; mocks.auth.displayName = "";
     mocks.request.mockResolvedValue(pro("gift"));
     const view = render(<InsforgeUserHeaderControls variant="sidebar" collapsed />);
-    await screen.findByRole("button", { name: /TokenTracker Pro member/ });
+    await screen.findByRole("button", { name: /TokenTracker Cloud subscriber/ });
     expect(view.container.querySelector("img")).toBeNull();
     expect(view.container.querySelector(".leaderboard-pro-avatar svg")).not.toBeNull();
     expect(view.container.querySelector(".leaderboard-pro-avatar svg").parentElement).toHaveClass("tt-sidebar-pro-fallback");
-    expect(screen.getByText("Pro")).toBeInTheDocument();
+    expect(screen.getByText("Cloud")).toBeInTheDocument();
   });
-  it("has no initial unknown badge, retains verified Pro during same-scope refresh and removes it on failure", async () => {
+  it("has no initial unknown badge, retains verified Cloud during same-scope refresh and removes it on failure", async () => {
     let initial, rejectRefresh;
     mocks.request.mockImplementationOnce(() => new Promise((resolve) => { initial = resolve; }))
       .mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectRefresh = reject; }));
     const view = render(<InsforgeUserHeaderControls variant="sidebar" />);
     await waitFor(() => expect(mocks.request).toHaveBeenCalledTimes(1));
-    expect(screen.queryByText("Pro")).toBeNull();
+    expect(screen.queryByText("Cloud")).toBeNull();
     expect(view.container.querySelector(".leaderboard-pro-avatar")).toBeNull();
     await act(async () => { initial(pro()); });
-    expect(screen.getByText("Pro")).toBeInTheDocument();
+    expect(screen.getByText("Cloud")).toBeInTheDocument();
     await act(async () => { fireEvent.focus(window); });
     await waitFor(() => expect(mocks.request).toHaveBeenCalledTimes(2));
-    expect(screen.getByText("Pro")).toBeInTheDocument();
+    expect(screen.getByText("Cloud")).toBeInTheDocument();
     expect(view.container.querySelector(".leaderboard-pro-avatar")).not.toBeNull();
     await act(async () => { rejectRefresh(new Error("billing_network_error")); });
-    expect(screen.queryByText("Pro")).toBeNull();
+    expect(screen.queryByText("Cloud")).toBeNull();
     expect(view.container.querySelector(".leaderboard-pro-avatar")).toBeNull();
   });
   it("preserves the free user's existing fallback color", async () => {
@@ -138,14 +138,14 @@ describe("sidebar Pro avatar", () => {
     expect(screen.getByText("AL")).toHaveClass("bg-oai-brand-600");
     expect(screen.getByText("AL")).not.toHaveClass("tt-sidebar-pro-fallback");
   });
-  it("does not trust metadata Pro flags or Cloud upload permission", async () => {
+  it("does not trust metadata Cloud flags or Cloud upload permission", async () => {
     mocks.auth.user.user_metadata.pro_active = true;
     mocks.request.mockResolvedValue({ environment: "live", membership: { environment: "live", phase: "active", status: "trial", can_upload_cloud: true, expires_at: end } });
     const view = render(<InsforgeUserHeaderControls variant="sidebar" />);
     await waitFor(() => expect(mocks.request).toHaveBeenCalledTimes(1));
     await act(async () => {});
     expect(view.container.querySelector(".leaderboard-pro-avatar")).toBeNull();
-    expect(screen.queryByText("Pro")).toBeNull();
+    expect(screen.queryByText("Cloud")).toBeNull();
   });
   it.each(["guest", "loading", "disabled", "selfhost", "header"])("adds no billing request for %s", async (mode) => {
     if (mode === "guest") { mocks.auth.signedIn = false; mocks.auth.user = null; }
@@ -156,7 +156,7 @@ describe("sidebar Pro avatar", () => {
     await act(async () => {});
     expect(mocks.request).not.toHaveBeenCalled();
     expect(view.container.querySelector(".leaderboard-pro-avatar")).toBeNull();
-    expect(screen.queryByText("Pro")).toBeNull();
+    expect(screen.queryByText("Cloud")).toBeNull();
     if (mode === "guest" || mode === "header") expect(view.container.querySelector(".tt-sidebar-account-control")).toBeNull();
   });
   it("immediately drops the previous account frame and ignores its late billing response", async () => {
@@ -169,16 +169,16 @@ describe("sidebar Pro avatar", () => {
     view.rerender(<InsforgeUserHeaderControls variant="sidebar" />);
     await waitFor(() => expect(mocks.request).toHaveBeenCalledTimes(2));
     await act(async () => { previous(pro()); });
-    expect(screen.queryByText("Pro")).toBeNull();
+    expect(screen.queryByText("Cloud")).toBeNull();
     expect(view.container.querySelector(".leaderboard-pro-avatar")).toBeNull();
   });
   it("removes a known frame immediately when the selected instance changes", async () => {
     const control = () => <InsforgeUserHeaderControls variant="sidebar" />;
     const view = render(control());
-    await screen.findByText("Pro");
+    await screen.findByText("Cloud");
     mocks.backend = "private-instance"; mocks.official = false;
     view.rerender(control());
-    expect(screen.queryByText("Pro")).toBeNull();
+    expect(screen.queryByText("Cloud")).toBeNull();
     expect(view.container.querySelector(".leaderboard-pro-avatar")).toBeNull();
     expect(mocks.request).toHaveBeenCalledTimes(1);
   });

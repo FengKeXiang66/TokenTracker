@@ -40,10 +40,10 @@ describe("LeaderboardMeChip percentile badge", () => {
     const me = { rank: 2, user_id: "user-1", display_name: "Me User", pro_active: true };
     const { rerender } = render(<LeaderboardMeChip me={me} totalEntries={100} onOpenProfile={onOpenProfile} />);
     expect(screen.getAllByRole("button")).toHaveLength(1);
-    expect(screen.getByRole("img", { name: "TokenTracker Pro member" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "TokenTracker Cloud subscriber" })).toBeInTheDocument();
     expect(screen.getByTestId("avatar")).toHaveAttribute("data-pro-active", "true");
     rerender(<LeaderboardMeChip me={{ ...me, pro_active: "true" }} totalEntries={100} onOpenProfile={onOpenProfile} />);
-    expect(screen.queryByRole("img", { name: "TokenTracker Pro member" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "TokenTracker Cloud subscriber" })).not.toBeInTheDocument();
     expect(screen.getByTestId("avatar")).toHaveAttribute("data-pro-active", "false");
   });
 });

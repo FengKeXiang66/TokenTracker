@@ -2,7 +2,7 @@
 
 This document tracks the Cloud subscription work. Production web purchase was activated on 2026-10-10 at USD4.99/month or USD39.99/year before tax, equal for recurring and fixed-term purchases. One genuine fixed-month payment and its full refund have been verified; recurring/yearly financial flows, actual settlement and native-device acceptance retain their separate evidence requirements. User-facing terms are in the [Cloud guide](cloud-guide.md) ([简体中文](cloud-guide.zh-CN.md)); operational gates are in the [billing runbook](cloud-billing-operations.md), and the [community announcement](cloud-announcement-draft.md) remains a review draft. Web activation does not imply that the unified desktop release has shipped.
 
-The user-facing membership is named TokenTracker Pro; `Cloud` remains the hosted-service/API namespace. Current evidence and release blockers are in the [release handoff](cloud-release-readiness.md). The [gift specification](pro-gift-codes.md) adds 30/90/365-day account grants with no provider payment or renewal, single-claim protection and checkout exclusion for active/upcoming gifts.
+The user-facing service is named TokenTracker Cloud (云服务). Legacy internal `pro` identifiers remain compatible with existing entitlements and receipts. Current evidence and release blockers are in the [release handoff](cloud-release-readiness.md). The [gift specification](pro-gift-codes.md) adds 30/90/365-day account grants with no provider payment or renewal, single-claim protection and checkout exclusion for active/upcoming gifts.
 
 ## Product boundaries
 
@@ -30,7 +30,7 @@ Free community uploads use one registered synchronization device per account and
 
 ## Payment flows
 
-- New purchases use Waffo Pancake hosted checkout through the server-only `@waffo/pancake-ts@0.25.0` SDK. The same USD base prices apply worldwide; Waffo calculates applicable taxes and displays the final charge before payment. Prices remain a test draft.
+- New purchases use Waffo Pancake hosted checkout through the server-only `@waffo/pancake-ts@0.25.0` SDK. The same USD base prices apply worldwide; Waffo calculates applicable taxes and displays the final charge before payment. These prices are active production prices confirmed by the Owner.
 - Recurring monthly/yearly plans support cards and, where available, Apple Pay or Google Pay. Canceling renewal preserves the already-paid term.
 - Fixed monthly/yearly passes use one-time checkout, supporting WeChat or cards where available. Another purchase extends the remaining paid term without automatic debits. The hosted checkout determines the methods actually offered; no Alipay or CNY exchange-rate commitment is made.
 - Historical Paddle, direct WeChat and Alipay records remain readable and processable under their original provider. They are not new-purchase options and must not be relabeled Waffo.

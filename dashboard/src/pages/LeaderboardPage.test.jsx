@@ -111,7 +111,7 @@ describe("LeaderboardPage window-session cache reuse", () => {
     ] }, { contextKey });
     getLeaderboard.mockReturnValue(new Promise(() => {}));
     renderLeaderboard("/leaderboard", { auth: () => Promise.resolve("test-token") });
-    expect(screen.getAllByRole("img", { name: "TokenTracker Pro member" })).toHaveLength(2);
+    expect(screen.getAllByRole("img", { name: "TokenTracker Cloud subscriber" })).toHaveLength(2);
     const rows = [...document.querySelectorAll("tbody tr")];
     expect(rows.map(row => row.textContent)).toEqual([expect.stringContaining("Free GitHub User"), expect.stringContaining("Paid User")]);
     expect(rows[0].querySelector(".gh-avatar-frame")).not.toBeNull();
@@ -130,7 +130,7 @@ describe("LeaderboardPage window-session cache reuse", () => {
     publishLeaderboardPreloadState({ ...preloadedData, entries: [{ ...preloadedData.entries[0], github_url: "https://github.com/free", pro_active: "true" }] }, { contextKey });
     getLeaderboard.mockReturnValue(new Promise(() => {}));
     renderLeaderboard("/leaderboard", { auth: () => Promise.resolve("test-token") });
-    expect(screen.queryByRole("img", { name: "TokenTracker Pro member" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "TokenTracker Cloud subscriber" })).not.toBeInTheDocument();
     expect(document.querySelector(".gh-avatar-frame")).not.toBeNull();
   });
 

@@ -43,13 +43,13 @@ it("waits for the user's sync action and keeps the existing free-sync operation 
   expect(switchControl.closest(".tt-cloud-sync-control")).toHaveClass("tt-cloud-theme");
   expect(screen.getByText(/Daily community uploads and leaderboard participation stay free/)).toHaveTextContent(/pause other active devices/);
   expect(screen.getByRole("switch", { name: copy("settings.account.publicProfile") }).closest(".tt-cloud-sync-control")).toBeNull();
-  expect(screen.queryByRole("region", { name: "Pro options" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "Cloud options" })).not.toBeInTheDocument();
   await act(async () => { await userEvent.click(screen.getByRole("switch", { name: copy("settings.account.cloudSync") })); });
   expect(values.toggle).toHaveBeenCalledTimes(1);
   expect(screen.getByRole("switch", { name: copy("settings.account.publicProfile") })).toHaveAttribute("aria-checked", "false");
-  expect(screen.getByRole("link", { name: "Try Pro free" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Try Cloud free" })).toBeInTheDocument();
   expect(screen.getByText(/Free community uploads continue daily/)).toBeInTheDocument();
   await act(async () => { await userEvent.click(screen.getByRole("button", { name: "Use local data" })); });
   expect(values.toggle).toHaveBeenCalledTimes(2);
-  expect(screen.queryByRole("region", { name: "Pro options" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "Cloud options" })).not.toBeInTheDocument();
 });

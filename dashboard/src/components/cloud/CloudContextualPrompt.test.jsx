@@ -29,7 +29,7 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 describe("contextual Cloud panels", () => {
   it("does not render a popup or reminder on initial opening", () => {
     show();
-    expect(screen.queryByRole("region", { name: "Pro options" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Cloud options" })).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
   it("offers the relevant trial inline after an action, keeps free use visible, and performs no request", async () => {
@@ -37,7 +37,7 @@ describe("contextual Cloud panels", () => {
     recordCloudPromptIntent(userId, "sync");
     const local = vi.fn();
     show({ localHost: true, onContinueLocal: local });
-    expect(screen.getByRole("link", { name: "Try Pro free" })).toHaveAttribute("href", "/billing/checkout?intent=trial");
+    expect(screen.getByRole("link", { name: "Try Cloud free" })).toHaveAttribute("href", "/billing/checkout?intent=trial");
     expect(screen.getByText(/leaderboard participation do not require membership/)).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     await act(async () => { await userEvent.click(screen.getByRole("button", { name: "Use local data" })); });
@@ -47,27 +47,27 @@ describe("contextual Cloud panels", () => {
   it("dismisses across panels and promotional scenes while keeping another account independent", async () => {
     recordCloudPromptIntent(userId, "sync");
     const view = show();
-    await act(async () => { await userEvent.click(screen.getByRole("button", { name: "Dismiss Pro reminder" })); });
-    expect(screen.queryByRole("region", { name: "Pro options" })).not.toBeInTheDocument();
+    await act(async () => { await userEvent.click(screen.getByRole("button", { name: "Dismiss Cloud reminder" })); });
+    expect(screen.queryByRole("region", { name: "Cloud options" })).not.toBeInTheDocument();
     act(() => {
       recordCloudPromptIntent(userId, "view");
       recordCloudPromptFailure(userId, "cloud_membership_required", membership, "account-summary");
     });
-    expect(screen.queryByRole("link", { name: "Try Pro free" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Try Cloud free" })).not.toBeInTheDocument();
     const next = `${userId}-other`;
     act(() => { publishCloudPromptBilling("account", { membership }, next, now); recordCloudPromptIntent(next, "sync"); });
     view.rerender(<MemoryRouter><CloudContextualPrompt userId={next} /></MemoryRouter>);
-    expect(screen.getByRole("link", { name: "Try Pro free" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Try Cloud free" })).toBeInTheDocument();
   });
   it("does not sell a trial in sandbox or after the account becomes paid", () => {
     recordCloudPromptIntent(userId, "sync");
     publishCloudPromptBilling("catalog", { ...catalog, environment: "sandbox" }, null, now);
     const view = show();
-    expect(screen.queryByRole("link", { name: "Try Pro free" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Learn about Pro" })).toHaveAttribute("href", "/cloud");
+    expect(screen.queryByRole("link", { name: "Try Cloud free" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Learn about Cloud" })).toHaveAttribute("href", "/cloud");
     act(() => { publishCloudPromptBilling("account", { membership: { ...membership, status: "active", can_read_cloud: true, can_upload_cloud: true } }, userId, now); });
     view.rerender(<MemoryRouter><CloudContextualPrompt userId={userId} /></MemoryRouter>);
-    expect(screen.queryByRole("region", { name: "Pro options" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Cloud options" })).not.toBeInTheDocument();
   });
   it("keeps a paid device-limit notification operational", () => {
     publishCloudPromptBilling("account", { membership: { ...membership, status: "active", can_read_cloud: true, can_upload_cloud: true } }, userId, now);
@@ -76,7 +76,7 @@ describe("contextual Cloud panels", () => {
     show();
     expect(screen.getByText(/sync allowance is full/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Manage membership" })).toHaveAttribute("href", "/settings?section=account");
-    expect(screen.queryByRole("link", { name: "Try Pro free" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Try Cloud free" })).not.toBeInTheDocument();
   });
   it.each(["past_due", "active"])("shows billing recovery rather than trial or plans for an expired account with a %s renewal contract", (status) => {
     const request = vi.spyOn(globalThis, "fetch");
@@ -86,8 +86,8 @@ describe("contextual Cloud panels", () => {
     show();
     expect(screen.getByText(/automatic-renewal subscription is still open/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View payment bills" })).toHaveAttribute("href", "/settings?section=account");
-    expect(screen.queryByRole("link", { name: "Try Pro free" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "View Pro plans" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Try Cloud free" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "View Cloud plans" })).not.toBeInTheDocument();
     expect(screen.getByText(/leaderboard participation do not require membership/)).toBeInTheDocument();
     expect(request).not.toHaveBeenCalled();
   });
@@ -95,15 +95,15 @@ describe("contextual Cloud panels", () => {
     render(<MemoryRouter><CloudDeadlinePrompt userId={userId}
       membership={{ ...membership, status: "active", expires_at: "2026-10-09T08:00:00Z" }}
       subscriptions={[{ status: "past_due", cancel_at_period_end: false }]} /></MemoryRouter>);
-    expect(screen.getByText(/Pro access remains available/)).toHaveTextContent(/Check account billing for renewal status/);
+    expect(screen.getByText(/Cloud access remains available/)).toHaveTextContent(/Check account billing for renewal status/);
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
   it("shows a quiet canceled-term date without a sales button", () => {
     render(<MemoryRouter><CloudDeadlinePrompt userId={userId}
       membership={{ ...membership, status: "active", expires_at: "2026-10-09T08:00:00Z" }}
       subscriptions={[{ status: "active", cancel_at_period_end: true }]} /></MemoryRouter>);
-    expect(screen.getByText(/Pro access remains available/)).toHaveTextContent("2026");
-    expect(screen.queryByRole("link", { name: "Try Pro free" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "View Pro plans" })).not.toBeInTheDocument();
+    expect(screen.getByText(/Cloud access remains available/)).toHaveTextContent("2026");
+    expect(screen.queryByRole("link", { name: "Try Cloud free" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "View Cloud plans" })).not.toBeInTheDocument();
   });
 });

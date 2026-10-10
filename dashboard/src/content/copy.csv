@@ -573,9 +573,9 @@ leaderboard.github.tooltipAction,ui,LeaderboardPage,LeaderboardPage,github_toolt
 leaderboard.github.tooltipPrefix,ui,LeaderboardPage,LeaderboardPage,github_tooltip_prefix,"Set yours in",,active
 leaderboard.github.tooltipSettingsLink,ui,LeaderboardPage,LeaderboardPage,github_tooltip_link,"Settings",,active
 leaderboard.github.tooltipSuffix,ui,LeaderboardPage,LeaderboardPage,github_tooltip_suffix,"to appear here",,active
-leaderboard.pro.badge,ui,LeaderboardPage,LeaderboardProBadge,pro_badge,Pro,,active
-leaderboard.pro.badge_aria,ui,LeaderboardPage,LeaderboardProBadge,pro_badge_aria,TokenTracker Pro member,,active
-leaderboard.pro.tooltip,ui,LeaderboardPage,LeaderboardProBadge,pro_tooltip,Pro member. Rankings stay based on usage.,,active
+leaderboard.pro.badge,ui,LeaderboardPage,LeaderboardProBadge,pro_badge,"Cloud",,active
+leaderboard.pro.badge_aria,ui,LeaderboardPage,LeaderboardProBadge,pro_badge_aria,"TokenTracker Cloud subscriber",,active
+leaderboard.pro.tooltip,ui,LeaderboardPage,LeaderboardProBadge,pro_tooltip,"Cloud member. Rankings stay based on usage.",,active
 leaderboard.summary.percentile,ui,LeaderboardPage,LeaderboardMeChip,summary_percentile,"Top {{p}}%",,active
 leaderboard.summary.jump_to_me,ui,LeaderboardPage,LeaderboardMeChip,summary_jump_to_me,"Jump to my row",,active
 leaderboard.summary.view_profile,ui,LeaderboardPage,LeaderboardMeChip,summary_view_profile,"View your profile",,active
@@ -1645,10 +1645,10 @@ quota.reset_in,ui,QuotaWidget,QuotaWidget,reset_in,"Resets in {{time}}",,active
 quota.close,ui,QuotaWidget,QuotaWidget,close,"Close widget",,active
 quota.close_hint,ui,QuotaWidget,QuotaWidget,close_hint,"Close widget; reopen from the tray menu",,active
 trend.monitor.pin_hint,dashboard,DashboardPage,TrendMonitor,hint,"Click a bar to pin and scroll details",,active
-cloud.nav,cloud,*,Cloud,text,Pro,,active
-cloud.page.eyebrow,cloud,*,Cloud,text,TokenTracker Pro,,active
+cloud.nav,cloud,*,Cloud,text,"Cloud",,active
+cloud.page.eyebrow,cloud,*,Cloud,text,"TokenTracker Cloud",,active
 cloud.page.title,cloud,*,Cloud,text,"Your AI usage, in one place.",,active
-cloud.page.subtitle,cloud,*,Cloud,text,"The complete local app stays free. Pro adds cloud sync, cross-device history, and private usage analysis.",,active
+cloud.page.subtitle,cloud,*,Cloud,text,"Free, open-source usage tracking. Optional hosted Cloud brings your devices together.",,active
 cloud.selector.term,cloud,*,Cloud,text,Billing period,,active
 cloud.term.monthly,cloud,*,Cloud,text,Monthly,,active
 cloud.term.yearly,cloud,*,Cloud,text,Yearly,,active
@@ -1666,8 +1666,8 @@ cloud.free.desktop,cloud,*,Cloud,text,CLI and desktop features,,active
 cloud.free.exports,cloud,*,Cloud,text,Local history and exports,,active
 cloud.free.community,cloud,*,Cloud,text,"Leaderboard, achievements, public profile; daily sync from one device",,active
 cloud.free.installations,cloud,*,Cloud,text,Unlimited local installations. No subscription needed.,,active
-cloud.plan.title,cloud,*,Cloud,text,TokenTracker Pro,,active
-cloud.plan.subtitle,cloud,*,Cloud,text,"Account-wide analysis, hosted history, and managed sync. One membership across your devices.",,active
+cloud.plan.title,cloud,*,Cloud,text,"TokenTracker Cloud",,active
+cloud.plan.subtitle,cloud,*,Cloud,text,"Hosted sync and usage history across your devices, without maintaining a server.",,active
 cloud.price.pending,cloud,*,Cloud,text,Pending,,active
 cloud.price.waiting,cloud,*,Cloud,text,Price is available after the service responds.,,active
 cloud.price.per_year,cloud,*,Cloud,text,/ year,,active
@@ -1675,10 +1675,10 @@ cloud.price.per_month,cloud,*,Cloud,text,/ month,,active
 cloud.price.annual_total,cloud,*,Cloud,text,{{total}} billed yearly. Equivalent to {{equivalent}}/month.,,active
 cloud.price.monthly_total,cloud,*,Cloud,text,{{total}} for one month.,,active
 cloud.price.savings,cloud,*,Cloud,text,Save {{percent}}% yearly,,active
-cloud.action.try,cloud,*,Cloud,text,Try Pro free for {{days}} days,,active
-cloud.action.subscribe,cloud,*,Cloud,text,Subscribe to Pro,,active
+cloud.action.try,cloud,*,Cloud,text,"Try Cloud free for {{days}} days",,active
+cloud.action.subscribe,cloud,*,Cloud,text,"Subscribe to Cloud",,active
 cloud.action.manage_membership,cloud,*,Cloud,text,Manage membership,,active
-cloud.action.view_plans,cloud,*,Cloud,text,View Pro plans,,active
+cloud.action.view_plans,cloud,*,Cloud,text,"View Cloud plans",,active
 cloud.action.retry,cloud,*,Cloud,text,Retry,,active
 cloud.action.start_trial,cloud,*,Cloud,text,Start {{days}}-day free trial,,active
 cloud.action.sign_in_continue,cloud,*,Cloud,text,Sign in to continue,,active
@@ -1694,48 +1694,48 @@ cloud.action.restore,cloud,*,Cloud,text,Recover order,,active
 cloud.action.refresh_membership,cloud,*,Cloud,text,Refresh membership,,active
 cloud.action.manage_subscription,cloud,*,Cloud,text,Manage subscription,,active
 cloud.action.cancel_renewal,cloud,*,Cloud,text,Cancel auto-renewal,,active
-cloud.action.renew,cloud,*,Cloud,text,Renew Pro,,active
+cloud.action.renew,cloud,*,Cloud,text,"Renew Cloud",,active
 cloud.action.read_export,cloud,*,Cloud,text,View and export Cloud history,,active
 cloud.trial.no_card,cloud,*,Cloud,text,No card required. No automatic charge.,,active
-cloud.trial.disclosure,cloud,*,Cloud,text,"Try Pro cloud features for {{days}} days, ending {{date}}. No payment card or auto-renewal. The avatar frame and badge require a paid membership.",,active
+cloud.trial.disclosure,cloud,*,Cloud,text,"Try Cloud cloud features for {{days}} days, ending {{date}}. No payment card or auto-renewal. The avatar frame and badge require a paid membership.",,active
 cloud.trial.expiry,cloud,*,Cloud,text,"After the trial, personal Cloud sync stops. You have 30 days to view and export retained Cloud data. Daily community uploads from one selected device, leaderboard participation and local tracking stay free.",,active
-cloud.trial.ends,cloud,*,Cloud,text,Your Pro trial ends {{date}}.,,active
+cloud.trial.ends,cloud,*,Cloud,text,"Your Cloud trial ends {{date}}.",,active
 cloud.renewal.manual,cloud,*,Cloud,text,Pay once. No automatic renewal.,,active
 cloud.renewal.auto,cloud,*,Cloud,text,Renews automatically. Cancel anytime; keep the paid term.,,active
 cloud.feature.sync,cloud,*,Cloud,text,Changed data syncs every {{minutes}} minutes. Pause or reconnect sync devices from your account.,,active
 cloud.feature.history,cloud,*,Cloud,text,"{{days}} days of hourly detail and {{months}} months of daily history, with Cloud data exports.",,active
-cloud.feature.pro_identity,cloud,*,Cloud,text,Pro avatar frame and badge. Rankings stay based on usage.,,active
+cloud.feature.pro_identity,cloud,*,Cloud,text,"Cloud avatar frame and badge. Rankings stay based on usage.",,active
 cloud.feature.privacy_detail,cloud,*,Cloud,text,"No prompts, code, provider credentials, or local session and project records.",,active
-cloud.catalog.loading,cloud,*,Cloud,text,Loading Pro availability…,,active
-cloud.catalog.preview,cloud,*,Cloud,text,Pro subscriptions are not open yet. Payment and trial activation are disabled until launch.,,active
-cloud.catalog.provider_unavailable,cloud,*,Cloud,text,Pro payments are unavailable right now. Your plan selection is kept; return later.,,active
-cloud.catalog.sandbox,cloud,*,Cloud,text,Payment sandbox. Test transactions do not buy a live Pro membership.,,active
+cloud.catalog.loading,cloud,*,Cloud,text,"Loading Cloud availability…",,active
+cloud.catalog.preview,cloud,*,Cloud,text,"Cloud subscriptions are not open yet. Payment and trial activation are disabled until launch.",,active
+cloud.catalog.provider_unavailable,cloud,*,Cloud,text,"Cloud payments are unavailable right now. Your plan selection is kept; return later.",,active
+cloud.catalog.sandbox,cloud,*,Cloud,text,"Payment sandbox. Test transactions do not buy a live Cloud membership.",,active
 cloud.faq.local_title,cloud,*,Cloud,text,What stays free?,,active
-cloud.faq.local_body,cloud,*,Cloud,text,"All local tracking, integrations, estimates, limits, desktop features, and exports remain complete and open source. Pro pays for hosted aggregation and history.",,active
-cloud.faq.expiry_title,cloud,*,Cloud,text,What happens when Pro ends?,,active
+cloud.faq.local_body,cloud,*,Cloud,text,"All local tracking, integrations, estimates, limits, desktop features, and exports remain complete and open source. Cloud pays for hosted aggregation and history.",,active
+cloud.faq.expiry_title,cloud,*,Cloud,text,"What happens when Cloud ends?",,active
 cloud.faq.expiry_body,cloud,*,Cloud,text,"Personal Cloud synchronization ends. Free community uploads and leaderboard participation continue daily from one selected device; pause other active devices if needed. Retained personal Cloud history stays readable and exportable for 30 days. Local data and features remain available.",,active
 cloud.faq.existing_title,cloud,*,Cloud,text,Already using the cloud dashboard?,,active
 cloud.faq.existing_body,cloud,*,Cloud,text,Existing cloud accounts receive a 30-day transition when subscriptions launch. Your account page shows your exact transition end date.,,active
 cloud.faq.platform_title,cloud,*,Cloud,text,Do I pay separately for each platform?,,active
 cloud.faq.platform_body,cloud,*,Cloud,text,"One membership covers your TokenTracker account across CLI, macOS, Windows, Linux, and web. Local installations are unlimited; Cloud supports five sync devices. Different system or user identities may use separate slots.",,active
-cloud.checkout.title,cloud,*,Cloud,text,Review your Pro purchase,,active
-cloud.checkout.trial_title,cloud,*,Cloud,text,Start your Pro trial,,active
+cloud.checkout.title,cloud,*,Cloud,text,"Review your Cloud purchase",,active
+cloud.checkout.trial_title,cloud,*,Cloud,text,"Start your Cloud trial",,active
 cloud.checkout.back,cloud,*,Cloud,text,Back to plans,,active
 cloud.checkout.local_free,cloud,*,Cloud,text,Your complete local app stays free with every plan.,,active
 cloud.checkout.sign_in,cloud,*,Cloud,text,Sign in to the TokenTracker account that should receive this membership. Your plan selection will be kept.,,active
 cloud.checkout.review,cloud,*,Cloud,text,Check your plan and payment terms. Waffo shows the final total before you pay.,,active
-cloud.checkout.summary,cloud,*,Cloud,text,Pro includes,,active
+cloud.checkout.summary,cloud,*,Cloud,text,"Cloud includes",,active
 cloud.checkout.tax,cloud,*,Cloud,text,Listed USD prices exclude tax. Waffo calculates applicable tax and shows the final total before you pay.,,active
-cloud.checkout.choose_plan,cloud,*,Cloud,text,Choose a Pro plan to continue.,,active
+cloud.checkout.choose_plan,cloud,*,Cloud,text,"Choose a Cloud plan to continue.",,active
 cloud.checkout.loading,cloud,*,Cloud,text,Checking your order…,,active
 cloud.checkout.creating,cloud,*,Cloud,text,Preparing your payment order,,active
-cloud.checkout.starting_trial,cloud,*,Cloud,text,Starting your Pro trial,,active
+cloud.checkout.starting_trial,cloud,*,Cloud,text,"Starting your Cloud trial",,active
 cloud.checkout.awaiting,cloud,*,Cloud,text,Waiting for payment,,active
-cloud.checkout.activating,cloud,*,Cloud,text,"Payment received, activating Pro",,active
-cloud.checkout.success,cloud,*,Cloud,text,Your Pro membership is active,,active
+cloud.checkout.activating,cloud,*,Cloud,text,"Payment received, activating Cloud",,active
+cloud.checkout.success,cloud,*,Cloud,text,"Your Cloud membership is active",,active
 cloud.checkout.canceled,cloud,*,Cloud,text,This order is closed,,active
 cloud.checkout.expired,cloud,*,Cloud,text,This order has expired,,active
-cloud.checkout.trial_success,cloud,*,Cloud,text,Your Pro trial has started,,active
+cloud.checkout.trial_success,cloud,*,Cloud,text,"Your Cloud trial has started",,active
 cloud.checkout.pending_creation,cloud,*,Cloud,text,Your order is saved. The payment provider has not confirmed checkout yet. Check its status before trying again; do not create another order.,,active
 cloud.checkout.pending_payment,cloud,*,Cloud,text,Complete payment with the selected provider. This page will confirm membership after the server verifies the transaction.,,active
 cloud.checkout.received,cloud,*,Cloud,text,The server has recorded payment and is confirming membership. Use Check status if activation takes longer.,,active
@@ -1747,8 +1747,8 @@ cloud.checkout.expires,cloud,*,Cloud,text,Checkout expires {{date}}.,,active
 cloud.provider.alipay,cloud,*,Cloud,text,Alipay,,active
 cloud.provider.wechat,cloud,*,Cloud,text,WeChat Pay,,active
 cloud.provider.paddle,cloud,*,Cloud,text,Paddle,,active
-cloud.membership.title,cloud,*,Cloud,text,TokenTracker Pro,,active
-cloud.membership.signed_out,cloud,*,Cloud,text,Sign in to manage Pro. The full local app stays free.,,active
+cloud.membership.title,cloud,*,Cloud,text,"TokenTracker Cloud",,active
+cloud.membership.signed_out,cloud,*,Cloud,text,"Sign in to manage Cloud. The full local app stays free.",,active
 cloud.membership.expires,cloud,*,Cloud,text,Available until {{date}},,active
 cloud.membership.renews,cloud,*,Cloud,text,Renews on {{date}},,active
 cloud.membership.preview,cloud,*,Cloud,text,Subscriptions have not launched. Your current cloud access continues during preview.,,active
@@ -1757,13 +1757,13 @@ cloud.membership.expired_detail,cloud,*,Cloud,text,"Personal Cloud access has en
 cloud.membership.transition_detail,cloud,*,Cloud,text,"Your existing Cloud account has a 30-day transition. After it ends, personal Cloud sync stops while free daily community uploads continue from one selected device.",,active
 cloud.membership.local_free,cloud,*,Cloud,text,"Local tracking, history, and exports remain complete and free.",,active
 cloud.membership.renewal_off,cloud,*,Cloud,text,Auto-renewal is off.,,active
-cloud.cancel.detail,cloud,*,Cloud,text,Cancel auto-renewal? Your Pro membership remains available until {{date}}. Local features are always free.,,active
+cloud.cancel.detail,cloud,*,Cloud,text,"Cancel auto-renewal? Your Cloud membership remains available until {{date}}. Local features are always free.",,active
 cloud.cancel.confirm,cloud,*,Cloud,text,Confirm cancellation,,active
 cloud.status.legacy_free,cloud,*,Cloud,text,Cloud preview,,active
-cloud.status.active,cloud,*,Cloud,text,Pro active,,active
+cloud.status.active,cloud,*,Cloud,text,"Cloud active",,active
 cloud.status.trial,cloud,*,Cloud,text,Free trial,,active
 cloud.status.transition,cloud,*,Cloud,text,Transition period,,active
-cloud.status.expired,cloud,*,Cloud,text,Pro expired,,active
+cloud.status.expired,cloud,*,Cloud,text,"Cloud expired",,active
 cloud.status.free,cloud,*,Cloud,text,Free local plan,,active
 cloud.status.unknown,cloud,*,Cloud,text,Checking membership,,active
 cloud.date.unknown,cloud,*,Cloud,text,Date unavailable,,active
@@ -1790,11 +1790,11 @@ cloud.history.empty,cloud,*,Cloud,text,No verified payments yet.,,active
 cloud.history.term,cloud,*,Cloud,text,{{start}} to {{end}},,active
 cloud.history.refunded,cloud,*,Cloud,text,Refunded {{amount}},,active
 cloud.error.auth,cloud,*,Cloud,text,Your sign-in needs refreshing. Sign in again with the account that owns this order.,,active
-cloud.error.unavailable,cloud,*,Cloud,text,Pro billing is not available yet. You can keep using the complete free local app.,,active
+cloud.error.unavailable,cloud,*,Cloud,text,"Cloud billing is not available yet. You can keep using the complete free local app.",,active
 cloud.error.provider,cloud,*,Cloud,text,This payment method is not available right now.,,active
 cloud.error.subscription_exists,cloud,*,Cloud,text,An active subscription already exists. Manage it from your account settings before choosing another plan.,,active
 cloud.error.fixed_term,cloud,*,Cloud,text,Your current fixed-term membership is still active. Wait until it ends before starting an automatically renewing subscription.,,active
-cloud.error.trial,cloud,*,Cloud,text,This account cannot start another free trial. View Pro plans or manage your current cloud access.,,active
+cloud.error.trial,cloud,*,Cloud,text,"This account cannot start another free trial. View Cloud plans or manage your current cloud access.",,active
 cloud.error.order_not_found,cloud,*,Cloud,text,This order was not found for your account. Check the order ID and sign in with the account used at checkout.,,active
 cloud.error.expired,cloud,*,Cloud,text,The checkout has expired. Check the order before creating another purchase.,,active
 cloud.error.request_conflict,cloud,*,Cloud,text,A previous purchase is still unresolved. Resume it from account settings before creating a different purchase.,,active
@@ -1802,7 +1802,7 @@ cloud.error.network,cloud,*,Cloud,text,The connection was interrupted. Your purc
 cloud.error.browser,cloud,*,Cloud,text,The payment page did not open. Reopen checkout or recover this order; no new purchase is needed.,,active
 cloud.error.machines,cloud,*,Cloud,text,This account has reached its Cloud sync device limit. Review devices in account settings.,,active
 cloud.error.generic,cloud,*,Cloud,text,We could not confirm this operation. Refresh your account or check this order again. Your local app continues to work.,,active
-cloud.error.catalog,cloud,*,Cloud,text,Pro plans could not be loaded. Payments are disabled until the service is available.,,active
+cloud.error.catalog,cloud,*,Cloud,text,"Cloud plans could not be loaded. Payments are disabled until the service is available.",,active
 cloud.devices.count_unknown,cloud,*,Cloud,text,Device count unavailable,,active
 cloud.error.devices,cloud,*,Cloud,text,Cloud devices could not be loaded. Retry to review your linked devices.,,active
 cloud.action.resume_purchase,cloud,*,Cloud,text,"Resume previous purchase",,active
@@ -1812,12 +1812,12 @@ cloud.devices.active,cloud,*,Cloud,text,Sync slot in use,,active
 cloud.devices.resumed,cloud,*,Cloud,text,Cloud sync resumed. The device reconnects with a fresh connection on its next permitted sync.,,active
 cloud.devices.no_slot,cloud,*,Cloud,text,Pause another device to free a sync slot.,,active
 cloud.error.machine_paused,cloud,*,Cloud,text,This device is paused. Resume it explicitly in account settings before syncing again.,,active
-cloud.error.membership,cloud,*,Cloud,text,Choose a Pro plan to resume cloud access. Local tracking and exports remain free.,,active
+cloud.error.membership,cloud,*,Cloud,text,"Choose a Cloud plan to resume cloud access. Local tracking and exports remain free.",,active
 cloud.error.account_network,cloud,*,Cloud,text,The connection was interrupted. Refresh your account to check the latest state before trying again.,,active
 cloud.checkout.refunded,cloud,*,Cloud,text,This payment has been refunded,,active
 cloud.checkout.refunded_detail,cloud,*,Cloud,text,The server confirmed a full refund for this payment. Check account settings for your current Cloud access and payment history.,,active
 cloud.checkout.term_ended,cloud,*,Cloud,text,This membership period has ended,,active
-cloud.checkout.term_ended_detail,cloud,*,Cloud,text,This payment remains in your account history. Choose a plan to renew Pro; local features remain free.,,active
+cloud.checkout.term_ended_detail,cloud,*,Cloud,text,"This payment remains in your account history. Choose a plan to renew Cloud; local features remain free.",,active
 cloud.error.account_provider,cloud,*,Cloud,text,Subscription management is unavailable right now. Refresh your account to confirm the current renewal status.,,active
 cloud.membership.renewal_paused,cloud,*,Cloud,text,Auto-renewal is paused. Check subscription details for any scheduled resumption.,,active
 cloud.membership.renewal_unknown,cloud,*,Cloud,text,The next billing date is unavailable. Check subscription details to confirm renewal.,,active
@@ -1829,7 +1829,7 @@ cloud.feature.sync_title,cloud,*,Cloud,text,Managed synchronization,,active
 cloud.self_host.title,cloud,*,Cloud,text,Prefer your own server?,,active
 cloud.self_host.body,cloud,*,Cloud,text,"Self-host the open-source backend on your VPS. The software is free; you manage hosting, backups, and upgrades. Deployment is currently a technical preview.",,active
 cloud.self_host.cta,cloud,*,Cloud,text,Read deployment guidance,,active
-self_host.back,cloud,*,Cloud,text,Back to Pro plans,,active
+self_host.back,cloud,*,Cloud,text,"Back to Cloud plans",,active
 self_host.status,cloud,*,Cloud,text,Technical preview,,active
 self_host.title,cloud,*,Cloud,text,Run your own backend.,,active
 self_host.subtitle,cloud,*,Cloud,text,TokenTracker is open source. You can build a private instance on your VPS using InsForge and the backend source. The software license is free; hosting and operations are yours.,,active
@@ -1848,8 +1848,8 @@ self_host.community,cloud,*,Cloud,text,Your private instance has its own account
 self_host.link.insforge,cloud,*,Cloud,text,InsForge deployment reference,,active
 self_host.link.source,cloud,*,Cloud,text,Backend source,,active
 self_host.managed_title,cloud,*,Cloud,text,Want us to handle the servers?,,active
-self_host.managed_body,cloud,*,Cloud,text,"TokenTracker Pro includes cross-device analysis, hosted history, and synchronization on the official service. Your local app remains complete and free.",,active
-self_host.link.cloud,cloud,*,Cloud,text,View Pro plans,,active
+self_host.managed_body,cloud,*,Cloud,text,"TokenTracker Cloud includes cross-device analysis, hosted history, and synchronization on the official service. Your local app remains complete and free.",,active
+self_host.link.cloud,cloud,*,Cloud,text,"View Cloud plans",,active
 cloud.checkout.waffo,cloud,*,Cloud,text,Secure checkout by Waffo,,active
 cloud.checkout.methods_fixed,cloud,*,Cloud,text,Pay with WeChat or a card where available. Waffo shows the supported methods. Checkout opens in a new tab; this order stays here.,,active
 cloud.checkout.methods_recurring,cloud,*,Cloud,text,"Credit card, with Apple Pay or Google Pay where supported. Checkout opens in a new tab; this order stays here.",,active
@@ -1864,8 +1864,8 @@ cloud.checkout.restart_detail,cloud,*,Cloud,text,Cannot reopen the Waffo payment
 cloud.checkout.verification_pending,cloud,*,Cloud,text,Payment confirmation is still pending. This checkout cannot restart yet. Check status to verify the original order before trying again.,,active
 cloud.checkout.duplicate_payment,cloud,*,Cloud,text,Payments were detected on both the original and replacement orders. Review your bills and contact support to resolve the duplicate charge. Do not pay again.,,active
 cloud.action.review_duplicate_payment,cloud,*,Cloud,text,Review duplicate payment,,active
-cloud.prompt.label,cloud,*,Cloud,text,Pro options,,active
-cloud.prompt.dismiss,cloud,*,Cloud,text,Dismiss Pro reminder,,active
+cloud.prompt.label,cloud,*,Cloud,text,"Cloud options",,active
+cloud.prompt.dismiss,cloud,*,Cloud,text,"Dismiss Cloud reminder",,active
 cloud.prompt.free,cloud,*,Cloud,text,Local tracking and exports stay free. Daily community uploads and leaderboard participation do not require membership.,,active
 cloud.prompt.sync,cloud,*,Cloud,text,Personal Cloud combines up to five sync devices and uploads changed usage every 15 minutes. Free community uploads continue daily from one selected device.,,active
 cloud.prompt.view,cloud,*,Cloud,text,"Cloud brings your devices into one private usage view, with estimated costs and provider or model comparisons available from the web.",,active
@@ -1873,43 +1873,43 @@ cloud.prompt.history,cloud,*,Cloud,text,Personal Cloud provides access to 90 day
 cloud.prompt.devices,cloud,*,Cloud,text,Free community uploads use one selected device. Cloud supports five sync devices; you can also pause an existing device and keep using free community uploads.,,active
 cloud.prompt.devices_manage,cloud,*,Cloud,text,This device is paused or the sync allowance is full. Manage your registered devices to pause or reconnect one; their history stays intact.,,active
 cloud.prompt.history_window,cloud,*,Cloud,text,"This date range is outside the Cloud history window. Choose a supported range, or use the complete history retained on your own machine.",,active
-cloud.prompt.unconfirmed,cloud,*,Cloud,text,Pro purchase availability has not been confirmed. You can read about the hosted service while local use and daily free community uploads continue.,,active
+cloud.prompt.unconfirmed,cloud,*,Cloud,text,"Cloud purchase availability has not been confirmed. You can read about the hosted service while local use and daily free community uploads continue.",,active
 cloud.prompt.billing_recovery,cloud,*,Cloud,text,"Your automatic-renewal subscription is still open, but personal Cloud access is currently unavailable. Review account billing and payment status to manage the existing subscription.",,active
-cloud.prompt.try,cloud,*,Cloud,text,Try Pro free,,active
-cloud.prompt.learn,cloud,*,Cloud,text,Learn about Pro,,active
+cloud.prompt.try,cloud,*,Cloud,text,"Try Cloud free",,active
+cloud.prompt.learn,cloud,*,Cloud,text,"Learn about Cloud",,active
 cloud.prompt.local,cloud,*,Cloud,text,Use local data,,active
 cloud.prompt.deadline_trial,cloud,*,Cloud,text,Your trial ends {{date}}. You will not be charged automatically. Personal Cloud history then has a 30-day read and export window; local use and community uploads stay free.,,active
 cloud.prompt.deadline_transition,cloud,*,Cloud,text,Your transition ends {{date}}. Existing personal Cloud history then has 30 days for reading and export. Local use and community uploads continue.,,active
-cloud.prompt.deadline_active,cloud,*,Cloud,text,Your Pro access remains available through {{date}}. Check account billing for renewal status. Your local data stays available after the term ends.,,active
+cloud.prompt.deadline_active,cloud,*,Cloud,text,"Your Cloud access remains available through {{date}}. Check account billing for renewal status. Your local data stays available after the term ends.",,active
 instance.configuration.invalid,cloud,*,Cloud,text,"This instance connection is not configured safely. The operator must provide a valid backend URL and that instance's public anon key, then reload and sign in.",,active
 instance.configuration.changed,cloud,*,Cloud,text,The backend instance changed. Reload and sign in to the selected instance.,,active
 cloud.status.self_hosted,cloud,*,Cloud,text,Self-hosted · free,,active
 cloud.self_host.instance_title,cloud,*,Cloud,text,Your free self-hosted instance,,active
-cloud.self_host.instance_body,cloud,*,Cloud,text,"This account uses your own TokenTracker backend. It does not require an official Pro subscription or payment, and its accounts and leaderboard are separate from the official service.",,active
+cloud.self_host.instance_body,cloud,*,Cloud,text,"This account uses your own TokenTracker backend. It does not require an official Cloud subscription or payment, and its accounts and leaderboard are separate from the official service.",,active
 cloud.self_host.instance_retention,cloud,*,Cloud,text,"The instance operator manages server capacity, backups and history retention. Ask them about its storage policy; official Cloud device/history pricing limits do not apply.",,active
 cloud.self_host.manage_devices,cloud,*,Cloud,text,Manage sync devices,,active
 cloud.devices.unlimited_self_hosted,cloud,*,Cloud,text,{{count}} registered sync devices,,active
-cloud.self_host.sync_hint,cloud,*,Cloud,text,"Uploads go to this self-hosted instance. Its operator manages synchronization, storage and retention without an official Pro membership.",,active
+cloud.self_host.sync_hint,cloud,*,Cloud,text,"Uploads go to this self-hosted instance. Its operator manages synchronization, storage and retention without an official Cloud membership.",,active
 instance.connection.destination,cloud,*,Cloud,text,Sign in to {{host}}. Your credentials will be sent to this instance.,,active
 cloud.self_host.public_profile_disabled,cloud,*,Cloud,text,Public profiles are not enabled on this private instance. Nothing is published to the official leaderboard.,,active
-legal.nav.pricing,ui,*,LegalLinks,pricing,Pro pricing,,active
+legal.nav.pricing,ui,*,LegalLinks,pricing,"Cloud pricing",,active
 legal.nav.terms,ui,*,LegalLinks,terms,Terms of Service,,active
 legal.nav.support,ui,*,LegalLinks,support,Support,,active
 cloud.action.open_app,cloud,CloudCheckoutPage,Cloud,link,Open in TokenTracker,,active
 cloud.checkout.return_app_hint,cloud,CloudCheckoutPage,Cloud,text,Check this order with the account signed in to your desktop app. The server confirms access.,,active
-cloud.gift.redeem_action,cloud,*,RedeemProCode,text,Redeem Pro code,,active
-cloud.gift.detail,cloud,*,RedeemProCode,text,A gift includes all Pro features and creates no auto-renewal. Any existing subscription is managed separately.,,active
-cloud.gift.code_label,cloud,*,RedeemProCode,text,Pro gift code,,active
+cloud.gift.redeem_action,cloud,*,RedeemProCode,text,"Redeem Cloud code",,active
+cloud.gift.detail,cloud,*,RedeemProCode,text,"A gift includes all Cloud features and creates no auto-renewal. Any existing subscription is managed separately.",,active
+cloud.gift.code_label,cloud,*,RedeemProCode,text,"Cloud gift code",,active
 cloud.gift.confirm,cloud,*,RedeemProCode,text,Redeem code,,active
 cloud.gift.redeeming,cloud,*,RedeemProCode,text,Redeeming…,,active
 cloud.gift.redeemed,cloud,*,RedeemProCode,text,Your gift is recorded. Membership access and dates are shown in your account.,,active
 cloud.gift.already_redeemed,cloud,*,RedeemProCode,text,You have already redeemed this code. Its gift is shown in your account.,,active
 cloud.gift.refresh_needed,cloud,*,RedeemProCode,text,"The code was redeemed, but membership could not be refreshed. Refresh your account to confirm its access and dates.",,active
 cloud.gift.redeem_another,cloud,*,RedeemProCode,text,Redeem another code,,active
-cloud.gift.membership_label,cloud,*,RedeemProCode,text,Gifted Pro,,active
-cloud.gift.history_title,cloud,*,RedeemProCode,text,Pro gifts,,active
-cloud.gift.duration,cloud,*,RedeemProCode,text,{{days}} days of Pro,,active
-cloud.gift.term,cloud,*,RedeemProCode,text,"{{days}} days of Pro, {{start}} to {{end}}.",,active
+cloud.gift.membership_label,cloud,*,RedeemProCode,text,"Gifted Cloud",,active
+cloud.gift.history_title,cloud,*,RedeemProCode,text,"Cloud gifts",,active
+cloud.gift.duration,cloud,*,RedeemProCode,text,"{{days}} days of Cloud",,active
+cloud.gift.term,cloud,*,RedeemProCode,text,"{{days}} days of Cloud, {{start}} to {{end}}.",,active
 cloud.gift.state_active,cloud,*,RedeemProCode,text,Active,,active
 cloud.gift.state_pending,cloud,*,RedeemProCode,text,Starts after current access,,active
 cloud.gift.state_expired,cloud,*,RedeemProCode,text,Expired,,active
@@ -1919,9 +1919,9 @@ cloud.gift.error_rate_limit,cloud,*,RedeemProCode,text,Too many attempts. Wait a
 cloud.gift.error_not_available,cloud,*,RedeemProCode,text,Gift redemption is not available on this instance yet.,,active
 cloud.gift.error_renewal,cloud,*,RedeemProCode,text,Cancel your existing auto-renewal before redeeming. Current access stays available; the code is used only when redemption succeeds.,,active
 cloud.gift.error_checkout,cloud,*,RedeemProCode,text,Review your unfinished payment order before redeeming. This code has not been used.,,active
-cloud.gift.error_active,cloud,*,RedeemProCode,text,You have an active or upcoming Pro gift. Manage it in your account before starting another payment.,,active
+cloud.gift.error_active,cloud,*,RedeemProCode,text,"You have an active or upcoming Cloud gift. Manage it in your account before starting another payment.",,active
 cloud.gift.error_network,cloud,*,RedeemProCode,text,The redemption result could not be confirmed. Retry the same code; an already recorded gift will not be added twice.,,active
-cloud.prompt.deadline_gift,cloud,*,RedeemProCode,text,Your gifted Pro access ends {{date}}. The gift creates no auto-renewal. Your local data stays available afterward.,,active
+cloud.prompt.deadline_gift,cloud,*,RedeemProCode,text,"Your gifted Cloud access ends {{date}}. The gift creates no auto-renewal. Your local data stays available afterward.",,active
 sessions.filter.model_all,ui,SessionsPage,SessionInsights,model_all,All models,,active
 sessions.filter.model_search,ui,SessionsPage,SessionInsights,model_search,Search models…,,active
 sessions.filter.model_empty,ui,SessionsPage,SessionInsights,model_empty,No matching models,,active
@@ -2015,7 +2015,9 @@ cloud.export.success,cloud,*,CloudUsageExport,text,"Downloaded {{count}} recorde
 cloud.export.empty,cloud,*,CloudUsageExport,text,"No recorded days. The downloaded file contains scope metadata and no usage rows.",,active
 cloud.export.truncated,cloud,*,CloudUsageExport,text,"Downloaded only the available range, {{from}} to {{to}} (UTC). The file also records your original request.",,active
 cloud.export.dashboard,cloud,*,CloudUsageExport,text,"Open dashboard",,active
-cloud.action.buy_pro,cloud,*,Cloud,text,Buy Pro,,active
+cloud.action.buy_pro,cloud,*,Cloud,text,"Buy Cloud",,active
 cloud.price.fixed_monthly_total,cloud,*,Cloud,text,One payment for one month.,,active
 cloud.price.fixed_annual_total,cloud,*,Cloud,text,One payment for one year. Equivalent to {{equivalent}}/month.,,active
 cloud.checkout.help_title,cloud,*,Cloud,text,Having trouble with payment?,,active
+cloud.faq.cost_title,cloud,CloudPage,CloudPage,cost_title,"Why is Cloud paid?",,active
+cloud.faq.cost_body,cloud,CloudPage,CloudPage,cost_body,"Official hosted synchronization, storage, bandwidth, backups and maintenance require ongoing resources as usage grows. Cloud subscriptions support this service and its continued maintenance. The complete local app remains free and open source.",,active
