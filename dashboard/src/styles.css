@@ -1101,6 +1101,60 @@ html.native-windows-app .tt-native-glass-shell aside[data-native-sidebar] {
   min-height: 44px;
 }
 
+.tt-pro-period-control {
+  --tt-period-track: var(--tt-cloud-hover);
+  --tt-period-selected: #fafafa;
+}
+
+.dark .tt-pro-period-control {
+  --tt-period-selected: #404040;
+}
+
+.tt-pro-period-control > div,
+.dark .tt-pro-period-control > div {
+  position: relative;
+  isolation: isolate;
+  gap: 0;
+  border: 0;
+  padding: 0 4px;
+  background: transparent;
+}
+
+.tt-pro-period-control > div::before {
+  position: absolute;
+  z-index: -1;
+  inset: 6px 0;
+  border-radius: 999px;
+  background: var(--tt-period-track);
+  content: "";
+}
+
+.tt-pro-period-control button,
+.dark .tt-pro-period-control button {
+  position: relative;
+  isolation: isolate;
+  min-width: 44px;
+  border-radius: 999px;
+  padding: 0 8px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--tt-cloud-muted);
+  font-size: 13px;
+}
+
+.tt-pro-period-control button[aria-pressed="true"] {
+  color: var(--tt-cloud-ink);
+}
+
+.tt-pro-period-control button[aria-pressed="true"]::after {
+  position: absolute;
+  z-index: -1;
+  inset: 9px 0;
+  border-radius: 999px;
+  background: var(--tt-period-selected);
+  content: "";
+}
+
 .tt-cloud-theme input:focus-visible {
   outline-offset: 0;
 }

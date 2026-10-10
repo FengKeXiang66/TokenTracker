@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useRef, useState } from "react";
-import { ArrowRight, Check, Cloud, Monitor, Server } from "lucide-react";
+import { ArrowRight, Check, Monitor, Server } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   BillingNotice,
@@ -81,13 +81,9 @@ export function CloudPage() {
 
   return (
     <div ref={pageRef} className="tt-cloud-theme flex flex-1 flex-col font-oai text-oai-black dark:text-oai-white">
-      <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
+      <main className="mx-auto w-full max-w-5xl px-4 py-7 sm:px-6 sm:py-9">
         <div className="mb-8 max-w-2xl">
-          <span className="inline-flex items-center gap-2 text-sm font-medium text-oai-gray-600 dark:text-oai-gray-300">
-            <Cloud size={17} aria-hidden />
-            {copy("cloud.page.eyebrow")}
-          </span>
-          <h1 className="mt-3 text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
+          <h1 className="text-balance text-3xl font-semibold tracking-tight">
             {copy("cloud.page.title")}
           </h1>
           <p className="mt-3 text-base leading-7 text-oai-gray-500 dark:text-oai-gray-400">
@@ -102,22 +98,22 @@ export function CloudPage() {
 
         {paymentConflict ? <div className="mb-6"><CloudPaymentConflictNotice /></div> : null}
 
-        <div className="grid gap-5 md:grid-cols-2">
+        <div className="grid items-start gap-5 md:grid-cols-2">
           <Card
-            className="order-2 h-full md:order-1"
-            bodyClassName="flex h-full flex-col sm:p-7"
+            className="order-2 md:order-1"
+            bodyClassName="flex flex-col sm:p-6"
           >
-            <div className="mb-4 flex items-center gap-2">
+            <div className="mb-2 flex min-h-11 items-center gap-2">
               <Monitor size={19} className="text-oai-gray-500 dark:text-oai-gray-400" aria-hidden />
               <h2 className="text-lg font-semibold">
                 {copy("cloud.free.title")}
               </h2>
             </div>
-            <p className="min-h-[3rem] text-sm leading-6 text-oai-gray-500 dark:text-oai-gray-400">
+            <p className="text-sm leading-6 text-oai-gray-500 dark:text-oai-gray-400 md:min-h-12">
               {copy("cloud.free.subtitle")}
             </p>
             <div className="my-6">
-              <p className="text-4xl font-semibold tracking-tight">
+              <p className="text-3xl font-semibold tracking-tight">
                 {copy("cloud.free.price")}
               </p>
               <p className="mt-2 text-sm text-oai-gray-500 dark:text-oai-gray-400">
@@ -152,43 +148,34 @@ export function CloudPage() {
                 ))}
               </ul>
             </div>
-            <p className="mt-auto pt-7 text-xs leading-5 text-oai-gray-500 dark:text-oai-gray-400">
+            <p className="pt-6 text-xs leading-5 text-oai-gray-500 dark:text-oai-gray-400">
               {copy("cloud.free.installations")}
             </p>
           </Card>
 
           <Card
-            className="order-1 border-oai-gray-500 dark:border-oai-gray-500 md:order-2"
-            bodyClassName="sm:p-7"
+            className="order-1 border-oai-gray-300 dark:border-oai-gray-600 md:order-2"
+            bodyClassName="sm:p-6"
           >
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
               <h2 className="text-lg font-semibold">
                 {copy("cloud.plan.title")}
               </h2>
-              {term === 12 && savings !== 0 ? (
-                <span className="rounded-full bg-oai-gray-100 px-2.5 py-1 text-xs font-medium text-oai-gray-700 dark:bg-oai-gray-800 dark:text-oai-gray-200">
-                  {copy("cloud.price.savings", { percent: savings })}
-                </span>
-              ) : null}
+              <div role="group" aria-label={copy("cloud.selector.term")} className="tt-pro-period-control shrink-0">
+                <SegmentedControl
+                  options={[
+                    { value: 1, label: copy("cloud.term.monthly") },
+                    { value: 12, label: copy("cloud.term.yearly") },
+                  ]}
+                  value={term}
+                  onChange={setTerm}
+                />
+              </div>
             </div>
-            <p className="min-h-[3rem] text-sm leading-6 text-oai-gray-500 dark:text-oai-gray-400">
+            <p className="text-sm leading-6 text-oai-gray-500 dark:text-oai-gray-400 md:min-h-12">
               {copy("cloud.plan.subtitle")}
             </p>
-            <div
-              role="group"
-              aria-label={copy("cloud.selector.term")}
-              className="mt-5 [&>div]:flex [&_button]:min-h-11 [&_button]:flex-1 [&_button]:focus-visible:outline-none [&_button]:focus-visible:ring-2 [&_button]:focus-visible:ring-inset [&_button]:focus-visible:ring-oai-brand"
-            >
-              <SegmentedControl
-                options={[
-                  { value: 1, label: copy("cloud.term.monthly") },
-                  { value: 12, label: copy("cloud.term.yearly") },
-                ]}
-                value={term}
-                onChange={setTerm}
-              />
-            </div>
-            <div className="my-6" aria-live="polite">
+            <div className="mb-4 mt-5" aria-live="polite">
               <p className="flex flex-wrap items-baseline gap-2">
                 <span className="text-4xl font-semibold tracking-tight tabular-nums">
                   {price
@@ -220,26 +207,36 @@ export function CloudPage() {
                       })
                   : copy("cloud.price.waiting")}
               </p>
+              {term === 12 && savings !== 0 ? (
+                <p className="mt-1 text-xs leading-5 text-oai-gray-600 dark:text-oai-gray-300">
+                  {copy("cloud.price.savings", { percent: savings })}
+                </p>
+              ) : null}
             </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={billingMode === "recurring"}
-              aria-label={copy("cloud.billing_mode.recurring")}
-              aria-describedby="pro-renewal-description"
-              onClick={() => setBillingMode((value) => value === "recurring" ? "fixed" : "recurring")}
-              className="mb-5 flex min-h-14 w-full items-center justify-between gap-5 rounded-md border-y border-oai-gray-200 py-3 text-left dark:border-oai-gray-800"
-            >
-              <span className="min-w-0">
-                <span className="block text-sm font-medium">{copy("cloud.billing_mode.recurring")}</span>
-                <span id="pro-renewal-description" className="mt-1 block text-xs leading-5 text-oai-gray-600 dark:text-oai-gray-300">
-                  {copy(billingMode === "recurring" ? "cloud.renewal.auto" : "cloud.renewal.manual")}
-                </span>
-              </span>
-              <span aria-hidden className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${billingMode === "recurring" ? "bg-oai-gray-900 dark:bg-oai-gray-100" : "bg-oai-gray-300 dark:bg-oai-gray-700"}`}>
-                <span className={`h-[18px] w-[18px] rounded-full transition-transform motion-reduce:transition-none ${billingMode === "recurring" ? "translate-x-[23px] bg-white dark:bg-oai-gray-900" : "translate-x-[3px] bg-white"}`} />
-              </span>
-            </button>
+            <div className="mb-4">
+              <div className="flex items-center justify-between gap-4">
+                <label htmlFor="pro-renewal-toggle" className="cursor-pointer text-sm font-medium">
+                  {copy("cloud.billing_mode.recurring")}
+                </label>
+                <button
+                  id="pro-renewal-toggle"
+                  type="button"
+                  role="switch"
+                  aria-checked={billingMode === "recurring"}
+                  aria-label={copy("cloud.billing_mode.recurring")}
+                  aria-describedby="pro-renewal-description"
+                  onClick={() => setBillingMode((value) => value === "recurring" ? "fixed" : "recurring")}
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md"
+                >
+                  <span aria-hidden className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${billingMode === "recurring" ? "bg-oai-gray-900 dark:bg-oai-gray-100" : "bg-oai-gray-300 dark:bg-oai-gray-700"}`}>
+                    <span className={`h-3.5 w-3.5 rounded-full transition-transform motion-reduce:transition-none ${billingMode === "recurring" ? "translate-x-[19px] bg-white dark:bg-oai-gray-900" : "translate-x-[3px] bg-white"}`} />
+                  </span>
+                </button>
+              </div>
+              <p id="pro-renewal-description" className="text-xs leading-5 text-oai-gray-600 dark:text-oai-gray-300">
+                {copy(billingMode === "recurring" ? "cloud.renewal.auto" : "cloud.renewal.manual")}
+              </p>
+            </div>
             {managesCurrentPlan ? (
               <Button
                 as={Link}
@@ -288,7 +285,7 @@ export function CloudPage() {
               variant="ghost"
               onClick={() => checkout()}
               disabled={purchaseUnavailable}
-              className="mx-auto mt-2 flex underline underline-offset-4"
+              className="mx-auto mt-1 !flex w-fit underline underline-offset-4"
             >
               {managesCurrentPlan ? copy("cloud.action.renew") : purchaseLabel}
             </Button> : null}
