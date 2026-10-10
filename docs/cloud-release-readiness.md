@@ -1,5 +1,24 @@
 # Cloud / Pro 发布与验收交接总表
 
+## 1.3.2 统一发行候选已备齐，公开发行仍待验收
+
+[统一发行准备 38062816928](https://github.com/xiufengsun/TokenTracker/actions/runs/38062816928) 全部五个 job 成功，源码/tag 固定在 `a1f02b0889cecde6b0b7490ef8d5f086b996acb2`。六项资产的实际下载/hash 计算已由最终 workflow 执行；本机另下载 `SHA256SUMS` 并核对其 digest、六行与六项 GitHub asset digest 一致，Windows 两个文件实际下载字节/hash 再独立匹配。公开草稿与 Homebrew 两个步骤均 skipped，release `409024644` 仍 isDraft=true，公开 latest 仍 v1.2.2；main、npm 和公告尚未发布。
+
+| 资产 | 字节 | SHA256 |
+| --- | --- | --- |
+| TokenTrackerBar.dmg | 62900012 | `0773f0b51d7139b1326a6915436b97e072a934f63304c4a57bf315c69ec05c6f` |
+| TokenTracker-win-x64.zip | 115734466 | `eaf84d33e33df588d516933c0216f5b11191ec0ab06c36f48e08fd7b34f0d16f` |
+| TokenTracker-Setup.exe | 81395934 | `afdb4989a148c6f0cc11f5bc7767a2d87193c1ecf97038f3e5384a64640d790b` |
+| TokenTracker-linux-x86_64.AppImage | 129489400 | `edb88371c93f3fd3a38d1f2d0ed8dd87820b8fd67a5834760294f9c8dfbfc11d` |
+| TokenTracker-linux-x86_64.deb | 59269482 | `cee33761d515c050420bc9b485b0b45cf912a8f4ac4263ccbaa36179f88c7afe` |
+| TokenTracker-linux-x86_64.rpm | 59255438 | `16bdfce4b1dbc07103de450d12900ce7c2b959d323164215b8dc75e87bbac696` |
+
+新 Windows 草稿包的 983 项本地 hash 索引、109 个源码 blob、四项密钥模式和 PE 1.3.2.0/ProductVersion 精确来源已核对，实际安装/GUI/生命周期仍未执行，见 [Windows 候选交接](windows-cloud-acceptance.md)。私有证据为 `.tmp/windows-cloud/release-final-{inventory,windows-verification,source-equivalence}.json`。后续修正 `13216994` 仅改 Linux `#[cfg(test)]` 超时夹具及文档，已逐字节确认排除该测试块后的生产 Rust 源码一致，其余 CLI/前端/原生/构建输入不变；不是两个不同 Git tree 相同的声明。任何新的生产输入变化须使用新版本，不移动当前 tag。
+
+修正提交 `13216994ac08e79120b9f0e7903409d40f109b0c` 的 [CI 38063114418](https://github.com/xiufengsun/TokenTracker/actions/runs/38063114418) 四个 job 已全部 success，包含完整 Windows Node24/包内 Node22 与安装器产出；[CodeQL 38063114397](https://github.com/xiufengsun/TokenTracker/actions/runs/38063114397) 和实际安全 check `114245795198` success、0 新注释。保留前一源提交的失败/取消事实；最后交接提交的精确检查以 [PR 当前 head](https://github.com/xiufengsun/TokenTracker/pull/772/checks) 为准，不把这份 CI 或旧审核包人工范围重新署名给新 artifact。
+
+最终顺序：完成设备和付款模式范围验收 → 核对最终 PR 检查与生产输入 → 合并 main 并等待该精确 main CI → 核对 npm 1.3.2 → 在用户发行授权范围内公开这个已验证草稿 → 确认 latest 与下载、等待 Homebrew 正常自更新 → 经本人确认内容及渠道后发布公告。不要从后续文档/测试提交直接重新 dispatch 1.3.2。本次不新增扣款，其他年付/续费模式仍缺真实证据；未自动关闭其生产入口或将其视作已验收。原退款实际银行/钱包到账和收入满足合同条件后的首笔商户提款，仍由本人核对。
+
 ## 发行准备接续，2026-10-10
 
 文档提交 `2384d16b3445ceeced9ecc048e52ac2a5192681e` 的 [CI 38060825861](https://github.com/xiufengsun/TokenTracker/actions/runs/38060825861) 四个 job 和 [CodeQL 38060825856](https://github.com/xiufengsun/TokenTracker/actions/runs/38060825856) 均成功。实际 Windows 人工包证据仍绑定下述 `83e7e0f1`，不升级为其他 archive 的验收。

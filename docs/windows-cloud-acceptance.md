@@ -1,5 +1,22 @@
 # Windows 客户端验收交接
 
+## 统一 1.3.2 发行草稿的 Windows 包，a1f02b08
+
+[统一构建 38062816928](https://github.com/xiufengsun/TokenTracker/actions/runs/38062816928) 的全部五个 job 成功，六项资产与 `SHA256SUMS` 完成。`publish=false` 的公开发行/Homebrew 两个步骤均为 skipped，草稿未公开。版本 tag 精确指向 `a1f02b0889cecde6b0b7490ef8d5f086b996acb2`，不可移动；该提交相对下面 `83e7e0f1` 的应用、原生和打包输入未变化，只新增发行准备开关及文档/测试。
+
+本机已独立下载草稿 Windows ZIP 和 Inno，实际大小/hash 均与 GitHub asset digest 及下载的 `SHA256SUMS` 一致：
+
+| 文件 | 字节 | SHA256 |
+| --- | --- | --- |
+| TokenTracker-win-x64.zip | 115734466 | `eaf84d33e33df588d516933c0216f5b11191ec0ab06c36f48e08fd7b34f0d16f` |
+| TokenTracker-Setup.exe | 81395934 | `afdb4989a148c6f0cc11f5bc7767a2d87193c1ecf97038f3e5384a64640d790b` |
+
+解压后 983 个文件的本地 hash 索引已保存，109 个嵌入 CLI/入口/清单文件与 tag 的 Git blob 逐字节一致，四项现有私钥/管理 key 字节模式零命中、无敏感配置文件或旧本地 preview 地址。`TokenTracker.exe`/`.dll` 为 1.3.2.0，ProductVersion `1.3.2+a1f02b0889cecde6b0b7490ef8d5f086b996acb2`；实际包内 Node22.22.2 的 SHA256 为 `ae1a50511be58e987483fdbc12125407443926d2d394669ade2352776e920dd3`。新发行 ZIP 没有审核 artifact 的外置 manifest，不把这份本地索引写成 983 项外置清单匹配。
+
+私有包在 `.tmp/windows-cloud/release-a1f02b08-download/`，解压目录 `release-a1f02b08-payload/`；证据 `release-final-windows-verification.json`、`release-final-inventory.json`。没有执行新草稿的 EXE 或安装器，下面 83 的 30 窗口/55 包内专项保留原来源，不升级成这个新 ZIP 的 GUI 结果。
+
+接续设备验收应使用这个来源已确认的发行候选：由本人安装并正常登录，然后核对 CSV/JSON 实际保存、同名文件保留、当前账号/实例与迟到结果；由本人完成完整托盘退出/重开、单实例、OS OAuth/付款协议返回、升级/卸载与本地数据保留。此前自动审批拒绝安装、完整托盘及系统协议操作，仅返回 `blocked by policy`，没有更换工具绕过；登录遵循 computer-use 的禁止自动化认证对话框规则。为登录接续打开的 83 临时 Smoke 窗口已主动关闭，其被中止的此次运行不计作新的完整通过结果。本轮不新增支付订单或扣款。
+
 ## Windows 侧独立读回与窗口检查，83e7e0f1
 
 2026-10-10 在 Windows 同步并受审 `83e7e0f15dc20a1c210b55a4c81931430be12d63`，版本 1.3.2，应用源码与胶囊版 `39208a10` 相同。[CI 38047796689](https://github.com/xiufengsun/TokenTracker/actions/runs/38047796689) 四个 job 全成功、CodeQL PR check success/0 新注释。已独立下载[该 head 的审核包](https://github.com/xiufengsun/TokenTracker/actions/runs/38047796689/artifacts/11668268148)，归档 196013138 字节、SHA256 `bd566ef9a5e4d09651a04d883fd273b4bfdcef41d3e2b9d18848e6cff787c8dd`，与官方 digest 一致。
