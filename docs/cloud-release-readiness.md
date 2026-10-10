@@ -10,6 +10,8 @@ Owner 本次选择“先不新增扣款，完成其他上线准备”。不创�
 
 正式 catalog 本次独立 GET 为 HTTP200、live/hosted/active，四项套餐为 USD4.99/月和 USD39.99/年，固定期/续费同价，仅 Waffo 入口开启；原 launch_at 保持。`checkout_verified=true` 是已授权开关，不替代其他付款模式或到账验收。私有记录为 `.tmp/windows-cloud/release-final-public-catalog.json`。[公告草稿](cloud-announcement-draft.md)已改为当前正式网站状态、确定的过渡日期和现行条款；仍未发送公告。
 
+草稿构建 [38062816928](https://github.com/xiufengsun/TokenTracker/actions/runs/38062816928) 固定在 `a1f02b0889cecde6b0b7490ef8d5f086b996acb2`；已读回 tag 精确匹配、isDraft=true、公开 latest 仍 v1.2.2，Windows 发行 job 成功，其余构建及最终校验当时仍进行中。该源提交的 [CI 38062814160](https://github.com/xiufengsun/TokenTracker/actions/runs/38062814160) Rust 测试为 43 通过/1 失败：超时夹具在 250ms 内杀掉 shell，后台 PID 文件尚未创建；生产 registration 原本使用 3 秒。修复仅在 `#[cfg(test)]` 块使用相同 3 秒期限及 5 秒结束上限，保留超时断言和子进程存活检查，不修改生产函数或放宽清理要求。本机 Windows 未配置 Linux Rust 工具链，以修正提交的 CI 结果为准；此失败记录保留，不把失败构建写成全绿。后续仅该测试块与交接变化，不移动草稿 tag 或从新提交重跑 1.3.2；公开前仍核对最终受审源码与草稿打包的生产输入一致。
+
 ## 当前剩余发行工作，2026-10-10 Windows 接续
 
 功能分支已同步到 `83e7e0f15dc20a1c210b55a4c81931430be12d63`，相对 `39208a10` 仅更新交接文档，应用仍为 1.3.2。[CI 38047796689](https://github.com/xiufengsun/TokenTracker/actions/runs/38047796689) 四个 job 通过，CodeQL 实际 PR check `114201224146` 为 success、0 新注释；PR 仍为 draft、CLEAN/MERGEABLE，main 为 `e6186b35`。公开最新发行仍为 v1.2.2，尚未统一发行 1.3.2。

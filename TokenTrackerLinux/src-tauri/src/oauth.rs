@@ -249,10 +249,13 @@ mod appimage_registration_tests {
                 "sh",
             ])
             .arg(&pid_path);
+        // A busy CI runner can take longer than 250 ms to start the shell and
+        // record its child. Use the production registration deadline so the
+        // test exercises process-group cleanup, not scheduler startup speed.
         let result =
-            run_command_with_timeout(&mut command, "timeout probe", Duration::from_millis(250));
+            run_command_with_timeout(&mut command, "timeout probe", Duration::from_secs(3));
         assert!(result.unwrap_err().contains("timed out"));
-        assert!(started.elapsed() < Duration::from_secs(2));
+        assert!(started.elapsed() < Duration::from_secs(5));
 
         let descendant_pid: libc::pid_t = fs::read_to_string(&pid_path)
             .expect("background child pid should be recorded before timeout")
