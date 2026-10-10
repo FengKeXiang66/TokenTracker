@@ -659,6 +659,57 @@ html.native-windows-app .tt-native-glass-shell aside[data-native-sidebar] {
   background: transparent;
 }
 
+/* Paid profile identity has its own restrained hue; rank medals stay separate. */
+.leaderboard-pro-avatar {
+  outline: 2px solid #78629e;
+  outline-offset: 1px;
+}
+:root.dark .leaderboard-pro-avatar {
+  outline-color: #b3a2cf;
+}
+.leaderboard-pro-badge {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  padding: 0 0.3rem;
+  border: 1px solid #d5cbed;
+  border-radius: 4px;
+  background: #f3f0f8;
+  color: #65528a;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1rem;
+  white-space: nowrap;
+  cursor: help;
+}
+:root.dark .leaderboard-pro-badge {
+  border-color: #716486;
+  background: #302a40;
+  color: #d7cdec;
+}
+.leaderboard-pro-badge:focus-visible {
+  outline: 2px solid currentColor !important;
+  outline-offset: 2px;
+}
+.leaderboard-pro-tooltip-layer {
+  z-index: 110;
+}
+.leaderboard-pro-tooltip {
+  max-width: min(16rem, calc(100vw - 2rem));
+  padding: 0.5rem 0.625rem;
+  border: 1px solid #d5cbed;
+  border-radius: 6px;
+  background: #faf8ff;
+  color: #3f3357;
+  font-size: 12px;
+  line-height: 1.5;
+}
+:root.dark .leaderboard-pro-tooltip {
+  border-color: #716486;
+  background: #27232f;
+  color: #e8e2f2;
+}
+
 /* Leaderboard: GitHub avatar frame. Machined-graphite conic ring (GitHub
    Primer grays) echoing the achievement coins' metal finish; the element's
    own padding is the visible ring, the inner gap layer knocks out a 1px
@@ -965,4 +1016,157 @@ html.native-windows-app .tt-native-glass-shell aside[data-native-sidebar] {
   :root.dark .oai-card--accent {
     background: linear-gradient(180deg, oklch(28% 0.004 145) 0%, oklch(24% 0.003 145) 100%);
   }
+}
+
+/* Cloud purchase and membership surfaces use a neutral palette. The rest of
+   the dashboard keeps its existing brand and provider colors. */
+.tt-cloud-theme {
+  --tt-cloud-ink: #171717;
+  --tt-cloud-muted: #525252;
+  --tt-cloud-hover: #f5f5f5;
+  --tt-cloud-focus: rgb(23 23 23 / 0.35);
+  --oai-blue: #404040;
+  --oai-blue-dark: #262626;
+  --oai-blue-light: #525252;
+  --brand-primary: #404040;
+}
+
+.tt-sidebar-account-control {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.tt-sidebar-account-control:focus-visible {
+  outline: 2px solid #404040 !important;
+  outline-offset: 2px;
+}
+
+.dark .tt-sidebar-account-control:focus-visible {
+  outline-color: #d4d4d4 !important;
+}
+
+.tt-sidebar-pro-fallback {
+  background-color: #78629e;
+  --tw-ring-color: #78629e;
+}
+
+.dark .tt-sidebar-pro-fallback {
+  background-color: #716486;
+  --tw-ring-color: #716486;
+}
+
+.dark .tt-cloud-theme {
+  --tt-cloud-ink: #f5f5f5;
+  --tt-cloud-muted: #d4d4d4;
+  --tt-cloud-hover: #262626;
+  --tt-cloud-focus: rgb(245 245 245 / 0.5);
+  --oai-blue: #d4d4d4;
+  --oai-blue-dark: #e5e5e5;
+  --oai-blue-light: #a3a3a3;
+  --brand-primary: #d4d4d4;
+}
+
+.tt-cloud-theme [class~="text-oai-brand"],
+.tt-cloud-theme [class~="hover:text-oai-brand"]:hover {
+  color: var(--tt-cloud-ink);
+}
+
+.tt-cloud-theme [class~="hover:border-oai-brand"]:hover,
+.tt-cloud-theme [class~="active:border-oai-brand-dark"]:active,
+.tt-cloud-theme [class~="focus:border-oai-brand"]:focus {
+  border-color: var(--tt-cloud-muted);
+}
+
+.tt-cloud-theme [class~="hover:bg-oai-brand-50/50"]:hover,
+.tt-cloud-theme [class~="active:bg-oai-brand-50"]:active,
+.dark .tt-cloud-theme [class~="dark:hover:bg-oai-brand-950/30"]:hover,
+.dark .tt-cloud-theme [class~="dark:active:bg-oai-brand-900/50"]:active {
+  background-color: var(--tt-cloud-hover);
+}
+
+.tt-cloud-theme [class~="bg-oai-brand-600"],
+.tt-cloud-theme [class~="bg-oai-brand-600/30"] {
+  background-color: #525252;
+  --tw-ring-color: #737373;
+}
+
+.tt-cloud-theme :focus-visible {
+  --tw-ring-color: var(--tt-cloud-focus);
+  outline: 2px solid var(--tt-cloud-ink) !important;
+  outline-offset: 3px;
+}
+
+.tt-cloud-theme button,
+.tt-cloud-theme a.inline-flex {
+  min-height: 44px;
+}
+
+.tt-pro-period-control {
+  --tt-period-track: var(--tt-cloud-hover);
+  --tt-period-selected: #fafafa;
+}
+
+.dark .tt-pro-period-control {
+  --tt-period-selected: #404040;
+}
+
+.tt-pro-period-control > div,
+.dark .tt-pro-period-control > div {
+  position: relative;
+  isolation: isolate;
+  gap: 0;
+  border: 0;
+  padding: 0 4px;
+  background: transparent;
+}
+
+.tt-pro-period-control > div::before {
+  position: absolute;
+  z-index: -1;
+  inset: 6px 0;
+  border-radius: 999px;
+  background: var(--tt-period-track);
+  content: "";
+}
+
+.tt-pro-period-control button,
+.dark .tt-pro-period-control button {
+  position: relative;
+  isolation: isolate;
+  min-width: 44px;
+  border-radius: 999px;
+  padding: 0 8px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--tt-cloud-muted);
+  font-size: 13px;
+}
+
+.tt-pro-period-control button[aria-pressed="true"] {
+  color: var(--tt-cloud-ink);
+}
+
+.tt-pro-period-control button[aria-pressed="true"]::after {
+  position: absolute;
+  z-index: -1;
+  inset: 9px 0;
+  border-radius: 999px;
+  background: var(--tt-period-selected);
+  content: "";
+}
+
+.tt-cloud-theme input:focus-visible {
+  outline-offset: 0;
+}
+
+.tt-cloud-sync-control [role="switch"][aria-checked="true"] {
+  background-color: var(--tt-cloud-ink);
+}
+
+.tt-cloud-sync-control [role="switch"][aria-checked="true"] > span {
+  background-color: var(--tt-cloud-hover);
+}
+
+.tt-cloud-sync-control [role="switch"]:focus-visible {
+  --tw-ring-color: var(--tt-cloud-focus);
 }

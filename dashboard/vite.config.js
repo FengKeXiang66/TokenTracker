@@ -8,6 +8,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
 import os from "node:os";
 import { copyRegistryPlugin } from "./scripts/copy-registry-plugin.mjs";
+import { validateInsforgeBuildEnv } from "./src/lib/insforge-deployment-config.mjs";
 
 const COPY_REQUIRED_KEYS = [
   "landing.meta.title",
@@ -1263,6 +1264,9 @@ function localDataApiPlugin() {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, ROOT_DIR, "VITE_");
+  const backendConfiguration = validateInsforgeBuildEnv(env);
+  if (backendConfiguration.errorCode)
+    throw new Error(`InsForge frontend configuration rejected: ${backendConfiguration.errorCode}. Values were not logged.`);
   const fallbackVersion = loadAppVersion();
   const define = {};
 

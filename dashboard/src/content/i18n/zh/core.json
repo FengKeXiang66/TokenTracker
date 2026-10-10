@@ -408,7 +408,7 @@
   "settings.account.copy": "复制",
   "settings.account.copied": "已复制",
   "settings.account.cloudSync": "云同步",
-  "settings.account.cloudSyncHint": "将本地用量上传到你的 Token Tracker 云端账号。",
+  "settings.account.cloudSyncHint": "个人 Cloud 到期后停止同步。免费社区仍可每日从选定的 1 台设备上传、参与排行榜；需暂停其他活跃设备。",
   "settings.account.publicProfile": "公开主页",
   "settings.account.publicProfileHint": "在公开排行榜中展示你的用量。",
   "settings.account.displayNameAnonymousHint": "匿名状态下，排行榜会隐藏你的名字和头像",
@@ -422,6 +422,9 @@
   "leaderboard.github.tooltipPrefix": "可在",
   "leaderboard.github.tooltipSettingsLink": "设置",
   "leaderboard.github.tooltipSuffix": "中配置你的主页",
+  "leaderboard.pro.badge": "Cloud",
+  "leaderboard.pro.badge_aria": "TokenTracker Cloud 订阅用户",
+  "leaderboard.pro.tooltip": "云服务会员，排名仍按用量计算。",
   "settings.account.signOut": "退出登录",
   "settings.account.signIn": "登录",
   "settings.account.signedOutHint": "登录后可管理云同步和排行榜偏好。",
@@ -820,7 +823,7 @@
   "settings.appearance.token_grouping.hint": "精确数字使用 3 位或中文 4 位分组；紧凑模式的悬停数值也会使用该设置。",
   "settings.appearance.token_grouping.thousand": "3位",
   "settings.appearance.token_grouping.wan": "4位",
-  "legal.nav.pricing": "Cloud 价格",
+  "legal.nav.pricing": "云服务定价",
   "legal.nav.terms": "服务条款",
   "legal.nav.support": "联系客服"
 }
