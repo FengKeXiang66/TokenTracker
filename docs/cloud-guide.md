@@ -1,6 +1,6 @@
 # TokenTracker Cloud
 
-TokenTracker Cloud is the optional paid service for officially hosted synchronization and usage history. [Web purchase](https://www.tokentracker.cc/cloud) is available from 2026-10-10 at USD 4.99/month or USD 39.99/year before tax, with the same base price for recurring and fixed-term purchases. Devices registered before the launch retain their 30-day transition until 2026-11-09 at 05:52:14 UTC; free accounts are not automatically charged. Historical archival/deletion jobs and the unified desktop release remain separate. [简体中文](cloud-guide.zh-CN.md)
+TokenTracker Cloud is the optional paid service for officially hosted synchronization and usage history. [Web purchase](https://www.tokentracker.cc/cloud) is available from 2026-10-10 at USD 4.99/month or USD 39.99/year before tax, with the same base price for recurring and fixed-term purchases. Devices registered before the launch retain their 30-day transition until 2026-11-09 at 05:52:14 UTC; free accounts are not automatically charged. [Desktop and CLI version 1.3.3](https://github.com/xiufengsun/TokenTracker/releases/tag/v1.3.3) is publicly available. Historical archival/deletion jobs remain separately controlled. [简体中文](cloud-guide.zh-CN.md)
 
 ## What stays free
 
@@ -32,7 +32,7 @@ The complete self-hosted path is currently a technical preview. A clean private 
 
 An eligible signed-in account can redeem a privately issued 30-, 90- or 365-day Cloud code in its account settings. A code is claimed once; repeating the same claim does not add another term. The server shows the actual dates and a separate gift history. Gifts do not create Waffo payments or automatic renewal.
 
-Resolve an unfinished payment or active automatic renewal before redeeming. Active or upcoming gifts prevent new paid checkout so the periods do not overlap. Disabling an unclaimed batch and revoking an already claimed gift are different operations. Gift redemption is unavailable on a free private self-hosted instance; production availability will follow the reviewed rollout.
+Resolve an unfinished payment or active automatic renewal before redeeming. Active or upcoming gifts prevent new paid checkout so the periods do not overlap. Disabling an unclaimed batch and revoking an already claimed gift are different operations. Gift redemption is available to eligible accounts on the official hosted service and unavailable on a free private self-hosted instance.
 
 ## Trial and transition
 

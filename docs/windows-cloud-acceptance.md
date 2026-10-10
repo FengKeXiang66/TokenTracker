@@ -1,5 +1,7 @@
 # Windows 客户端验收交接
 
+2026-10-11 当前公开版本为 TokenTracker Cloud（云服务）1.3.3，发行 tag/source 为 `cc934784`。main/CLI/六项桌面资产/正式网站已发布，价格和既有权益标识不变。最新文件、hash、证明与剩余人工/资金验收见[发行总表](cloud-release-readiness.md)。下文原有 Pro 名称、旧源码和 QA 结果是历史记录，保留原始范围，不替代当前安装包的人工验收。
+
 ## 统一 1.3.2 发行草稿的 Windows 包，a1f02b08
 
 [统一构建 38062816928](https://github.com/xiufengsun/TokenTracker/actions/runs/38062816928) 的全部五个 job 成功，六项资产与 `SHA256SUMS` 完成。`publish=false` 的公开发行/Homebrew 两个步骤均为 skipped，草稿未公开。版本 tag 精确指向 `a1f02b0889cecde6b0b7490ef8d5f086b996acb2`，不可移动；该提交相对下面 `83e7e0f1` 的应用、原生和打包输入未变化，只新增发行准备开关及文档/测试。

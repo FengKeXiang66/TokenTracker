@@ -1,5 +1,7 @@
 # Cloud billing operations
 
+TokenTracker Cloud v1.3.3 is publicly released at source cc934784. Current product display names, prices and existing IDs were reverified; no new payment was created. The Owner confirmed the settlement/withdrawal account as verified and available. Actual refund receipt and the first eligible merchant payout remain separate acceptance. See the [current release handoff](cloud-release-readiness.md); earlier API/account snapshots below retain their historical scope.
+
 2026-10-10 live fixed-month acceptance is complete: the Owner paid USD4.99 with zero tax and authorized a full refund. Genuine payment/refund callbacks each delivered once with HTTP200; the ledger records 499 paid and 499 refunded, with the original term retained and paid access revoked. Independent before10/10 and after11/11 checks passed; the actual account page returned to its existing-device transition and displays Refunded US$4.99. See [the exact evidence and boundaries](cloud-live-payment-acceptance.md). Earlier zero-payment preparation snapshots below are historical. No new charge/refund is needed to repeat this case.
 
 This runbook records the authorized production launch and the remaining acceptance gates. Owner-confirmed pre-tax base prices are USD 4.99/month and USD 39.99/year, equal for recurring and fixed-term purchases. Mark each check with its commit, environment, date, result, and private evidence location; leave untested items unchecked.

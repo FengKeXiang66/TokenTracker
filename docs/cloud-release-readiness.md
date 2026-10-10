@@ -1,10 +1,29 @@
 # TokenTracker Cloud 发布与验收交接总表
 
-## 1.3.3 Cloud 公开发布准备（当前）
+## 1.3.3 TokenTracker Cloud 已公开发布（当前）
 
-Owner 已明确授权公开发布，并选择 TokenTracker Cloud（云服务）。本轮统一网页/客户端文案、五种语言、公开政策、当前指南和四个既有 Waffo 商品名称；价格与商品 ID 不变，未新增付款。新增可持续运营成本说明，同时明确本地功能完整免费开源、个人云服务付费边界。详见[命名与定位](cloud-branding-and-positioning.md)。
+Owner 明确授权公开发布，并选择 TokenTracker Cloud（云服务）。[PR #772](https://github.com/xiufengsun/TokenTracker/pull/772) 已合入 main，发行源码/tag 精确为 `cc934784e52ea88ef63030f63c59e1fcaedc38ce`。北京时间 2026-10-11 00:28:13，[统一发行 38067338204](https://github.com/xiufengsun/TokenTracker/actions/runs/38067338204) 全部五个 job 成功，六项资产与 SHA256SUMS 已公开，GitHub latest 为 [v1.3.3](https://github.com/xiufengsun/TokenTracker/releases/tag/v1.3.3)；旧 v1.3.2 tag/草稿保留为历史候选，未移动。
 
-1.3.3 已同步全部九个版本位置，新的客户端包必须从新 tag 生成；下方 1.3.2 是保留的历史候选，不再作为当前发行包。公开授权没有补齐人工 Windows 安装/登录/托盘/系统协议/导出证据，也没有补齐其余真实收费模式、银行退款到账和首次结算；这些边界继续登记，不以发布状态代替验收。归档/删除任务保持关闭，公告仍等待明确发布渠道。
+发行源码的 [main CI 38066628435](https://github.com/xiufengsun/TokenTracker/actions/runs/38066628435) 四个 job 全通过，CodeQL workflow 38066628411 成功。npm [38067305112](https://github.com/xiufengsun/TokenTracker/actions/runs/38067305112) 已发布 tokentracker-cli@1.3.3，注册表 latest/gitHead 和实际下载 tarball 完整性匹配，包内 Cloud 与政策文案通过；Homebrew Formula 和 Cask 已自动更新并分别匹配 npm tarball 与 DMG hash，未手工修改 tap。
+
+发行时回读的正式网站 deployment 6983437661 成功，source 为 cc934784：五路由 HTTP200，价格/条款/隐私三份 HTML 与 tracked source 字节一致，实际加载的 Cloud 文案资源 hash 为 `35c25a558c2c4a31a3ab6ba6019a9ef56cf393e156413684f646fe352b18dce7`。中英文、390/1280px、深浅色页面无横向溢出。四个正式 Waffo 商品已改名，签名回读确认 ID、价格、税类、周期和 metadata 未变；没有新增订单或扣款，原 launch_at 和过渡期限未重置。命名与免费/付费边界见[定位说明](cloud-branding-and-positioning.md)。
+
+Windows 两个发行文件已独立下载并匹配 GitHub digest 与 SHA256SUMS；解包 983 文件、109 个嵌入源码 Git blob 匹配。现有四项密钥模式零命中；EXE/DLL 为 1.3.3.0 / 1.3.3+cc934784e52ea88ef63030f63c59e1fcaedc38ce，Node v22.22.2。这些是静态来源、版本、密钥模式与下载字节核对，安装器没有在本机执行，不能代称完整 Windows 人工验收。
+
+| 发行资产 | 字节 | SHA256 |
+| --- | --- | --- |
+| TokenTrackerBar.dmg | 62899436 | `432293f64802e9f7f83c5c8c5a89523b020049ca0cba32e925f257e6e15d033d` |
+| TokenTracker-win-x64.zip | 115735469 | `9e1a26e21a3830eb10e6dfceef4aff67670c71dcf439bec22660e05ab12f13a6` |
+| TokenTracker-Setup.exe | 81402216 | `7065584fa28e12cc3287583312dc87873b164c6b659279c65a12e70001aaa2bd` |
+| TokenTracker-linux-x86_64.AppImage | 129481208 | `6d06bc2312929733f156c020f49ebaa7afc6ae45417f611d5190333e9f02399a` |
+| TokenTracker-linux-x86_64.deb | 59266094 | `323b4880d66fae85c29d7f04982ae191ce1a38528ffe7b17bc435a04b0f8c33d` |
+| TokenTracker-linux-x86_64.rpm | 59256139 | `4478c32952a87e137354145044401735a702ad22056a397efa393ed0dec79f57` |
+
+剩余范围：Windows 人工安装/升级/卸载、登录、托盘/单实例/进程退出、系统 OAuth/付款返回、真实 CSV/JSON 保存仍需专用设备验收；年度固定期与月/年自动续费真实收费/续扣/取消/重试证据按 Owner“先不新增扣款”要求暂缓；退款实际到银行/钱包和首次商户结算仍需收据。Owner 已确认结算/提现账户已验证可用，旧 API 状态快照不自动否定当前账户设置。归档/删除任务继续关闭。社区公告仍是待指定渠道的草稿。
+
+私有证据：cloud-133-public-release-verification.json、cloud-133-npm-verification.json、cloud-133-production-verification.json、cloud-133-production-visual.json、cloud-133-homebrew-verification.json、waffo-cloud-brand-verification.json。均位于 .tmp/windows-cloud/，不提交凭据或原始交易信息。
+
+以下记录保留各自当时的版本、Pro 名称与验收范围；不能拿旧包或旧 QA 结果证明新包完整人工验收。
 
 ## 1.3.2 统一发行候选已备齐，公开发行仍待验收
 
