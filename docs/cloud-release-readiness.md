@@ -1,5 +1,23 @@
 # Cloud / Pro 发布与验收交接总表
 
+## 当前剩余发行工作，2026-10-10 Windows 接续
+
+功能分支已同步到 `83e7e0f15dc20a1c210b55a4c81931430be12d63`，相对 `39208a10` 仅更新交接文档，应用仍为 1.3.2。[CI 38047796689](https://github.com/xiufengsun/TokenTracker/actions/runs/38047796689) 四个 job 通过，CodeQL 实际 PR check `114201224146` 为 success、0 新注释；PR 仍为 draft、CLEAN/MERGEABLE，main 为 `e6186b35`。公开最新发行仍为 v1.2.2，尚未统一发行 1.3.2。
+
+本次 Windows 侧独立只读核对：live 为 hosted/active，原 launch_at 保持；正式订单 2、付款 1、订阅 0，已付 499 美分、已退 499 美分，1 项付款权益撤销。没有创建新订单、付款、退款或修改生产设置。正式五路由均 HTTP200，价格/条款/隐私三个在线 HTML 与当前 tracked source 字节一致；这些是 HTTP/账本核对，不代称新的网页 GUI 或实际到账。证据为 `.tmp/windows-cloud/acceptance-final-handoff-live.json`、`acceptance-resumed-83e7-live-refund.json`、`acceptance-resumed-83e7-public-site.json`。
+
+该 head 的 Windows CI 审核包已在本机独立下载并验 hash，983 文件/109 源码匹配，四项现有密钥模式零命中；实际包的隔离原生窗口 30/30、包内模块 55 通过/1 权限跳过，本机新增导出源文件测试 2 通过/1 权限跳过。[Windows 本轮证据](windows-cloud-acceptance.md)明确记录 SHA、包与安装器 hash、截图仍处于价格载入的范围以及未覆盖的设备步骤。应用/原生/构建输入本轮未修改，后续文档提交的 CI 不冒充新的完整人工包验收。
+
+| 剩余事项 | 验收与交付要求 |
+| --- | --- |
+| Windows 真实客户端 | 使用当前审核包验证 CSV/JSON 实际保存、同名文件保留、账号/实例切换和迟到结果、Pro 标识/胶囊布局、完整托盘/单实例/子进程退出、普通 OS OAuth/付款返回、安装/升级/卸载及本地数据保留；受工具拒绝的系统步骤由人工在专用设备完成 |
+| 其他正式收费模式 | 固定月付及全额退款已完成；年付完整账期、自动续费首期/续扣/取消与拒付重试还需各自真实证据。工程先准备金额、方式与停止条件，再由 Owner 完成需要本人确认的受控交易；不要重复同一笔已验收购买 |
+| 实际到账 | Owner 确认原退款的银行/钱包到账；真实收入符合合同提款条件后核对首笔商户提款。供应商 succeeded 和账户绑定不等于到账，unverified 不单独证明配置失败 |
+| 统一公开发行 | 设备和相应验收范围完成后按 CLAUDE.md 合并流程执行：精确 main CI 后 npm、统一 macOS/Windows/Linux workflow 和六项发行资产，保持版本 1.3.2 一致；未经发行流程核验不要把分支审核包称作公开版本 |
+| 公告与运维 | 最终核对退款/续费/客服说明、实际支持的支付方式与已验收范围，再发布公告；归档/删除计划继续关闭，另按其独立运行手册验收 |
+
+正式网站、Vercel 访问、隔离数据库恢复、正式函数替换、价格、密钥、产品和提款账户均已有完成记录，无需重复设置或另建服务器。下方历史 preview/零交易/恢复未完成记录保留其原时间点，不作为当前待办。主干已有安全告警仍需保留各自审查范围，不将当前 PR 无新告警写成全项目零风险。
+
 ## 用户要求紧凑胶囊周期选择，39208a10
 
 初版周期控件被用户指出过大，已按 design-taste-frontend 重排定价卡片并采用用户选择的小胶囊。当前源码 `39208a106b6861660c7bdda23b08878a21fa470d` 已推送，只有定价页与专用样式变化；应用版本仍为未统一桌面发行的 1.3.2。[UX 验收](cloud-pro-ux-acceptance.md)记录真实 128px/32px 视觉尺寸、44px 触摸范围、深浅色与 390px 布局及独立审查。[新 CI 38045978106](https://github.com/xiufengsun/TokenTracker/actions/runs/38045978106) 四个 job 全成功，[CodeQL 38045978194](https://github.com/xiufengsun/TokenTracker/actions/runs/38045978194) 与 check 成功、0 新注释。生产 `dpl_J6kCz1CaMBYezoRrEkvRoYW3coPK` READY，源码与 Git392 一致，五路由 HTTP200，三公开 HTML 源码相同，公开 CSS/胶囊模块和 Settings 1.3.2 均读回。正式网站另经同一浏览器真实查看小胶囊，约128px/32px、无横向溢出；结果页保留、视口重置，测试空间正常结束，隔离预览服务停止。Mac 新 bundle/src106/dist259 与当前源码绑定、包内模块/CSS HTTP200；最新 Windows CI 审核包和有限的旧 core 复用范围见设备交接。下面 92 的已完成部署、包与资金事实保留原时间点。

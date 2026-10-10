@@ -1,6 +1,6 @@
 # Pro 赠送码
 
-2026-10-10 正式网页与价格已启用，production source 为已推送的 `f51520ee`、live policy 为 active；应用/原生源码仍为 `1.3.1 / 282ffa95`，正式 handler 按受审 `9c19419c` 产物替换。f515 与 282 的 CI/CodeQL 均通过，真实付款/退款/结算和实际 live 赠送尚未验收。精确当前状态见 [总表](cloud-release-readiness.md)；UI/前端源c7与282 frontend Git blobs一致，Mac QA导出结果不作为Windows完整GUI兑换或普通非QA原生OAuth OS返回证明；下文 Windows/Mac 礼遇记录保留各自原始来源，不自动升级为本轮完整 GUI 兑换证明。
+2026-10-10 正式网页与价格已启用，live policy 为 active；当前紧凑胶囊应用源码为 `1.3.2 / 39208a10`，正式 handler 按受审 `9c19419c` 产物替换。固定月期真实付款和全额退款已通过；新版真实浏览器使用专用 QA 完成一次 live 赠送兑换、Pro 标识生效及撤回，批次已停用、该 QA 没有付款。精确来源和范围见 [总表](cloud-release-readiness.md)、[交易验收](cloud-live-payment-acceptance.md)和 [UX 验收](cloud-pro-ux-acceptance.md)。这些网页、Mac QA 和 API 结果不证明 Windows 完整 GUI 兑换、普通非 QA 原生 OAuth OS 返回或实际结算；下文 Windows/Mac 礼遇记录保留各自原始来源。
 
 Windows 管理员的原码生成/resume 及私有文件入口仍 unsupported、fail-closed，因为 owner-only NTFS ACL 尚未验证。它是可选能力，可由已验证的 Mac/Linux 管理程序发码，不是必须由 Owner 完成的正式收费门槛；应用内兑换不受影响。新 Cloud 用量 CSV/JSON 的普通 Downloads 保存也不证明私有码文件 ACL。以下已删除的 Windows A/B 是此前账号，不是本轮仍仅在 RAM 保管凭据的两个隔离 QA 账号。
 

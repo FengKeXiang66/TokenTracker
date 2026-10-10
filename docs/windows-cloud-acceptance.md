@@ -1,5 +1,15 @@
 # Windows 客户端验收交接
 
+## Windows 侧独立读回与窗口检查，83e7e0f1
+
+2026-10-10 在 Windows 同步并受审 `83e7e0f15dc20a1c210b55a4c81931430be12d63`，版本 1.3.2，应用源码与胶囊版 `39208a10` 相同。[CI 38047796689](https://github.com/xiufengsun/TokenTracker/actions/runs/38047796689) 四个 job 全成功、CodeQL PR check success/0 新注释。已独立下载[该 head 的审核包](https://github.com/xiufengsun/TokenTracker/actions/runs/38047796689/artifacts/11668268148)，归档 196013138 字节、SHA256 `bd566ef9a5e4d09651a04d883fd273b4bfdcef41d3e2b9d18848e6cff787c8dd`，与官方 digest 一致。
+
+实际 checkout `351a42eda82de576ec21bf6c56b34a7f0307d862` 的 Git tree `2ed9da4f30abd055d1e210e7c645e48e2b00ec93` 与受审 head 相同；**983/983 文件大小/hash、109 份嵌入源码 Git blob** 匹配，EXE/DLL 为 1.3.2.0。ZIP 115733589 字节、SHA256 `ccad73a265dba8fa43745168214570edc9c1af6914aae6adef047273e25a1e72`；Inno 安装器 81401363 字节、SHA256 `5bedfb2aef6bb110c47a477f51a778e730701cb47468ec8aa130d98ede9e7f69`。四项本机现有私钥/管理 key 字节模式零命中；不声称覆盖已不在本机的其他凭据。公开 JS 中旧 127.0.0.1:5192 为 0，官方后端引用存在。
+
+使用该包实际 DLL/Node22.22.2/WebView2 loader 的隔离 Smoke 窗口 **30/30** 通过，含包内服务启动、资源、bridge、页面渲染/无横向溢出、系统浏览器 loopback 交接及关窗/重开；仅复用旧 `Smoke.*` 宿主，KeepWindow=0，自己的测试窗口已关闭。Cloud 截图取得时仍为服务载入/价格待确认状态，不能作为真实价格、付费身份或已登录账户验收。没有操作普通 Program.Main、系统协议付款返回或安装器。实际包内运行时/模块专项 **55 通过/1 本机链接权限跳过/0 失败或取消**。Windows 当前导出源文件的 .NET 回归另为 **2 通过/1 Windows 符号链接权限跳过**；合成文件与来源 guard 测试不等于 WebView2 真实账号的 CSV/JSON 保存。
+
+私有证据位于 `.tmp/windows-cloud/acceptance-resumed-83e7-{artifact-download,artifact-verification,packaged-modules}.json`、`resumed-83e7-ci-native-final/native-smoke.json` 和 `resumed-83e7-review-dotnet/cloud-export.trx`；包在 `resumed-83e7-ci-artifact-readback/`。完整托盘/单实例/子进程退出、普通 OAuth/付款 OS 返回、安装/升级/卸载、真实导出和账号/实例隔离仍按设备清单验收。下面 392/92 的“未下载、未运行”只描述当时，当前独立包检查以本节为准。
+
 ## 最新胶囊版审核包，39208a10
 
 用户要求收紧月/年控件后，当前应用源码为 `39208a106b6861660c7bdda23b08878a21fa470d`，仍为未统一桌面发行的 1.3.2。[CI 38045978106](https://github.com/xiufengsun/TokenTracker/actions/runs/38045978106) 四个 job 与 CodeQL check 全部成功、0 新注释；Windows job 已正常构建前端、校验 review package manifest，并上传[最新审核包](https://github.com/xiufengsun/TokenTracker/actions/runs/38045978106/artifacts/11666764380)。该 artifact 元数据为 196,010,219 字节，官方 digest `ba154632dfca50a50c2756a6290476169c96f36215ea9b95f0e939585752aa98`，过期时间 2026-10-17 10:54:50 UTC。

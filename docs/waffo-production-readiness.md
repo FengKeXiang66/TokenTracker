@@ -10,7 +10,7 @@ Pro UI 当前紧凑胶囊版源码为 `39208a10`，版本 1.3.2；新提交 CI/C
 
 八项 Waffo server secret 已配置并独立读回，标准 PEM 和 DER 指纹来自仓库外受限 NTFS 私有目录；客户端和 Git 不包含密钥。两个正式 billing/webhook 函数源码与受审构建逐字节一致。正式 HTTP webhook 的地址、prod 标记和 12 个事件已独立读回；无签名 POST 返回 401 invalid_signature。完整当前证据与候选版本见 [上线前交接总表](cloud-release-readiness.md)。
 
-Owner 已完成结算／提现账户添加与关联，无需重复。最新签名 API 确认账户绑定目标商户且 payoutEnable=true，但 channelStatus 为 unverified、channelVerifiedAt 为 NULL。Owner 先前“已验证／可用”报告与该读回分开记录。只读取绑定、状态和币种，不保存账户号码；实际付款和结算未验证。
+Owner 已完成结算／提现账户添加与关联，无需重复。此前签名 API 确认账户绑定目标商户且 payoutEnable=true，但 channelStatus 为 unverified、channelVerifiedAt 为 NULL。Owner 先前“已验证／可用”报告与该读回分开记录。只读取绑定、状态和币种，不保存账户号码；固定月期实际付款和全额退款已按本文开头验收，实际结算仍未验证。
 
 已登录后台的只读页面核对可见 1 个支付宝中国 CNY 提款账户，页面注明账户由所有店铺共用；账户页没有渠道“已验证／待审核”状态标签。账户存在不等于渠道验证完成，不据此重新添加或修改绑定。证据 acceptance-release-waffo-ui.json 仅保存这些脱敏事实，不保存身份、账号或页面完整内容；本轮没有发起付款或提款。
 
