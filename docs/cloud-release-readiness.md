@@ -1,5 +1,25 @@
 # Cloud / Pro 发布与验收交接总表
 
+## 用户要求紧凑胶囊周期选择，39208a10
+
+初版周期控件被用户指出过大，已按 design-taste-frontend 重排定价卡片并采用用户选择的小胶囊。当前源码 `39208a106b6861660c7bdda23b08878a21fa470d` 已推送，只有定价页与专用样式变化；应用版本仍为未统一桌面发行的 1.3.2。[UX 验收](cloud-pro-ux-acceptance.md)记录真实 128px/32px 视觉尺寸、44px 触摸范围、深浅色与 390px 布局及独立审查。[新 CI 38045978106](https://github.com/xiufengsun/TokenTracker/actions/runs/38045978106) 四个 job 全成功，[CodeQL 38045978194](https://github.com/xiufengsun/TokenTracker/actions/runs/38045978194) 与 check 成功、0 新注释。生产 `dpl_J6kCz1CaMBYezoRrEkvRoYW3coPK` READY，源码与 Git392 一致，五路由 HTTP200，三公开 HTML 源码相同，公开 CSS/胶囊模块和 Settings 1.3.2 均读回。正式网站另经同一浏览器真实查看小胶囊，约128px/32px、无横向溢出；结果页保留、视口重置，测试空间正常结束，隔离预览服务停止。Mac 新 bundle/src106/dist259 与当前源码绑定、包内模块/CSS HTTP200；最新 Windows CI 审核包和有限的旧 core 复用范围见设备交接。下面 92 的已完成部署、包与资金事实保留原时间点。
+
+## Pro UI 初版 92d07c4e 已发布，2026-10-10
+
+应用源码 `92d07c4eb6ac685196f55b0ba0a14580bfb9e61c` 已推送。[CI 38041985678](https://github.com/xiufengsun/TokenTracker/actions/runs/38041985678) 四个 job 全部成功，[CodeQL 38041985682](https://github.com/xiufengsun/TokenTracker/actions/runs/38041985682) 和安全 check 成功、0 新注释。本轮完整前端 1294 项通过，独立目标审查 161 项通过。
+
+既有 GitHub integration 的同源码 READY 候选经正常 Vercel promote 发布，production `dpl_CxzWuecNoT7qm6PWDzQS6Y4egQsz` READY、正式域名绑定成功；五条路由 HTTP200，三份公开 HTML 与源码字节相同。公开 JS/CSS 含新版侧栏、44px 触摸尺寸和续费 switch，Settings 独立资源版本为 1.3.2。真实浏览器验收使用原 InsForge 和专用账号，[UX 验收](cloud-pro-ux-acceptance.md)记录浅/深色、390px、键盘及授予/撤回；发布后的核对为元数据和公开 HTTP/资源，不代称再次操作了生产网页 GUI。
+
+Windows 1.3.2 审核包已独立下载，官方 archive digest、983 项 payload 大小/hash、109 项嵌入 core 源码及 EXE/DLL 1.3.2.0 元数据通过。[最新设备交接与包](windows-cloud-acceptance.md)保留实际 hash，下载与编译不代称 GUI/安装生命周期。Mac 内嵌资源已刷新，106 份 src、259 份 dist 匹配，包内 Node/页面/JS/CSS 实际 HTTP200；563 份 tracked 构建输入另与 Git `92d07c4e` 逐项绑定。浏览器最后由用户接管，已停止控制该空间；QA 的赠送权益和批次此前已完成撤回/停用，付款数据不变。不会为这次 UI 变更重复创建付款或退款。
+
+## 正式固定月付与全额退款已验证，2026-10-10
+
+用户完成一笔 USD4.99 固定月期真实购买，随后明确授权退款。供应商真实付款、完整自然月账期、会员和 Pro 标识已核对；付款回调一次投递 HTTP200。正式后台只提交一次 USD4.99 全额退款，供应商 succeeded，退款回调一次投递 HTTP200，账本 refunded_cents=499、已撤销付费权益；付款和退款各应用一次，原记录和账期保留。
+
+独立退款前 10/10、退款后 11/11 通过，真实账号页显示退款记录并恢复至 11 月 9 日结束的旧设备过渡期，Pro 标识 false，免费过渡期读取/上传保留。launch_at、sandbox 和原 QA 未付草稿不变。[详细验收](cloud-live-payment-acceptance.md)列出私有来源和范围。无需再次要求用户完成这笔付款；银行/钱包到账、商户提现、其他正式收费模式和物理设备仍按各自证据处理。
+
+用户新增的侧边栏 Pro 身份、付费卡内自动续费 switch 和付款流程精简已按 impeccable 完成并推送应用源码 `92d07c4e`，版本 1.3.2。[新版 UX 验收](cloud-pro-ux-acceptance.md)记录真实页面、键盘与 390px 布局、临时赠送权益撤回和完整测试；网站部署与当前提交 CI 在下方追加，旧 f515/282 不代称新 UX 已发布。
+
 ## 正式价格已启用，2026-10-10
 
 Owner 明确要求 "启用吧 正式价格"。live policy 已从 preview 改为 active，`launch_at=2026-10-10T05:52:14.603712+00:00`。北京时间和新加坡时间均为 10 月 10 日 13:52:14。上线前注册的设备按现有规则保留 30 天过渡期，至 11 月 9 日 13:52:14；免费本地功能和排行榜继续开放，不自动扣款。归档、删除计划及上线公告均未开启。
@@ -10,7 +30,7 @@ Owner 明确要求 "启用吧 正式价格"。live policy 已从 preview 改为 
 
 使用既有专用 QA 账号通过真实 SDK 登录，正式固定月期 checkout 返回 HTTP200 和 `pancake.waffo.ai` 的生产收银台 URL。只创建一笔未付款 QA 草稿，没有使用卡或钱包；不得记为零订单或真实收款。付款、签名回调、真实首期/下次扣款、退款及银行到账仍需真实交易证据。私有索引为 `.tmp/rollout-20261010/review/launch-{waffo-prod-proof,policy-independent,catalog-active,production-readback,site-after,checkout-proof}.json`。不得重新设置 launch_at 或重复创建验收订单。
 
-独立只读复核的九项断言通过。两个既有 QA 账号的过渡期、读取/上传许可与无付费标识符合服务端结果，原 public leaderboard HTTP200；SQL 确认正式订单只有上述一笔未付 QA 草稿，正式付款/订阅/赠送均为 0。B 的首次 account 返回 503 billing_operation_failed，36 字节原失败/hash 保留，必要单次重试为 HTTP200；没有捕获该次上游根因，不称永久稳定或冷启动已经修复。证据为 `launch-independent-readonly-first.json`、`launch-final-readonly-followup.json`。
+启用时独立只读复核的九项断言通过。两个既有 QA 账号的过渡期、读取/上传许可与无付费标识符合服务端结果，原 public leaderboard HTTP200；当时 SQL 确认正式订单只有上述一笔未付 QA 草稿，正式付款/订阅/赠送均为 0，此后真实付款与退款见本文开头。B 的首次 account 返回 503 billing_operation_failed，36 字节原失败/hash 保留，必要单次重试为 HTTP200；没有捕获该次上游根因，不称永久稳定或冷启动已经修复。证据为 `launch-independent-readonly-first.json`、`launch-final-readonly-followup.json`。
 
 本次生产网页启用已完成。CLI 首次上传曾因 TEAM_ACCESS_REQUIRED 被拒，保留失败；随后提升同一 f515 的已有 GitHub integration READY 部署，未更改权限或提交作者。物理 Windows 新导出、安装器/完整入口/OS 返回及此前锁屏中断的最后移动视口截图继续按下面设备清单验收，不由网页发布代替。桌面安装包和主干版本尚未统一发行。
 
@@ -43,7 +63,7 @@ WKWebView 首 CSV 成功、第二 JSON 的 QA 重复建目录失败也保留；2
 | 当前 CI 与验收证据收尾 | 当前源码 CI/CodeQL 已通过，Windows archive 已下载核对，Mac 第二轮文件索引已完成。最后390px像素截图等待 Owner 解锁，其他已完成验收保留 |
 | 正式 HTTPS 发布与回滚 | 正式 Dashboard 和生产 checkout URL 已验证；实际付款后的返回、失焦和重开恢复仍需真实交易验证，回滚须保留 launch_at 和财务记录 |
 | Windows 实际设备 | Owner 提供测试电脑和必要系统确认；工程验证新导出、OS 返回 App、完整 Main/托盘、单实例/JobObject、安装/升级/卸载及数据保留 |
-| 真实付款与结算 | Owner 确认付款方式、金额上限并本人付款；工程核对签名通知、账本、权益、账期、取消及退款；收入满足合同条件后核对首笔提款和到账 |
+| 真实付款与结算 | 正式固定月付及全额退款已验收；其余正式收费模式和商户提款各自保留证据边界，收入满足合同条件后核对首笔提款和到账 |
 | 正式价格与启用 | Owner 本次授权已执行；公开价格/条款/隐私已更新，无自动扣款。资金验收、桌面统一发行和上线公告分别保留其授权及证据要求 |
 
 以下历史记录保留原始 SHA、环境和失败，不作为当前版本验收。Windows 原码生成/resume 的 NTFS 管理入口是可选能力，仍 fail-closed；可使用已验证的 Mac/Linux 管理程序，不列为正式收费的必需 Owner 门槛。
@@ -206,7 +226,7 @@ Windows CI 已扩大为完整 Node 回归，并在 Dashboard 构建后运行；S
 
 ## Owner 当前事项
 
-正式价格和启用已按本次授权执行，无需重复确认。剩余本人事项为受控真实付款的方式和金额上限、本人付款及必要系统确认；真实收入满足合同条件后核对首笔提款/到账；提供 Windows 测试电脑接续 OS/完整入口、安装生命周期和新导出验收。工程继续核对实际通知、账期、权益、取消、退款和设备结果，统一桌面发行与公告另按其范围执行。当前 unverified 不单独证明结算配置错误。正式网站、Vercel 登录、隔离数据库恢复和正式函数替换已完成，无需新服务器或重复设置密钥、价格、产品及提款账户。live 后台为 active，正式资金验收仍未完成。
+正式价格、启用和一笔真实固定月付/全额退款均已完成，无需重复确认或再支付同一测试。剩余本人事项为真实收入满足合同条件后核对首笔提款/到账，以及提供 Windows 测试电脑接续 OS/完整入口、安装生命周期和新导出验收。工程负责新 UX、其余收费模式的范围审查及设备结果，统一桌面发行与公告另按其范围执行。当前 unverified 不单独证明结算配置错误。正式网站、Vercel 登录、隔离数据库恢复和正式函数替换已完成，无需新服务器或重复设置密钥、价格、产品及提款账户。live 后台为 active；供应商退款成功不代称实际支付账户或商户提款到账。
 
 ## 文档入口
 

@@ -1,8 +1,12 @@
 # Waffo 审核后的生产准备
 
+Pro UI 当前紧凑胶囊版源码为 `39208a10`，版本 1.3.2；新提交 CI/CodeQL 已通过，新版已正常发布并读回 source392，五路由与版本/胶囊资源 HTTP200。初版 `92d07c4e` 的已发布证据保持原来源。价格、商户、正式启动时间和后端保持原配置。源与设备边界见 [发布总表](cloud-release-readiness.md)。
+
+2026-10-10 已完成正式固定月期 USD4.99 真实支付及用户授权的全额退款。真实付款和退款回调均一次投递 HTTP200，权益生效/撤销、完整自然月账期、唯一账本和实际账户界面符合预期；退款供应商状态 succeeded。独立验收和范围见 [正式交易记录](cloud-live-payment-acceptance.md)，实际到账与其他正式收费模式不由此代替。以下启用阶段的 "尚未真实付款" 描述保留其历史时间点，最新资金证据以本段和交易记录为准。
+
 2026-10-10 当前状态：Owner 明确要求 "启用吧 正式价格"，已正式启用。生产签名 API 重新核对 RSA2048 密钥、商户、Store 和四个 active/published 产品，全球未税 USD4.99/月、USD39.99/年，自动续费与固定期同价。live policy 为 active，`launch_at=2026-10-10T05:52:14.603712+00:00`；上线前设备 30 天过渡期至 11 月 9 日 13:52:14（UTC+8）。原免费本地/排行榜功能保留，无自动扣款。
 
-正式 Dashboard 源码 `f51520eed4cf1238638e1d335bd0934db87638db` 已发布至 [www.tokentracker.cc/cloud](https://www.tokentracker.cc/cloud)，production READY、五条路由 HTTP200，价格/条款/隐私字节匹配。真实 SDK 登录后的生产固定月期 checkout HTTP200，生成一笔 QA 未付草稿和生产收银台 URL；未使用卡或钱包。`checkout_verified=true` 来自本次 Owner 授权开启的服务端开关，不证明真实支付/退款/结算。完整私有证据位置及剩余设备、资金验收见 [交接总表](cloud-release-readiness.md)。
+初次正式启用时，Dashboard 源码 `f51520eed4cf1238638e1d335bd0934db87638db` 已发布至 [www.tokentracker.cc/cloud](https://www.tokentracker.cc/cloud)，production READY、五条路由 HTTP200，价格/条款/隐私字节匹配。真实 SDK 登录后的生产固定月期 checkout HTTP200，生成一笔 QA 未付草稿和生产收银台 URL；未使用卡或钱包。`checkout_verified=true` 来自本次 Owner 授权开启的服务端开关，不证明真实支付/退款/结算。完整私有证据位置及剩余设备、资金验收见 [交接总表](cloud-release-readiness.md)。
 
 八项 Waffo server secret 已配置并独立读回，标准 PEM 和 DER 指纹来自仓库外受限 NTFS 私有目录；客户端和 Git 不包含密钥。两个正式 billing/webhook 函数源码与受审构建逐字节一致。正式 HTTP webhook 的地址、prod 标记和 12 个事件已独立读回；无签名 POST 返回 401 invalid_signature。完整当前证据与候选版本见 [上线前交接总表](cloud-release-readiness.md)。
 
@@ -29,16 +33,16 @@ Owner 已完成结算／提现账户添加与关联，无需重复。最新签�
 | 产品发布 | 四个 production SKU 已发布并读回 active、价格／货币／完整月年账期一致，正式购买已启用；无关既有产品不变 |
 | 接收与返回地址 | 正式 webhook 已部署并注册、拒绝无签名请求。完整正式 HTTPS Dashboard /billing/checkout 已发布并 HTTP200；真实付款后的返回仍待交易证明 |
 | 实际支付方式 | 根据正式产品类型与货币读回收银台。文档提供 card、Apple Pay、Google Pay、WeChat；支付宝是商户结算渠道，不作为当前买家付款权益承诺 |
-| 真实试点 | 发布与试点授权后核对真实付款、账本、权益、取消、退款和后续结算。正式产品版本和月/年账期已核对；真实交易中的首期与下次扣款日期仍由工程读回 |
+| 真实试点 | 固定月期 USD4.99 实扣及全额退款已核对供应商、真实回调、唯一账本、完整自然月及权益生效/撤回；没有续费合同。其他正式收费模式与商户结算保留独立边界 |
 
 公开费率不等于当前账户合同。正式启用前核对卡/钱包固定费用、退款费用及最低提现手续费，避免用测试交易估算实际净收入。[官方费率](https://docs.waffo.ai/mor/fees)、[结算流程](https://docs.waffo.ai/merchant/payout-flow)。
 
-## 正式启用与后续验收
+## 初次启用记录（历史）
 
-本次明确启用授权取代此前 preview 保持要求，正式购买已开放。没有把剩余真实付款/退款/结算验收标成完成；也未发布上线公告、合并主干或统一发行桌面安装包。[PR #772](https://github.com/xiufengsun/TokenTracker/pull/772) 的既有 draft 状态保持不变。正式网页为 f515，应用/原生代码仍为 1.3.1/282ffa95，19 个产物仍绑定 9c19419c，14 个正式 handler 已替换，CI/CodeQL 通过。此前普通 GitHub OAuth 返回 preview 页、网页实际导出及 Mac 八个保存事件分别保留原环境和源码证据，不冒称它们是生产付款返回。最后移动像素、Windows GUI/安装器与普通 OS 返回继续按 [总表](cloud-release-readiness.md)验收。
+初次正式启用时，明确授权取代此前 preview 保持要求，正式购买已开放。没有把剩余真实付款/退款/结算验收标成完成；也未发布上线公告、合并主干或统一发行桌面安装包。[PR #772](https://github.com/xiufengsun/TokenTracker/pull/772) 的既有 draft 状态保持不变。正式网页为 f515，应用/原生代码仍为 1.3.1/282ffa95，19 个产物仍绑定 9c19419c，14 个正式 handler 已替换，CI/CodeQL 通过。此前普通 GitHub OAuth 返回 preview 页、网页实际导出及 Mac 八个保存事件分别保留原环境和源码证据，不冒称它们是生产付款返回。最后移动像素、Windows GUI/安装器与普通 OS 返回继续按 [总表](cloud-release-readiness.md)验收。
 
 后端继续用现有付费InsForge。Windows工作已接续整合，最新普通支付返回的OS/GUI及安装器步骤仍需实际设备，见[交接文档](windows-cloud-acceptance.md)。Browser Use拒绝的外部协议点击需人工执行，不通过其他工具绕过；这些设备步骤不阻塞其余工程准备。
 
 平台契约见 [认证与环境](https://docs.waffo.ai/api-reference/authentication)、[首次发布](https://docs.waffo.ai/api-reference/endpoints/subscription-products/publish-product)和 [Store 部分更新](https://docs.waffo.ai/api-reference/endpoints/stores/update-store)。
 
-Owner 无需再确认正式价格或启用。后续真实试点需具体付款方式/金额上限及本人付款；工程核对实际签名通知、账期、权益、取消及退款。收入满足合同条件后核对首笔提款/到账，物理设备的系统确认另按交接执行。密钥、产品、价格、提款账户、网页发布和隔离数据库恢复已完成，无需重复或另购云服务器。可选 gift 私有码管理 NTFS 能力不阻塞收费。
+Owner 无需再确认正式价格、启用或重复支付本次固定月期试点。工程已核对实扣、两个真实回调、完整账期和全额退款；其他正式收费模式不由本例代替。收入满足合同条件后核对首笔提款/到账，物理设备的系统确认另按交接执行。密钥、产品、价格、提款账户、网页发布和隔离数据库恢复已完成，无需重复或另购云服务器。可选 gift 私有码管理 NTFS 能力不阻塞收费。

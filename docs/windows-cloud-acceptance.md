@@ -1,8 +1,22 @@
 # Windows 客户端验收交接
 
-2026-10-10 正式网页与价格已启用，production source 为 `f51520eed4cf1238638e1d335bd0934db87638db`，相对 282 仅更新三个公开 HTML 说明文件，应用/原生源码不变。未税 USD4.99/月、USD39.99/年；live active 的原设备过渡期至 11 月 9 日 13:52:14（UTC+8），不能在设备测试时重置启动时间。真实付款/退款/结算未验收。本文的 282 包证据保留其精确来源，未冒充 f515 新包或实际 GUI 运行；网页启用不代替物理 Windows 步骤。最新部署与私有证据见 [发布总表](cloud-release-readiness.md)。
+## 最新胶囊版审核包，39208a10
 
-## 当前版本与待设备验收：1.3.1 / 282ffa95
+用户要求收紧月/年控件后，当前应用源码为 `39208a106b6861660c7bdda23b08878a21fa470d`，仍为未统一桌面发行的 1.3.2。[CI 38045978106](https://github.com/xiufengsun/TokenTracker/actions/runs/38045978106) 四个 job 与 CodeQL check 全部成功、0 新注释；Windows job 已正常构建前端、校验 review package manifest，并上传[最新审核包](https://github.com/xiufengsun/TokenTracker/actions/runs/38045978106/artifacts/11666764380)。该 artifact 元数据为 196,010,219 字节，官方 digest `ba154632dfca50a50c2756a6290476169c96f36215ea9b95f0e939585752aa98`，过期时间 2026-10-17 10:54:50 UTC。
+
+本轮没有再次下载该完整 archive 或运行 Windows EXE，不能把下面 92 的整包/前端 hash 当新胶囊验收。两提交只有定价 JSX 与 CSS 变化，109 个 core 文件逐 Git blob 未变，旧 core 核验保留这一有限范围。Windows 实机继续使用这次的新审核包检查胶囊布局、侧栏标识和下方设备步骤；不能使用旧包代替。Mac 新 EmbeddedServer 已绑定 Git392、src106/dist259 匹配，包内胶囊模块/CSS HTTP200；这也不代称 Windows GUI。
+
+## 初版 1.3.2 / 92d07c4e 包记录（历史）
+
+应用源码 `92d07c4eb6ac685196f55b0ba0a14580bfb9e61c` 已正常推送，含侧栏 Pro 标识、卡内续费 switch 和精简结账流程。[CI 38041985678](https://github.com/xiufengsun/TokenTracker/actions/runs/38041985678) 四个 job 全成功，CodeQL check 成功、0 新注释。真实 Windows CI 的 Node24/包内 Node22 各 3869 通过、40 条件跳过，.NET 119 通过、1 项权限跳过，ZIP 和安装器编译通过。正式网页也是该源码，真实固定月付及全额退款已验收；银行/钱包和商户提现到账仍是独立事项。
+
+[当前 Windows 审核包](https://github.com/xiufengsun/TokenTracker/actions/runs/38041985678/artifacts/11665609276) 已独立下载，196,009,467 字节，SHA256 `acb9be13ca9535f9daf741ae1617ed4f04dfb08823bdc2982e6cbba8b3fb53b8` 与官方 digest 相同。CI checkout a15381b9 与 Git92 的 tree 同为 f2724f7678f2b2b0188268e1682304ed43d077af；983 项 payload 大小/hash、109 项嵌入 core 源码匹配，manifest/package 1.3.2，EXE/DLL PE 版本 1.3.2.0。新 UI 和 44px 样式存在，旧 5192 配置出现次数为 0。ZIP 115,733,606 字节/SHA256 `4e74512452377f2fd26f063f3d4cf9898cbeac8f54ef5a54f529a656e6726c0f`，安装器 81,397,746 字节/SHA256 `d39e8b7fcc6722bc4579b7758129275bf4bce4bc883281b5f697043ea545eee0`。
+
+这是下载、源码、资源和 PE 元数据验收，没有执行 EXE/安装器或新的 Windows GUI。实例与账号隔离、系统支付返回、Main/托盘、安装升级卸载、数据保留和 CSV/JSON 文件保存继续使用下方设备步骤；旧设备记录保留原来源。审核包在 GitHub 保留 7 天，本机私有副本与证据位于 `.tmp/rollout-20261010/pro-ux-windows/`。普通 App 不受本轮包核验影响，没有发布统一桌面版。
+
+初次正式启用记录（2026-10-10），production source 为 `f51520eed4cf1238638e1d335bd0934db87638db`，相对 282 仅更新三个公开 HTML 说明文件，应用/原生源码不变。未税 USD4.99/月、USD39.99/年；live active 的原设备过渡期至 11 月 9 日 13:52:14（UTC+8），不能在设备测试时重置启动时间。当时真实付款/退款/结算尚未验收；其后固定月付和全额退款已验证，实际到账仍独立。本文的 282 包证据保留其精确来源，未冒充 f515 新包或实际 GUI 运行；网页启用不代替物理 Windows 步骤。最新部署与私有证据见 [发布总表](cloud-release-readiness.md)。
+
+## 1.3.1 / 282ffa95 记录（历史）
 
 源码 `282ffa95370a8c84a3911908079a46a38b70a88e` 已推送并独立读回。[CI 38024326226](https://github.com/xiufengsun/TokenTracker/actions/runs/38024326226) 四个 job 和 [CodeQL 38024326217](https://github.com/xiufengsun/TokenTracker/actions/runs/38024326217) 全部通过；真实Windows Node24/包内Node22各3869通过/40条件跳过，.NET119通过/1个符号链接权限跳过，完整应用、ZIP和安装器编译通过。c7生产WPF缺System.IO的[首次失败](https://github.com/xiufengsun/TokenTracker/actions/runs/38023611765/job/114129674138)保留，282补齐命名空间后已在真实Windows CI通过。UI/前端与c7 Git blobs一致，旧实机记录仍保留其原来源。
 
