@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setCopyLocale } from "../../../lib/copy";
 import { EN_LOCALE, ZH_CN_LOCALE } from "../../../lib/locale";
@@ -101,5 +101,24 @@ describe("SessionInsightsCard", () => {
     expect(screen.getAllByText("编辑会话").length).toBeGreaterThan(0);
     expect(screen.getAllByText("一次完成").length).toBeGreaterThan(0);
     expect(screen.getByRole("tooltip")).toHaveTextContent("编辑 =");
+  });
+
+  it("ignores a late response after the range changes", async () => {
+    let resolveOld;
+    const oldResponse = new Promise((resolve) => { resolveOld = resolve; });
+    getSessionInsights.mockReturnValueOnce(oldResponse).mockResolvedValueOnce({
+      ...data,
+      summary: { ...data.summary, sessions: 2 },
+      by_model: [{ ...data.by_model[0], model: "new-range-model" }],
+    });
+    getContextHealth.mockResolvedValue({ estimated_fixed_tokens: 0 });
+
+    const card = (from) => <SessionInsightsCard from={from} to="2026-07-31" />;
+    const { rerender } = render(card("2026-07-01"));
+    rerender(card("2026-07-08"));
+    expect(await screen.findByText("new-range-model")).toBeInTheDocument();
+    await act(async () => { resolveOld(data); });
+    await waitFor(() => expect(screen.getByText("new-range-model")).toBeInTheDocument());
+    expect(screen.queryByText("gpt-5.6-sol")).not.toBeInTheDocument();
   });
 });

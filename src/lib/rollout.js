@@ -10855,19 +10855,23 @@ async function parseWorkbuddyIncremental({
     const entry = traceFiles[fileIdx];
     const filePath = entry.path;
     let stat;
-    try { stat = fssync.statSync(filePath); } catch { continue; }
-    const prevEntry = fileOffsets[filePath] || {};
-    const prevSize = Number(prevEntry.size) || 0;
-    const prevIno = prevEntry.ino;
-    const inodeChanged = typeof prevIno === "number" && prevIno !== stat.ino;
-    const startOffset = stat.size < prevSize || inodeChanged ? 0 : prevSize;
-    if (stat.size <= startOffset) continue;
-
     let traceDoc;
+    let traceFd;
     try {
-      traceDoc = JSON.parse(fssync.readFileSync(filePath, "utf8"));
+      traceFd = fssync.openSync(filePath, "r");
+      stat = fssync.fstatSync(traceFd);
+      if (!stat.isFile()) continue;
+      const prevEntry = fileOffsets[filePath] || {};
+      const prevSize = Number(prevEntry.size) || 0;
+      const prevIno = prevEntry.ino;
+      const inodeChanged = typeof prevIno === "number" && prevIno !== stat.ino;
+      const startOffset = stat.size < prevSize || inodeChanged ? 0 : prevSize;
+      if (stat.size <= startOffset) continue;
+      traceDoc = JSON.parse(fssync.readFileSync(traceFd, "utf8"));
     } catch {
       continue;
+    } finally {
+      if (traceFd !== undefined) fssync.closeSync(traceFd);
     }
     const trace = traceDoc && typeof traceDoc === "object" && traceDoc.trace && typeof traceDoc.trace === "object"
       ? traceDoc.trace
@@ -11453,7 +11457,8 @@ async function resolveOmoFileCwd(filePath) {
 
 function resolveKilocodeRoots(env = process.env) {
   if (typeof env.TOKENTRACKER_KILOCODE_ROOTS === "string" && env.TOKENTRACKER_KILOCODE_ROOTS.trim()) {
-    return env.TOKENTRACKER_KILOCODE_ROOTS.split(":")
+    // Use the host's PATH delimiter so a Windows drive colon stays intact.
+    return env.TOKENTRACKER_KILOCODE_ROOTS.split(path.delimiter)
       .map((r) => r.trim())
       .filter(Boolean);
   }
@@ -15992,6 +15997,27 @@ function resolvePiSessionFiles(env = process.env) {
     }
   } catch {
     // ignore — return what we have
+  }
+  // Multica launches pi headless with a dedicated flat session dir:
+  //   ~/.multica/pi-sessions/<session-id>.jsonl
+  // Scan it too so orchestrated runs are counted alongside TUI sessions.
+  try {
+    const seen = new Set(files);
+    const multicaSessionsDir = path.join(
+      env.HOME || require("node:os").homedir(),
+      ".multica",
+      "pi-sessions",
+    );
+    for (const entry of fssync.readdirSync(multicaSessionsDir, { withFileTypes: true })) {
+      if (!entry.isFile() || !entry.name.endsWith(".jsonl")) continue;
+      const full = path.join(multicaSessionsDir, entry.name);
+      if (!seen.has(full)) {
+        seen.add(full);
+        files.push(full);
+      }
+    }
+  } catch {
+    // ignore — no Multica install
   }
   files.sort((a, b) => a.localeCompare(b));
   return files;
@@ -24645,6 +24671,7 @@ module.exports = {
   toUtcHalfHourStart,
   totalsKey,
   claudeMessageDedupKey,
+  normalizeClaudeUsage,
   groupBucketKey,
   // Exposed for regression tests covering nested-group remote URLs.
   canonicalizeProjectRef,

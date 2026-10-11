@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const net = require("node:net");
 const os = require("node:os");
 const path = require("node:path");
+const binaryProbe = process.platform === "win32" ? "where" : "which";
 
 const {
   cacheExpiresAtMs,
@@ -22,6 +23,9 @@ const {
   normalizeAntigravityResponse,
   normalizeAntigravityQuotaSummary,
   loadAntigravityCredentials,
+  readAntigravityLinuxSecretRaw,
+  ANTIGRAVITY_OAUTH_CLIENT_ID,
+  ANTIGRAVITY_OAUTH_CLIENT_SECRET,
   parseListeningPorts,
   parseWindowsListeningPorts,
   parseLinuxProcListeningPorts,
@@ -31,7 +35,7 @@ const {
   fetchAntigravityLimits,
   fetchCopilotLimits,
   describeCopilotOtelStatus,
-} = require("../src/lib/usage-limits");
+} = require("./helpers/usage-limits");
 const { writeArkCodingPlanLimitsCache } = require("../src/lib/ark-coding-plan-limits");
 
 // Match a fetch URL by host (exact or subdomain) rather than substring, so the
@@ -68,7 +72,7 @@ describe("extractGeminiOauthClientCredentials", () => {
 
       const result = await extractGeminiOauthClientCredentials({
         commandRunner(command, args) {
-          assert.equal(command, "which");
+          assert.equal(command, binaryProbe);
           assert.deepEqual(args, ["gemini"]);
           return { status: 0, stdout: `${geminiPath}\n` };
         },
@@ -83,7 +87,7 @@ describe("extractGeminiOauthClientCredentials", () => {
     }
   });
 
-  it("falls back to nvm-installed Gemini when launchd PATH cannot find gemini", async () => {
+  it("falls back to nvm-installed Gemini when launchd PATH cannot find gemini", { skip: process.platform === "win32" && "Unix nvm layout and file symlinks" }, async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-gemini-nvm-"));
     try {
       const home = path.join(tmp, "home");
@@ -244,16 +248,19 @@ function antigravityQuotaSummaryPayload() {
   };
 }
 
+/** Return fixture quota responses and optionally record the OAuth request body. */
 function antigravityRemoteFetchImpl({
   quota = antigravityQuotaSummaryPayload(),
   refresh = { access_token: "ya29.agy-refreshed", expires_in: 3600 },
   load = { paidTier: { name: "Google AI Pro", id: "pro" } },
   quotaStatus = 200,
   calls = [],
+  recordedRequests = [],
 } = {}) {
-  return async (url) => {
+  return async (url, options = {}) => {
     const href = String(url);
     calls.push(href);
+    if (recordedRequests) recordedRequests.push({ url: href, options });
     if (href.includes("oauth2.googleapis.com/token")) {
       return { ok: true, status: 200, async json() { return refresh; } };
     }
@@ -3340,7 +3347,7 @@ Estimated Usage | resets on 2026-08-01 | KIRO PRO
       );
       const commandRunner = (command, args) => {
         calls.push({ command, args });
-        if (command === "which") {
+        if (command === binaryProbe) {
           return { status: 0, stdout: "/opt/kiro-cli\n", stderr: "" };
         }
         if (command === "/opt/kiro-cli" && args[0] === "--version") {
@@ -3399,7 +3406,7 @@ Estimated Usage | resets on 2026-08-01 | KIRO PRO
     const calls = [];
     const commandRunner = (command, args) => {
       calls.push({ command, args });
-      if (command === "which") {
+      if (command === binaryProbe) {
         return { status: 0, stdout: "/opt/kiro-cli\n", stderr: "" };
       }
       if (command === "/opt/kiro-cli" && args[0] === "--version") {
@@ -3463,7 +3470,7 @@ Estimated Usage | resets on 2026-08-01 | KIRO PRO
       const result = await fetchKiroLimits({
         home: tmp,
         commandRunner(command, args) {
-          assert.equal(command, "which");
+          assert.equal(command, binaryProbe);
           assert.deepEqual(args, ["kiro-cli"]);
           return { status: 1, stdout: "", stderr: "" };
         },
@@ -3646,11 +3653,11 @@ describe("normalizeAntigravityQuotaSummary", () => {
 });
 
 describe("loadAntigravityCredentials", () => {
-  it("reads jetski-standalone-oauth-token nested token objects", () => {
+  it("reads jetski-standalone-oauth-token nested token objects", async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-creds-jetski-"));
     try {
       writeAntigravityOauthToken(tmp);
-      const creds = loadAntigravityCredentials({ home: tmp, platform: "linux" });
+      const creds = await loadAntigravityCredentials({ home: tmp, platform: "linux" });
       assert.equal(creds.accessToken, "ya29.agy-live");
       assert.equal(creds.refreshToken, "1//agy-refresh");
       assert.equal(creds.source, "file");
@@ -3660,7 +3667,7 @@ describe("loadAntigravityCredentials", () => {
     }
   });
 
-  it("reads antigravity-cli/antigravity-oauth-token", () => {
+  it("reads antigravity-cli/antigravity-oauth-token", async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-creds-cli-"));
     try {
       const credPath = path.join(tmp, ".gemini", "antigravity-cli", "antigravity-oauth-token");
@@ -3668,7 +3675,7 @@ describe("loadAntigravityCredentials", () => {
       fs.writeFileSync(credPath, JSON.stringify({
         token: { access_token: "ya29.cli", refresh_token: "1//cli", expiry: "2099-01-01T00:00:00Z" },
       }), "utf8");
-      const creds = loadAntigravityCredentials({ home: tmp, platform: "linux" });
+      const creds = await loadAntigravityCredentials({ home: tmp, platform: "linux" });
       assert.equal(creds.accessToken, "ya29.cli");
       assert.equal(creds.source, "file");
     } finally {
@@ -3676,7 +3683,7 @@ describe("loadAntigravityCredentials", () => {
     }
   });
 
-  it("does not treat Gemini CLI oauth_creds.json as Antigravity credentials", () => {
+  it("does not treat Gemini CLI oauth_creds.json as Antigravity credentials", async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-creds-gemini-"));
     try {
       const geminiDir = path.join(tmp, ".gemini");
@@ -3686,14 +3693,14 @@ describe("loadAntigravityCredentials", () => {
         JSON.stringify({ access_token: "ya29.gemini-cli", refresh_token: "1//gemini", expiry_date: Date.now() + 3_600_000 }),
         "utf8",
       );
-      const creds = loadAntigravityCredentials({ home: tmp, platform: "linux" });
+      const creds = await loadAntigravityCredentials({ home: tmp, platform: "linux" });
       assert.equal(creds, null);
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
   });
 
-  it("reads the macOS Keychain via securityRunner", () => {
+  it("reads the macOS Keychain via securityRunner", async () => {
     const payload = JSON.stringify({
       token: {
         access_token: "ya29.keychain",
@@ -3701,7 +3708,7 @@ describe("loadAntigravityCredentials", () => {
         expiry: "2099-01-01T00:00:00Z",
       },
     });
-    const creds = loadAntigravityCredentials({
+    const creds = await loadAntigravityCredentials({
       home: path.join(os.tmpdir(), "tokentracker-agy-no-home"),
       platform: "darwin",
       securityRunner(bin, args) {
@@ -3715,11 +3722,11 @@ describe("loadAntigravityCredentials", () => {
     assert.equal(creds.source, "keychain");
   });
 
-  it("prefers a fresh keychain token over an expired file", () => {
+  it("prefers a fresh keychain token over an expired file", async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-creds-fresh-kc-"));
     try {
       writeAntigravityOauthToken(tmp, { expiry: "2020-01-01T00:00:00Z" });
-      const creds = loadAntigravityCredentials({
+      const creds = await loadAntigravityCredentials({
         home: tmp,
         platform: "darwin",
         nowMs: Date.parse("2026-08-31T00:00:00.000Z"),
@@ -3744,11 +3751,11 @@ describe("loadAntigravityCredentials", () => {
     }
   });
 
-  it("prefers a fresh file over an expired keychain token", () => {
+  it("prefers a fresh file over an expired keychain token", async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-creds-fresh-file-"));
     try {
       const credPath = writeAntigravityOauthToken(tmp);
-      const creds = loadAntigravityCredentials({
+      const creds = await loadAntigravityCredentials({
         home: tmp,
         platform: "darwin",
         nowMs: Date.parse("2026-08-31T00:00:00.000Z"),
@@ -3773,7 +3780,7 @@ describe("loadAntigravityCredentials", () => {
     }
   });
 
-  it("picks the newest expired credential when every candidate is stale", () => {
+  it("picks the newest expired credential when every candidate is stale", async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-creds-all-stale-"));
     try {
       writeAntigravityOauthToken(tmp, {
@@ -3789,7 +3796,7 @@ describe("loadAntigravityCredentials", () => {
           expiry: "2024-06-01T00:00:00Z",
         },
       }), "utf8");
-      const creds = loadAntigravityCredentials({
+      const creds = await loadAntigravityCredentials({
         home: tmp,
         platform: "linux",
         nowMs: Date.parse("2026-08-31T00:00:00.000Z"),
@@ -3802,7 +3809,7 @@ describe("loadAntigravityCredentials", () => {
     }
   });
 
-  it("prefers an unknown-expiry credential over expired ones", () => {
+  it("prefers an unknown-expiry credential over expired ones", async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-creds-unknown-expiry-"));
     try {
       writeAntigravityOauthToken(tmp, {
@@ -3817,7 +3824,7 @@ describe("loadAntigravityCredentials", () => {
           refresh_token: "1//unknown-expiry",
         },
       }), "utf8");
-      const creds = loadAntigravityCredentials({
+      const creds = await loadAntigravityCredentials({
         home: tmp,
         platform: "linux",
         nowMs: Date.parse("2026-08-31T00:00:00.000Z"),
@@ -3826,6 +3833,70 @@ describe("loadAntigravityCredentials", () => {
       assert.equal(creds.path, unknownPath);
       assert.equal(creds.accessToken, "ya29.unknown-expiry");
       assert.equal(creds.expiryMs, null);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("reads Linux Secret Service via secretToolRunner", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-secret-tool-"));
+    try {
+      const payload = {
+        token: {
+          access_token: "ya29.from-secret-tool",
+          refresh_token: "1//refresh-from-secret-tool",
+          expiry: "2026-08-31T01:00:00.000Z",
+        },
+      };
+      const raw = `go-keyring-base64:${Buffer.from(JSON.stringify(payload)).toString("base64")}`;
+      let secretToolCalledWith = null;
+      const secretToolRunner = (bin, args) => {
+        secretToolCalledWith = { bin, args };
+        return { status: 0, stdout: raw, stderr: "" };
+      };
+      const creds = await loadAntigravityCredentials({
+        home: tmp,
+        platform: "linux",
+        secretToolRunner,
+        nowMs: Date.parse("2026-08-31T00:00:00.000Z"),
+      });
+      assert.equal(secretToolCalledWith.bin, "secret-tool");
+      assert.deepEqual(secretToolCalledWith.args, ["lookup", "service", "gemini", "username", "antigravity"]);
+      assert.equal(creds.accessToken, "ya29.from-secret-tool");
+      assert.equal(creds.source, "keyring");
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("forwards secretToolRunner through getUsageLimits", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-get-limits-"));
+    try {
+      const payload = {
+        token: {
+          access_token: "ya29.from-secret-tool",
+          refresh_token: "1//refresh-from-secret-tool",
+          expiry: "2026-08-31T01:00:00.000Z",
+        },
+      };
+      const raw = `go-keyring-base64:${Buffer.from(JSON.stringify(payload)).toString("base64")}`;
+      let secretToolCalled = false;
+      const secretToolRunner = (bin, args) => {
+        if (bin === "secret-tool") secretToolCalled = true;
+        return { status: 0, stdout: raw, stderr: "" };
+      };
+      const calls = [];
+      const result = await getUsageLimits({
+        home: tmp,
+        platform: "linux",
+        secretToolRunner,
+        securityRunner() { return { status: 1, stdout: "" }; },
+        commandRunner() { return { status: 1, stdout: "" }; },
+        fetchImpl: antigravityRemoteFetchImpl({ calls }),
+        forceRefresh: true,
+      });
+      assert.ok(secretToolCalled, "secretToolRunner was called via getUsageLimits");
+      assert.equal(result.antigravity.configured, true);
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
@@ -3921,7 +3992,7 @@ lang      123 me    23u  IPv4 0x124                0t0  TCP 127.0.0.1:51235 (LIS
       status: 0,
     });
 
-    const result = await detectAntigravityProcess({ commandRunner });
+    const result = await detectAntigravityProcess({ commandRunner, platform: "linux" });
 
     assert.equal(result.configured, true);
     assert.equal(result.pid, 123);
@@ -3937,7 +4008,7 @@ lang      123 me    23u  IPv4 0x124                0t0  TCP 127.0.0.1:51235 (LIS
       status: 0,
     });
 
-    const result = await detectAntigravityProcess({ commandRunner });
+    const result = await detectAntigravityProcess({ commandRunner, platform: "linux" });
 
     assert.equal(result.configured, true);
     assert.equal(result.pid, 456);
@@ -3953,7 +4024,7 @@ lang      123 me    23u  IPv4 0x124                0t0  TCP 127.0.0.1:51235 (LIS
       status: 0,
     });
 
-    const result = await detectAntigravityProcess({ commandRunner });
+    const result = await detectAntigravityProcess({ commandRunner, platform: "linux" });
 
     assert.equal(result.configured, true);
     assert.equal(result.pid, 789);
@@ -3968,7 +4039,7 @@ lang      123 me    23u  IPv4 0x124                0t0  TCP 127.0.0.1:51235 (LIS
       status: 0,
     });
 
-    const result = await detectAntigravityProcess({ commandRunner });
+    const result = await detectAntigravityProcess({ commandRunner, platform: "linux" });
 
     assert.equal(result.configured, true);
     assert.equal(result.pid, 101);
@@ -3985,7 +4056,7 @@ lang      123 me    23u  IPv4 0x124                0t0  TCP 127.0.0.1:51235 (LIS
       status: 0,
     });
 
-    const result = await detectAntigravityProcess({ commandRunner });
+    const result = await detectAntigravityProcess({ commandRunner, platform: "linux" });
 
     assert.equal(result.configured, false);
   });
@@ -3998,7 +4069,7 @@ lang      123 me    23u  IPv4 0x124                0t0  TCP 127.0.0.1:51235 (LIS
       status: 0,
     });
 
-    const result = await detectAntigravityProcess({ commandRunner });
+    const result = await detectAntigravityProcess({ commandRunner, platform: "linux" });
 
     assert.equal(result.configured, true);
     assert.equal(result.pid, 555);
@@ -4012,7 +4083,7 @@ lang      123 me    23u  IPv4 0x124                0t0  TCP 127.0.0.1:51235 (LIS
       status: 0,
     });
 
-    const result = await detectAntigravityProcess({ commandRunner });
+    const result = await detectAntigravityProcess({ commandRunner, platform: "linux" });
 
     assert.equal(result.configured, false);
   });
@@ -4025,7 +4096,7 @@ lang      123 me    23u  IPv4 0x124                0t0  TCP 127.0.0.1:51235 (LIS
       status: 0,
     });
 
-    const result = await detectAntigravityProcess({ commandRunner });
+    const result = await detectAntigravityProcess({ commandRunner, platform: "linux" });
 
     assert.equal(result.configured, false);
   });
@@ -4046,14 +4117,14 @@ lang      123 me    23u  IPv4 0x124                0t0  TCP 127.0.0.1:51235 (LIS
       return { status: 1, stdout: "", stderr: "" };
     };
 
-    const result = await detectAntigravityProcess({ commandRunner });
+    const result = await detectAntigravityProcess({ commandRunner, platform: "linux" });
     assert.equal(calls[0].command, "/bin/ps");
     assert.equal(calls[1].command, "ps");
     assert.equal(result.configured, true);
     assert.equal(result.pid, 456);
   });
 
-  it("discovers listening ports via Linux procfs", () => {
+  it("discovers listening ports via Linux procfs", { skip: process.platform === "win32" && "Unix procfs socket symlinks" }, () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-procfs-test-"));
     try {
       const pidDir = path.join(tmp, "456", "fd");
@@ -4087,7 +4158,7 @@ lang      123 me    23u  IPv4 0x124                0t0  TCP 127.0.0.1:51235 (LIS
       return { status: null, stdout: "", stderr: "", error: timeoutError };
     };
 
-    const result = await detectAntigravityProcess({ commandRunner });
+    const result = await detectAntigravityProcess({ commandRunner, platform: "linux" });
     assert.equal(calls.length, 1);
     assert.equal(calls[0].command, "/bin/ps");
     assert.equal(result.configured, false);
@@ -4111,7 +4182,7 @@ lang      123 me    23u  IPv4 0x124                0t0  TCP 127.0.0.1:51235 (LIS
       const calls = [];
       const commandRunner = (command, args) => {
         calls.push({ command, args });
-        if (command === "which") {
+        if (command === binaryProbe) {
           if (args[0] === "lsof") return { status: 1, stdout: "", stderr: "" };
           if (args[0] === "ss") return { status: 0, stdout: "/usr/bin/ss\n", stderr: "" };
         }
@@ -4136,8 +4207,8 @@ lang      123 me    23u  IPv4 0x124                0t0  TCP 127.0.0.1:51235 (LIS
       });
 
       assert.deepEqual(ports, [32919, 35345]);
-      assert.ok(calls.some((c) => (c.command === "which" && c.args?.[0] === "lsof") || String(c.command).endsWith("lsof")));
-      assert.ok(calls.some((c) => c.command === "which" && c.args?.[0] === "ss"));
+      assert.ok(calls.some((c) => (c.command === binaryProbe && c.args?.[0] === "lsof") || String(c.command).endsWith("lsof")));
+      assert.ok(calls.some((c) => c.command === binaryProbe && c.args?.[0] === "ss"));
       assert.ok(calls.some((c) => c.command === "/usr/bin/ss" || c.command === "ss"));
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
@@ -4157,7 +4228,7 @@ lang      123 me    23u  IPv4 0x124                0t0  TCP 127.0.0.1:51235 (LIS
             status: 0,
           };
         }
-        if (command === "which") {
+        if (command === binaryProbe) {
           return { stdout: "/usr/bin/lsof\n", status: 0 };
         }
         if (String(command).endsWith("lsof")) {
@@ -4277,7 +4348,7 @@ lang 123 me 22u IPv4 0x123 0t0 TCP 127.0.0.1:51234 (LISTEN)
             status: 0,
           };
         }
-        if (command === "which") {
+        if (command === binaryProbe) {
           return { stdout: "/usr/bin/lsof\n", status: 0 };
         }
         if (String(command).endsWith("lsof")) {
@@ -4419,12 +4490,14 @@ describe("fetchAntigravityLimits remote OAuth", () => {
     try {
       const credPath = writeAntigravityOauthToken(tmp, { expiry: "2026-08-01T00:00:00Z" });
       const calls = [];
+      const recordedRequests = [];
       const result = await fetchAntigravityLimits({
         platform: "linux",
         home: tmp,
         commandRunner() { return { status: 1, stdout: "" }; },
         fetchImpl: antigravityRemoteFetchImpl({
           calls,
+          recordedRequests,
           refresh: { access_token: "ya29.agy-refreshed", expires_in: 3600 },
         }),
         nowMs: Date.parse("2026-08-31T00:00:00.000Z"),
@@ -4435,6 +4508,13 @@ describe("fetchAntigravityLimits remote OAuth", () => {
       assert.ok(calls.includes("https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary"));
       const saved = JSON.parse(fs.readFileSync(credPath, "utf8"));
       assert.equal(saved.token.access_token, "ya29.agy-refreshed");
+
+      const tokenReq = recordedRequests.find((r) => r.url.includes("oauth2.googleapis.com/token"));
+      assert.ok(tokenReq, "token refresh request was recorded");
+      const params = new URLSearchParams(tokenReq.options?.body);
+      assert.equal(params.get("grant_type"), "refresh_token");
+      assert.equal(params.get("client_id"), ANTIGRAVITY_OAUTH_CLIENT_ID);
+      assert.equal(params.get("client_secret"), ANTIGRAVITY_OAUTH_CLIENT_SECRET);
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
@@ -4489,7 +4569,7 @@ describe("fetchAntigravityLimits remote OAuth", () => {
             status: 0,
           };
         }
-        if (command === "which") {
+        if (command === binaryProbe) {
           return { stdout: "/usr/bin/lsof\n", status: 0 };
         }
         if (String(command).endsWith("lsof")) {
@@ -4743,6 +4823,7 @@ describe("TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA opt-out", () => {
         platform: "linux",
         home: tmp,
         commandRunner() { throw new Error("must not scan processes"); },
+        secretToolRunner() { throw new Error("must not read the keyring"); },
         fetchImpl: antigravityRemoteFetchImpl({ calls }),
         nowMs: Date.parse("2026-08-31T00:00:00.000Z"),
       });
@@ -4813,7 +4894,7 @@ describe("fetchAntigravityLimits provider budget", () => {
           stdout: "123 /Applications/Antigravity.app/Contents/MacOS/language_server_macos --app_data_dir antigravity --csrf_token abc123\n",
         };
       }
-      if (command === "which") return { status: 0, stdout: "/usr/bin/lsof\n" };
+      if (command === binaryProbe) return { status: 0, stdout: "/usr/bin/lsof\n" };
       if (String(command).endsWith("lsof")) return { status: 0, stdout: `${portLines}\n` };
       return { status: 1, stdout: "", stderr: "" };
     };
@@ -5208,7 +5289,7 @@ describe("getUsageLimits Ark timeout fallback", () => {
         },
         commandRunner(command, args) {
           calls.push({ command, args });
-          if (command === "where") {
+          if (command === "where" && args?.[0] === "arkcli") {
             return { status: 0, stdout: "C:\\Program Files\\arkcli.exe\n", stderr: "" };
           }
           // The provider spawns the resolved absolute path, never a bare
@@ -5221,7 +5302,7 @@ describe("getUsageLimits Ark timeout fallback", () => {
         },
       });
 
-      assert.deepEqual(calls.find(({ command }) => command === "where")?.args, ["arkcli"]);
+      assert.deepEqual(calls.find(({ command, args }) => command === "where" && args?.[0] === "arkcli")?.args, ["arkcli"]);
       assert.equal(result.codingPlan.configured, true);
       assert.equal(result.codingPlan.stale, undefined);
       assert.match(result.codingPlan.error, /timed out/i);

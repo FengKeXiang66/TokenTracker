@@ -8,7 +8,8 @@ import { useInsforgeAuth } from "../../contexts/InsforgeAuthContext.jsx";
 import { useLoginModal } from "../../contexts/LoginModalContext.jsx";
 import { STATUSPAGE_URL } from "../../lib/config";
 import { LV3_CSS_VARS } from "./v3/palette.js";
-import { PRIVACY_URL, REPO_URL } from "../../lib/config";
+import { REPO_URL } from "../../lib/config";
+import { LegalLinks } from "../components/LegalLinks.jsx";
 import { useCommunityStats } from "../../hooks/use-community-stats.js";
 import { HeroSection } from "./v3/HeroSection.jsx";
 import { ToolsStrip } from "./v3/ToolsStrip.jsx";
@@ -86,6 +87,12 @@ export function MarketingLanding({
             </div>
           </div>
           <div className="flex items-center justify-end gap-3 sm:gap-5 md:gap-6">
+            <Link
+              to="/cloud"
+              className="hidden min-h-10 items-center text-sm font-medium text-oai-gray-400 transition-colors hover:text-white focus-visible:underline sm:inline-flex"
+            >
+              {copy("cloud.nav")}
+            </Link>
             {/* Leaderboard 纯文字导航链接 — 移动端收起（正文有醒目的榜单 CTA 兜底） */}
             <Link
               to="/leaderboard"
@@ -179,7 +186,10 @@ export function MarketingLanding({
       <footer className="border-t border-oai-gray-900 bg-oai-gray-950 py-12">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-6 px-4 text-sm text-oai-gray-400 sm:flex-row sm:px-6">
           <p>{copy("landing.v2.footer.line")}</p>
-          <div className="flex items-center gap-6">
+          <div className="flex flex-wrap items-center justify-center gap-6">
+            <Link to="/cloud" className="font-medium text-oai-gray-400 transition-colors hover:text-white">
+              {copy("cloud.nav")}
+            </Link>
             <a
               href={STATUSPAGE_URL}
               className="font-medium text-oai-gray-400 transition-colors hover:text-white"
@@ -196,14 +206,7 @@ export function MarketingLanding({
             >
               {copy("landing.v2.nav.github")}
             </a>
-            <a
-              href={PRIVACY_URL}
-              className="font-medium text-oai-gray-400 transition-colors hover:text-white"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {copy("landing.v2.nav.privacy")}
-            </a>
+            <LegalLinks />
             {isLocalMode && (
               <Link
                 to={signInUrl}

@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Privacy Policy | TokenTracker</title><link rel="stylesheet" href="/legal.css"></head><body><header><a href="/">TokenTracker</a></header><main><h1>Privacy Policy</h1>
+<p><em>Last updated: 2026-10-08 · Applies to the <code>tokentracker-cli</code> npm package, the macOS app, the Windows app, the Linux app, and <a href="https://www.tokentracker.cc">www.tokentracker.cc</a>.</em></p>
+<p>TokenTracker reads the local logs that AI coding tools already write to your disk, and turns them into token counts and cost estimates. It is local-first: the dashboard, the parsers and the database all run on your machine.</p>
+<p>This document lists <strong>every</strong> network request the software can make, what each one sends, and how to switch it off. If you find a request that is not listed here, that is a bug — please <a href="https://github.com/xiufengsun/TokenTracker/issues">open an issue</a>.</p>
+<hr />
+<h2>1. What never leaves your machine</h2>
+<p>TokenTracker's parsers extract numbers and timestamps only. TRAE Work CN is a narrow exception to the local-only source model, and it is off by default: only when you explicitly set <code>TOKENTRACKER_TRAE_CN_USAGE=1</code>, during an eligible non-background sync, when local TRAE Work CN auth exists, does TokenTracker transmit the existing sign-in authorization from the locally signed-in app to TRAE's internal API for a read-only usage request. Without that variable nothing is ever sent. It is not an unconditional or default generic network request. That authorization is never persisted or logged.</p>
+<p><strong>Never retained as usage data or uploaded to TokenTracker:</strong></p>
+<ul>
+<li><strong>Prompts, responses, and conversation bodies</strong> — TokenTracker may parse local tool files containing conversation records to extract usage metrics, but prompt and response texts are never persisted, collected, or transmitted</li>
+<li><strong>File contents</strong> from your projects</li>
+<li><strong>Commit messages and diffs</strong> — Git attribution runs <code>git log</code> locally, uses the subject line only to detect reverts, and keeps nothing</li>
+<li><strong>API keys, cookies, and session tokens</strong> belonging to your AI providers are never persisted or logged by TokenTracker</li>
+</ul>
+<p><strong>Recorded locally, never uploaded:</strong></p>
+<ul>
+<li><strong>File paths, project names, and repository names.</strong> The Projects view needs to know which repo a session belonged to, so <code>project.queue.jsonl</code> stores a project key and git remote URL, and <code>session.queue.jsonl</code> stores each session's working directory. Both files stay on your machine — they are excluded from cloud sync (see §4) and the Projects view is computed entirely locally. Set <code>TOKENTRACKER_DISABLE_GIT_ATTRIBUTION=1</code> to stop deriving them at all.</li>
+</ul>
+<p>You can verify this in <a href="https://github.com/xiufengsun/TokenTracker/blob/main/src/lib/rollout.js"><code>src/lib/rollout.js</code></a>: every <code>parse*Incremental</code> function emits only the queue row shapes described below.</p>
+<hr />
+<h2>2. What is stored locally</h2>
+<p>Everything lives under <code>~/.tokentracker/</code> (<code>%USERPROFILE%\.tokentracker\</code> on Windows):</p>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Contents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tracker/queue.jsonl</code></td>
+<td>Append-only hourly buckets: source, model, token counts, timestamp</td>
+</tr>
+<tr>
+<td><code>tracker/project.queue.jsonl</code></td>
+<td>The same hourly buckets, split per project: git remote URL and <code>owner/repo</code> key. Never uploaded</td>
+</tr>
+<tr>
+<td><code>tracker/session.queue.jsonl</code></td>
+<td>Per-session token totals and timing for the Sessions view, plus each session's working directory. Never uploaded</td>
+</tr>
+<tr>
+<td><code>tracker/cursors.json</code></td>
+<td>Read offsets so parsing stays incremental</td>
+</tr>
+<tr>
+<td><code>tracker/config.json</code></td>
+<td>Your preferences</td>
+</tr>
+<tr>
+<td><code>tracker/*-usage-limits-cache.json</code></td>
+<td>Last successful quota reading per provider, so a timeout shows stale bars instead of an error</td>
+</tr>
+<tr>
+<td><code>pets/</code>, <code>skills/</code>, <code>cache/</code></td>
+<td>Desktop pet assets, skill index, misc caches</td>
+</tr>
+</tbody>
+</table>
+<p>To erase everything TokenTracker knows about you, delete that directory. <code>tokentracker uninstall</code> additionally removes the hooks it installed into your AI tools.</p>
+<hr />
+<h2>3. Network requests</h2>
+<h3>3.1 Enabled by default</h3>
+<table>
+<thead>
+<tr>
+<th>Request</th>
+<th>Destination</th>
+<th>What is sent</th>
+<th>Frequency</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Anonymous heartbeat</strong></td>
+<td><code>srctyff5.us-east.insforge.app</code></td>
+<td>A one-way hash of the machine id, plus the app version, OS platform, and app shell (<code>cli</code> / <code>macos</code> / <code>windows</code> / <code>linux</code>) as separate plain fields. Nothing else.</td>
+<td>At most once per day</td>
+</tr>
+<tr>
+<td><strong>Dashboard analytics</strong></td>
+<td><code>us.i.posthog.com</code> (PostHog)</td>
+<td>Pageviews and explicitly instrumented feature events, plus which shell you use. Autocapture and session recording are <strong>off</strong>; browser Do-Not-Track is respected.</td>
+<td>While the dashboard is open</td>
+</tr>
+<tr>
+<td><strong>Provider quota reads</strong></td>
+<td>The provider's own API (<code>api.anthropic.com</code>, <code>chatgpt.com</code>, <code>cursor.com</code>, <code>api.github.com</code>, <code>api.kimi.com</code>, <code>api.z.ai</code>, <code>qoder.com</code>, <code>qoder.com.cn</code>, <code>openapi.qoder.sh</code>, <code>openapi.qoder.com.cn</code>, <code>cloudcode-pa.googleapis.com</code>, …)</td>
+<td>Whatever that provider's own endpoint requires, authenticated with the credentials <strong>that provider already stored on your machine</strong>. These requests go directly from your machine to the provider — they never pass through our servers, and we never see the response.</td>
+<td>While quota bars are visible</td>
+</tr>
+<tr>
+<td><strong>TRAE Work CN usage read</strong></td>
+<td>TRAE's internal API</td>
+<td>Transmits the existing sign-in authorization from the locally signed-in TRAE Work CN app to TRAE; reads usage metadata only. TokenTracker never persists or logs the auth token or prompt/response content.</td>
+<td>Off unless you set <code>TOKENTRACKER_TRAE_CN_USAGE=1</code>; then during eligible non-background sync when local TRAE Work CN auth exists</td>
+</tr>
+<tr>
+<td><strong>GitHub star count</strong></td>
+<td><code>api.github.com</code></td>
+<td>Nothing but the request itself (public repo metadata)</td>
+<td>On dashboard load</td>
+</tr>
+<tr>
+<td><strong>Update check</strong></td>
+<td><code>api.github.com</code></td>
+<td>Nothing but the request itself</td>
+<td>Windows: once at launch. macOS: only when you click "Check for Updates"</td>
+</tr>
+<tr>
+<td><strong>Pricing data refresh</strong></td>
+<td><code>raw.githubusercontent.com</code></td>
+<td>Nothing but the request itself (public model pricing JSON from BerriAI/litellm)</td>
+<td>At most once every 24 hours when the local pricing cache is missing or stale</td>
+</tr>
+</tbody>
+</table>
+<p>Both telemetry items are disabled together by a single switch:</p>
+<pre><code class="language-bash">export TOKENTRACKER_NO_TELEMETRY=1     # or DO_NOT_TRACK=1
+</code></pre>
+<p>You can also set <code>"telemetry": false</code> in <code>~/.tokentracker/tracker/config.json</code>. On localhost and inside the desktop apps, the dashboard asks the local server for this preference before initialising analytics — and if the answer cannot be confirmed, analytics stays <strong>off</strong> (fail-closed).</p>
+<p>Audit: <a href="https://github.com/xiufengsun/TokenTracker/blob/main/src/lib/telemetry.js"><code>src/lib/telemetry.js</code></a>, <a href="https://github.com/xiufengsun/TokenTracker/blob/main/dashboard/src/lib/analytics.js"><code>dashboard/src/lib/analytics.js</code></a>, <a href="https://github.com/xiufengsun/TokenTracker/blob/main/src/lib/pricing/litellm-fetcher.js"><code>src/lib/pricing/litellm-fetcher.js</code></a>.</p>
+<h3>3.2 Only after you opt in or click something</h3>
+<table>
+<thead>
+<tr>
+<th>Request</th>
+<th>Destination</th>
+<th>What is sent</th>
+<th>Trigger</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Devin quota read</strong></td>
+<td><code>server.codeium.com</code> (Devin's official <code>GetPlanStatus</code> RPC)</td>
+<td>An empty JSON body, authenticated with the Devin CLI session token already stored on your machine. The token is never persisted or logged by TokenTracker.</td>
+<td>Off by default — only while the Devin provider switch in Settings → Usage &amp; Limits → Providers is on, and only on a locally authenticated request</td>
+</tr>
+<tr>
+<td><strong>Cloud sync / leaderboard</strong></td>
+<td><code>srctyff5.us-east.insforge.app</code></td>
+<td>Hourly buckets only — see §4</td>
+<td>Signing in to a TokenTracker account</td>
+</tr>
+<tr>
+<td><strong>Exchange rates</strong></td>
+<td><code>open.er-api.com</code></td>
+<td>Nothing but the request itself</td>
+<td>Selecting a non-USD display currency</td>
+</tr>
+<tr>
+<td><strong>Desktop pet download</strong></td>
+<td><code>codex-pets.net</code></td>
+<td>The pet id you chose</td>
+<td>Importing a pet from a link</td>
+</tr>
+<tr>
+<td><strong>IP check page</strong></td>
+<td><code>ip.net.coffee</code>, <code>claude.ai</code>, <code>1.1.1.1</code></td>
+<td>Your IP address is, by design, what these endpoints observe — that page exists to tell you how providers see your network</td>
+<td>Opening the IP Check page</td>
+</tr>
+<tr>
+<td><strong>Service status page</strong></td>
+<td>Provider status pages (<code>status.claude.com</code>, <code>status.openai.com</code>, <code>status.cursor.com</code>, …)</td>
+<td>Nothing but the request itself</td>
+<td>Opening the Service Status page</td>
+</tr>
+<tr>
+<td><strong>Share card fonts</strong></td>
+<td><code>fonts.googleapis.com</code></td>
+<td>Standard web-font request; Google can see your IP address</td>
+<td>Generating a share image</td>
+</tr>
+</tbody>
+</table>
+<h3>3.3 Never</h3>
+<ul>
+<li>No request contains prompt text, responses, file contents, paths, or project names.</li>
+<li>We operate no ad network, no data broker integration, and no cross-site tracking.</li>
+<li>We do not sell or rent your data. Service providers listed in this policy process data only for the purposes described here.</li>
+</ul>
+<hr />
+<h2>4. Cloud account and leaderboard</h2>
+<p>Signing in is <strong>entirely optional</strong>. TokenTracker is fully functional without an account; the leaderboard, cross-device aggregation, badges and public profiles are the only features that require one.</p>
+<p><strong>Sent when signed in:</strong></p>
+<ul>
+<li>Hourly usage buckets, each containing exactly: <code>hour_start</code>, <code>source</code>, <code>model</code>, <code>input_tokens</code>, <code>output_tokens</code>, <code>cached_input_tokens</code>, <code>cache_creation_input_tokens</code>, <code>reasoning_output_tokens</code>, <code>total_tokens</code>, <code>conversation_count</code></li>
+<li>A machine id at device-registration time, so usage from several computers can be merged into one account without double-counting</li>
+<li>The email address and display name from your OAuth provider (GitHub or Google)</li>
+</ul>
+<p><strong>Not sent, ever:</strong></p>
+<ul>
+<li>Prompts, responses, file contents, project or repository names, file paths</li>
+<li>Local session records — <code>session.queue.jsonl</code> stays on your machine</li>
+<li>Per-project breakdowns — <code>project.queue.jsonl</code> is never uploaded</li>
+<li>Any provider credential</li>
+</ul>
+<p><strong>Public visibility:</strong> your profile appears on the public leaderboard only while <code>Settings → Account → Public profile</code> is on. Turning it off removes you from the leaderboard and turns badges into a "private" placeholder.</p>
+<p><strong>Deleting cloud data:</strong> contact us privately at <a href="mailto:rynnsun0509@gmail.com">rynnsun0509@gmail.com</a> and we will remove the account and its rows. Deleting <code>~/.tokentracker/</code> removes the local copy immediately.</p>
+<hr />
+<h2>5. Third parties</h2>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>Role</th>
+<th>Their policy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>InsForge</td>
+<td>Backend for accounts, cloud sync, leaderboard, heartbeat</td>
+<td><a href="https://github.com/InsForge">github.com/InsForge</a></td>
+</tr>
+<tr>
+<td>PostHog</td>
+<td>Anonymous product analytics</td>
+<td><a href="https://posthog.com/privacy">posthog.com/privacy</a></td>
+</tr>
+<tr>
+<td>Vercel</td>
+<td>Hosting for www.tokentracker.cc</td>
+<td><a href="https://vercel.com/legal/privacy-policy">vercel.com/legal/privacy-policy</a></td>
+</tr>
+<tr>
+<td>GitHub</td>
+<td>Source hosting, releases, OAuth, star counts, upstream pricing data (<code>raw.githubusercontent.com</code>)</td>
+<td><a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement">GitHub Privacy Statement</a></td>
+</tr>
+<tr>
+<td>Google</td>
+<td>OAuth sign-in, fonts on share cards</td>
+<td><a href="https://policies.google.com/privacy">policies.google.com/privacy</a></td>
+</tr>
+</tbody>
+</table>
+<p>AI providers whose quota endpoints TokenTracker reads (Anthropic, OpenAI, Cursor, GitHub Copilot, Google, Moonshot, Z.ai, Qoder, Devin, …) are governed by their own policies. TokenTracker acts on your behalf with credentials already on your machine; it does not create any new relationship with them.</p>
+<hr />
+<h2>6. Turning things off</h2>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TOKENTRACKER_NO_TELEMETRY=1</code></td>
+<td>Disables the daily heartbeat <strong>and</strong> dashboard analytics</td>
+</tr>
+<tr>
+<td><code>DO_NOT_TRACK=1</code></td>
+<td>Same as above (respects the standard)</td>
+</tr>
+<tr>
+<td><code>TOKENTRACKER_DISABLE_GIT_ATTRIBUTION=1</code></td>
+<td>Stops TokenTracker running <code>git log</code> inside your project directories</td>
+</tr>
+</tbody>
+</table>
+<p>Signing out removes cloud sync. Not signing in means it never starts.</p>
+<hr />
+<h2>7. Children</h2>
+<p>TokenTracker is a developer tool and is not directed at children under 13. We do not knowingly collect personal information from children.</p>
+<h2>8. Changes</h2>
+<p>Material changes to this policy will be noted in the release notes and in the <code>Last updated</code> date above. The full history is in <a href="https://github.com/xiufengsun/TokenTracker/commits/main/dashboard/public/privacy.html">this file's Git log</a>.</p>
+<h2>9. Contact</h2>
+<p>Questions, corrections, or deletion requests: <a href="mailto:rynnsun0509@gmail.com">rynnsun0509@gmail.com</a>. Do not publish private account or payment information in GitHub issues.</p>
+<h2>Planned Cloud billing</h2>
+<p>Waffo Pancake operates hosted checkout and handles payment details under its own terms and privacy policy. TokenTracker receives the order/payment reference, billing email, purchased plan, amount/currency, payment status, subscription term and refund status necessary to deliver access and handle billing. Full payment card numbers and security codes are not stored by TokenTracker. Only the usage metrics described above are synchronized.</p>
+<p>Cloud membership provides access to 90 days of hourly details and 24 months of daily summaries. After membership expires, personal history has a 30-day read/export window. These are access windows, not a promise to delete all stored usage on the expiry date. Aggregated community statistics and compressed usage metrics may be retained to preserve and correct lifetime statistics. Necessary billing records may be retained to meet legal/accounting obligations and resolve payment disputes. Contact the private support address for access, correction or deletion requests; legally required records may be retained. Local data is unaffected by Cloud expiry.</p>
+<p>TokenTracker is operated by Sun Xiufeng, an individual developer in China. Account and usage storage uses the existing InsForge backend, including infrastructure in the United States; other providers can process data in their operating regions. Contact <a href="mailto:rynnsun0509@gmail.com">rynnsun0509@gmail.com</a> for privacy and security requests. This billing supplement was updated on 10 October 2026.</p></main><footer><a href="/pricing.html">Cloud pricing</a><a href="/terms.html">Terms of Service</a><a href="/privacy.html">Privacy Policy</a><a href="mailto:rynnsun0509@gmail.com">Support: rynnsun0509@gmail.com</a></footer></body></html>

@@ -255,7 +255,7 @@ An Arch `PKGBUILD` for a local pacman install lives in `TokenTrackerLinux/packag
 | **Grok Build** (xAI) | ✅ Auto | SessionEnd hook + passive `updates.jsonl` / `signals.json` scan (`~/.grok/sessions/**/`) |
 | **Kilo CLI** (kilo.ai) | ✅ Auto | Passive SQLite reader (`~/.local/share/kilo/kilo.db`, OpenCode-fork schema) |
 | **Kilo Code** (VS Code extension) | ✅ Auto | Passive `ui_messages.json` reader (Cursor/Code/CodeBuddy/Windsurf globalStorage) |
-| **Antigravity** | ✅ Auto | Passive transcript reader (`~/.gemini/{antigravity,antigravity-ide,antigravity-cli}/brain/**/transcript.jsonl`); quota lookup can be disabled with `TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA=1` |
+| **Antigravity** | ✅ Auto | Passive transcript reader (`~/.gemini/{antigravity,antigravity-ide,antigravity-cli}/brain/**/transcript.jsonl`); see [quota credentials and Linux keyring setup](docs/antigravity-limits.md). Disable quota lookup with `TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA=1` |
 | **OmO** | ✅ Auto | Passive reader (`~/.omo/agent/sessions/**/*.jsonl`, subagent transcripts included). Same session format as oh-my-pi but a separate install root, cursor namespace and source label, so both can be tracked side by side. Reasoning tokens are reported as a subset of output (Codex convention) and are never billed twice |
 | **pi** (`@mariozechner/pi-coding-agent`) | ✅ Auto | Passive reader (`~/.pi/agent/sessions/**/*.jsonl`) |
 | **Dots** | ✅ Auto | Routed through pi's provider split (`pi-dots` source, same passive reader) — no separate hook |
@@ -336,6 +336,8 @@ flowchart LR
 5. Dashboard, menu bar app, and widgets all read from the same local snapshot
 
 ---
+
+Local features remain free and open source. Optional official Cloud hosts cross-device analytics and is in development; see the [proposed plans and transition rules](docs/cloud-guide.md). The Waffo test pricing draft uses the same worldwide USD base price for recurring and fixed-term access, USD 4.99/month or USD 39.99/year before checkout tax. Self-hosted software is free with infrastructure and maintenance handled by its owner; the complete installation is currently a [technical preview](docs/self-hosting.md).
 
 ## 🛡️ Privacy
 
