@@ -33,7 +33,7 @@ test.before(async () => {
     '20261007130000_cloud-waffo-retry.sql', '20261007140000_cloud-waffo-attempts.sql',
     '20261007150000_cloud-waffo-authorizations.sql', '20261007160000_cloud-waffo-sandbox-periods.sql',
     '20261008120000_self-hosted-access.sql', '20261008150000_cloud-pro-badges.sql',
-    '20261009120000_cloud-gifts.sql']) await db.exec(migration(name));
+    '20261009120000_cloud-gifts.sql', '20261010225755_cloud-device-safety-cap.sql']) await db.exec(migration(name));
   await db.exec("UPDATE tokentracker_cloud_policy SET phase='active',launch_at=now()-interval '1 hour'");
 });
 test.after(async () => db?.close());
@@ -106,7 +106,7 @@ test('a gift immediately grants full Pro with an independent immutable ledger an
   assert.equal(Date.parse(result.gift.ends_at)-Date.parse(result.gift.starts_at),30*86400000);
   assert.equal(result.membership.status,'active'); assert.equal(result.membership.access_source,'gift');
   assert.equal(result.membership.has_gift,true); assert.equal(result.membership.trial_available,false);
-  assert.equal(result.membership.machine_limit,5); assert.equal(result.membership.sync_interval_seconds,900);
+  assert.equal(result.membership.machine_limit,99); assert.equal(result.membership.sync_interval_seconds,900);
   assert.equal(result.membership.hourly_history_days,90); assert.equal(result.membership.daily_history_months,24);
   assert.equal((await account(id)).gifts[0].id,result.gift.id);
   for (const table of ['orders','payments','subscriptions','events']) {
@@ -221,13 +221,13 @@ test('expiry and revocation give read grace only to intervals that actually bega
   state = await member(future); assert.equal(state.status,'free'); assert.equal(state.can_read_cloud,false); assert.equal(state.read_only_until,null);
 });
 
-test('gift entitlement reaches actual device issuance and the five-machine admission guard', async () => {
+test('gift entitlement reaches actual device issuance and the 99-machine safety guard', async () => {
   const id = await user(), free = await user();
   const issue = actor => rpc('cloud_issue_device_token',[actor,'sandbox','Contributor '+randomUUID(),'web',randomUUID(),[],randomUUID(),randomBytes(32).toString('hex'),false,null]);
   assert.equal((await issue(free)).ok,true,'free accounts keep their community device');
   assert.equal((await issue(free)).code,'cloud_machine_limit');
   const result = await redeem(id,(await batch()).codes[0]);
-  for (let i=0;i<5;i++) assert.equal((await issue(id)).ok,true);
+  for (let i=0;i<99;i++) assert.equal((await issue(id)).ok,true);
   assert.equal((await issue(id)).code,'cloud_machine_limit');
   const access = await rpc('cloud_account_access',[id,'sandbox','hourly']);
   assert.equal(access.ok,true); assert.equal(access.membership.access_source,'gift');

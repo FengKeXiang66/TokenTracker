@@ -24,6 +24,8 @@ export function LoginPage() {
   } = useInsforgeAuth();
 
   const nextPath = useMemo(() => parseNext(searchParams.toString()), [searchParams]);
+  const cloudLogin = /^\/(cloud|billing\/checkout)(\?|$)/.test(nextPath);
+  const trialLogin = cloudLogin && new URLSearchParams(nextPath.split("?")[1]).get("intent") === "trial";
   const [banner, setBanner] = useState(null);
 
   useEffect(() => {
@@ -109,10 +111,10 @@ export function LoginPage() {
     <div className="min-h-screen bg-oai-gray-950 text-oai-white font-oai antialiased dark flex flex-col">
       <header className="border-b border-oai-gray-900 px-4 sm:px-6 h-16 flex items-center justify-between">
         <Link
-          to="/"
+          to={cloudLogin ? "/cloud" : "/"}
           className="text-sm font-medium text-oai-gray-400 hover:text-white no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500 rounded"
         >
-          {copy("login.back_home")}
+          {copy(cloudLogin ? "cloud.checkout.back" : "login.back_home")}
         </Link>
       </header>
 
@@ -138,7 +140,7 @@ export function LoginPage() {
             <LoginCard
               hideLogo
               title={copy("login.title")}
-              subtitle={copy("login.subtitle")}
+              subtitle={copy(cloudLogin ? trialLogin ? "cloud.login.trial_context" : "cloud.login.purchase_context" : "login.subtitle")}
               className="p-8 bg-transparent"
               onSuccess={() => {
                 if (isNativeLogin) {

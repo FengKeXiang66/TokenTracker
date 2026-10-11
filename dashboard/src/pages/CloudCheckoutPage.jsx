@@ -9,7 +9,6 @@ import {
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   BillingNotice,
-  CloudFeatures,
   CloudPaymentConflictNotice,
   SelfHostedCloudState,
   cloudProviderLabel,
@@ -36,13 +35,21 @@ import {
   saveCloudPurchase,
 } from "../lib/cloud-checkout.js";
 import { copy } from "../lib/copy";
+import { clearCloudAction, consumeCloudAction, readCloudAction } from "../lib/cloud-action-intent";
+import { getInsforgeInstanceFingerprint } from "../lib/insforge-config";
+import { getCloudSyncEnabled, isLocalDashboardHost } from "../lib/cloud-sync-prefs";
 import { detectOS } from "../lib/os";
 import { isNativeEmbed, isNativeWindowsApp, isNativeLinuxApp } from "../lib/native-bridge.js";
 import { Button } from "../ui/components/Button.jsx";
 import { Card } from "../ui/components/Card.jsx";
+import { ToggleSwitch } from "../components/settings/Controls.jsx";
+import { useLoginModal } from "../contexts/LoginModalContext.jsx";
+import { CloudPlanView } from "./CloudPage.jsx";
 
 export function CloudCheckoutPage() {
   const navigate = useNavigate();
+  const { openLoginModal } = useLoginModal();
+  const promptedLogin = useRef(null);
   const [params, setParams] = useSearchParams();
   useEffect(() => {
     // Ignore legacy checkout hints. Only the owned server order controls payment.
@@ -57,10 +64,11 @@ export function CloudCheckoutPage() {
     error: catalogError,
     refresh: refreshCatalog,
   } = useCloudCatalog();
-  const { account, auth, refresh: refreshAccount } = useCloudAccount();
+  const { account, auth, loading: accountLoading, error: accountError, refresh: refreshAccount } = useCloudAccount();
   const orderId = params.get("order") || "";
   const trialIntent = params.get("intent") === "trial";
   const requestedSku = params.get("sku");
+  const checkoutPath = `/billing/checkout?${params}`;
   const [orderResult, setOrderResult] = useState(null);
   const [busy, setBusy] = useState(false);
   const [loadingOrder, setLoadingOrder] = useState(Boolean(orderId));
@@ -68,21 +76,28 @@ export function CloudCheckoutPage() {
   const [trialMembership, setTrialMembership] = useState(null);
   const [actionError, setActionError] = useState(null);
   const [restartingCheckout, setRestartingCheckout] = useState(false);
+  const [directAttempt, setDirectAttempt] = useState(null);
+  const autoPayment = useRef(null);
   const mutationLock = useRef(false);
   const generation = useRef(0);
   const refreshedTerminal = useRef(null);
   const mounted = useRef(true);
   const userId = auth?.signedIn ? auth.user?.id : null;
+  const backend = getInsforgeInstanceFingerprint();
+  const backendScope = useRef(backend);
+  backendScope.current = backend;
   const orderScope = useRef(orderId);
   orderScope.current = orderId;
   const accountScope = useRef(userId);
   accountScope.current = userId;
   const currentOrderResult =
-    orderResult?.ownerId === userId ? orderResult : null;
+    orderResult?.ownerId === userId && orderResult?.backend === backend &&
+    (orderId ? orderResult.order?.id?.toLowerCase() === orderId.toLowerCase() : !orderResult.verified && orderResult.createdFrom === checkoutPath)
+      ? orderResult : null;
   const currentTrial =
-    trialMembership?.ownerId === userId ? trialMembership : null;
+    trialMembership?.ownerId === userId && trialMembership?.backend === backend ? trialMembership : null;
   const currentActionError =
-    actionError?.ownerId === userId && actionError?.orderId === orderId
+    actionError?.ownerId === userId && actionError?.backend === backend && actionError?.orderId === orderId
       ? actionError.error : null;
   const displayError = error || currentActionError;
   const order = currentOrderResult?.order;
@@ -106,7 +121,7 @@ export function CloudCheckoutPage() {
   const paymentConflict = Boolean(order?.retry_payment_conflict_at ||
     [...(account?.conflict_orders || []), ...(account?.pending_orders || [])]
       .some((item) => item.retry_payment_conflict_at));
-  const hasGiftAccess = membership?.has_gift === true || account?.membership?.has_gift === true ||
+  const hasGiftAccess = membership?.has_gift === true || membership?.access_source === "gift" || account?.membership?.has_gift === true ||
     account?.gifts?.some((gift) => ["active", "pending"].includes(gift.state));
   const canRestartCheckout = order?.provider === "waffo" &&
     order.payment_state === "unpaid" &&
@@ -114,7 +129,47 @@ export function CloudCheckoutPage() {
     ["awaiting", "expired", "canceled"].includes(state) && launched && providerAvailable && !paymentConflict && !hasGiftAccess;
   const requestAuth = auth?.getAccessToken;
   const recent = readCloudPurchase(userId);
-  const signInUrl = `/login?next=${encodeURIComponent(`/billing/checkout?${params}`)}`;
+  const openSubscription = account?.subscriptions?.some((item) =>
+    ["active", "trialing", "past_due", "paused"].includes(item.status) && !item.cancel_at_period_end,
+  );
+  const hasPaidTerm = membership?.status === "active" || account?.payments?.some((item) => {
+    return item.refunded_cents < item.amount_cents && Date.parse(item.ends_at) > Date.now();
+  });
+  const counterpartPrice = ["fixed", "recurring"].includes(price?.billing_mode)
+    ? catalog?.prices?.find((item) => item.currency === price.currency &&
+      item.term_months === price.term_months &&
+      item.billing_mode === (price.billing_mode === "recurring" ? "fixed" : "recurring"))
+    : null;
+  // A SKU choice ends as soon as a purchase may have reached the server. Keep
+  // ambiguous requests and existing orders bound to their original product.
+  const canChooseBillingMode = Boolean(userId && membership && !auth?.loading && !accountLoading && !accountError &&
+    state === "review" && !trialIntent && !orderId && !order && !busy &&
+    launched && providerAvailable && !catalogLoading && !catalogError && counterpartPrice &&
+    !hasPaidTerm && !hasGiftAccess && !openSubscription && !paymentConflict &&
+    !recent?.request_id && !recent?.order_id && !account?.pending_orders?.length);
+  const switchBillingMode = () => {
+    if (!canChooseBillingMode || mutationLock.current) return;
+    const purchase = readCloudPurchase(userId);
+    if (purchase?.request_id || purchase?.order_id) return;
+    const next = new URLSearchParams(params);
+    next.set("sku", counterpartPrice.sku);
+    setParams(next, { replace: true });
+  };
+  const pendingAction = readCloudAction(checkoutPath, userId);
+  const directAction = pendingAction || (
+    directAttempt?.nextPath === checkoutPath && directAttempt?.ownerId === userId && directAttempt?.backend === backend
+      ? directAttempt : null
+  );
+  const loginSubtitle = copy(trialIntent ? "cloud.login.trial_context" : "cloud.login.purchase_context");
+  useEffect(() => {
+    if (userId) {
+      promptedLogin.current = null;
+      return;
+    }
+    if (auth?.loading || catalogLoading || selfHostedInstance || promptedLogin.current === checkoutPath) return;
+    promptedLogin.current = checkoutPath;
+    openLoginModal({ nextPath: checkoutPath, subtitle: loginSubtitle, closePath: "/cloud" });
+  }, [userId, auth?.loading, catalogLoading, selfHostedInstance, checkoutPath, loginSubtitle, openLoginModal]);
   const desktopReturnUrl = catalog?.environment === "live" && !trialIntent &&
     params.getAll("order").length === 1 && CLOUD_ORDER_ID_PATTERN.test(orderId) &&
     ["mac", "windows"].includes(detectOS()) &&
@@ -140,9 +195,9 @@ export function CloudCheckoutPage() {
         auth: requestAuth,
         params: { id: orderId },
       });
-      if (id !== generation.current || accountScope.current !== userId)
+      if (id !== generation.current || accountScope.current !== userId || backendScope.current !== backend)
         return null;
-      setOrderResult({ ...value, ownerId: userId });
+      setOrderResult({ ...value, ownerId: userId, backend, verified: true });
       setError(null);
       const nextState = cloudOrderState(value.order, value.membership);
       if (nextState === "success")
@@ -173,7 +228,7 @@ export function CloudCheckoutPage() {
     } finally {
       if (id === generation.current) setLoadingOrder(false);
     }
-  }, [orderId, userId, requestAuth, selfHostedInstance, refreshAccount]);
+  }, [orderId, userId, requestAuth, selfHostedInstance, refreshAccount, backend]);
 
   useEffect(() => {
     setOrderResult(null);
@@ -204,7 +259,7 @@ export function CloudCheckoutPage() {
       document.removeEventListener("visibilitychange", onReturn);
     };
   }, [orderId, userId, state, refreshOrder, selfHostedInstance]);
-  const perform = async (operation) => {
+  const perform = useCallback(async (operation) => {
     if (mutationLock.current) return;
     mutationLock.current = true;
     setBusy(true);
@@ -213,15 +268,15 @@ export function CloudCheckoutPage() {
     try {
       await operation();
     } catch (reason) {
-      if (mounted.current && accountScope.current === userId)
-        setActionError({ ownerId: userId, orderId, error: reason });
+      if (mounted.current && accountScope.current === userId && backendScope.current === backend)
+        setActionError({ ownerId: userId, backend, orderId, error: reason });
     } finally {
       mutationLock.current = false;
-      setBusy(false);
+      if (mounted.current) setBusy(false);
     }
-  };
+  }, [userId, orderId, backend]);
 
-  const createOrder = () =>
+  const createOrder = useCallback((openDirectly = false) =>
     perform(async () => {
       const purchase = getCloudPurchaseRequest(userId, sku, selectedProvider);
       const value = await cloudBillingRequest("checkout", {
@@ -233,26 +288,102 @@ export function CloudCheckoutPage() {
           mobile: window.matchMedia("(max-width: 640px)").matches,
         },
       });
+      if (backendScope.current !== backend) return;
       saveCloudPurchase(userId, { ...purchase, order_id: value.order.id });
       if (!mounted.current || accountScope.current !== userId) return;
+      if (openDirectly === true) {
+        autoPayment.current = { ownerId: userId, backend, orderId: value.order.id, opened: false };
+      }
       setOrderResult({
         ...value,
         ownerId: userId,
+        backend,
+        createdFrom: checkoutPath,
         order: { ...price, provider: selectedProvider, ...value.order },
       });
       setParams({ order: value.order.id }, { replace: true });
-    });
+    }), [perform, userId, sku, selectedProvider, requestAuth, price, setParams, backend, checkoutPath]);
 
-  const startTrial = () =>
+  const startTrial = useCallback((continueToUsage = false) =>
     perform(async () => {
-      const value = await cloudBillingRequest("trial", {
-        auth: requestAuth,
-        body: {},
-      });
-      if (!mounted.current || accountScope.current !== userId) return;
-      setTrialMembership({ ...value.membership, ownerId: userId });
-      void refreshAccount();
-    });
+      let value;
+      try {
+        value = await cloudBillingRequest("trial", { auth: requestAuth, body: {} });
+      } catch (reason) {
+        if (continueToUsage === true && (reason.code || reason.message) === "trial_unavailable") {
+          if (mounted.current && accountScope.current === userId && backendScope.current === backend) {
+            await refreshAccount();
+            if (mounted.current && accountScope.current === userId && backendScope.current === backend) navigate("/cloud", { replace: true });
+          }
+          return;
+        }
+        throw reason;
+      }
+      if (!mounted.current || accountScope.current !== userId || backendScope.current !== backend) return;
+      setTrialMembership({ ...value.membership, ownerId: userId, backend });
+      if (continueToUsage === true) {
+        await refreshAccount();
+        if (mounted.current && accountScope.current === userId && backendScope.current === backend) navigate("/dashboard", { replace: true });
+      } else {
+        void refreshAccount();
+      }
+    }), [perform, requestAuth, userId, refreshAccount, navigate, backend]);
+
+  useEffect(() => {
+    // Only a CTA recorded in this tab may start a mutation after sign-in.
+    const action = readCloudAction(checkoutPath, userId);
+    if (!action || !userId || busy || auth?.loading || accountLoading || accountError ||
+      catalogLoading || catalogError || !membership || selfHostedInstance || !launched) return;
+    if (action.orderId) {
+      if (action.orderId !== orderId) return;
+      const consumed = consumeCloudAction(checkoutPath, userId);
+      if (!consumed) return;
+      setDirectAttempt({ ...consumed, ownerId: userId });
+      if (!paymentConflict) autoPayment.current = { ownerId: userId, backend, orderId, opened: false };
+      return;
+    }
+    if (orderId) return;
+    if (!action.trial && (!price || !providerAvailable || !billingMode)) return;
+    const consumed = consumeCloudAction(checkoutPath, userId);
+    if (!consumed) return;
+    setDirectAttempt({ ...consumed, ownerId: userId });
+    if (action.trial) {
+      if (membership.trial_available) {
+        void startTrial(true);
+      } else {
+        const hasCloudAccess = membership.can_read_cloud || ["active", "trial", "transition"].includes(membership.status);
+        navigate(hasCloudAccess ? "/dashboard" : "/cloud", { replace: true });
+      }
+      return;
+    }
+    if (hasGiftAccess || openSubscription || (hasPaidTerm && billingMode !== "fixed") || paymentConflict) {
+      navigate("/settings?section=cloud", { replace: true });
+      return;
+    }
+    const purchase = readCloudPurchase(userId);
+    const pendingOrder = account?.pending_orders?.[0];
+    const recoveryId = purchase?.order_id || pendingOrder?.id;
+    if (recoveryId && CLOUD_ORDER_ID_PATTERN.test(recoveryId)) {
+      autoPayment.current = { ownerId: userId, backend, orderId: recoveryId, opened: false };
+      setParams({ order: recoveryId }, { replace: true });
+    } else if (purchase?.request_id && (purchase.sku !== sku || purchase.provider !== selectedProvider)) {
+      // Recover an ambiguous request on its original product; never make a second order.
+      setParams({ sku: purchase.sku }, { replace: true });
+    } else {
+      void createOrder(true);
+    }
+  }, [checkoutPath, userId, orderId, busy, auth?.loading, accountLoading, accountError, catalogLoading,
+    catalogError, membership, selfHostedInstance, launched, price, providerAvailable, billingMode,
+    hasGiftAccess, openSubscription, hasPaidTerm, paymentConflict, account?.pending_orders,
+    sku, selectedProvider, startTrial, createOrder, navigate, setParams, backend]);
+
+  useEffect(() => {
+    const payment = autoPayment.current;
+    if (!payment || payment.opened || payment.ownerId !== userId || payment.backend !== backend || payment.orderId !== orderId || !currentOrderResult?.verified ||
+      order?.id?.toLowerCase() !== orderId.toLowerCase() || !order?.checkout_url || state !== "awaiting" || busy || !launched || !providerAvailable || paymentConflict) return;
+    payment.opened = true;
+    void perform(() => openCloudExternal(order.checkout_url, { sameTab: true }));
+  }, [userId, orderId, order?.id, order?.checkout_url, currentOrderResult?.verified, directAttempt?.nextPath, state, busy, launched, providerAvailable, paymentConflict, perform, backend]);
 
   const reconcile = () =>
     perform(async () => {
@@ -281,7 +412,7 @@ export function CloudCheckoutPage() {
           order_id: value.order.id,
         });
         if (!mounted.current || accountScope.current !== userId || orderScope.current !== order.id) return;
-        setOrderResult({ ...value, ownerId: userId });
+        setOrderResult({ ...value, ownerId: userId, backend });
         setParams({ order: value.order.id }, { replace: true });
       } finally {
         if (mounted.current) setRestartingCheckout(false);
@@ -294,6 +425,8 @@ export function CloudCheckoutPage() {
     });
 
   const trialDays = catalog?.limits?.trial_days || 7;
+  const localHost = isLocalDashboardHost();
+  const needsSyncSetup = localHost && !getCloudSyncEnabled();
   const trialEnd = new Date(Date.now() + trialDays * 86400000).toISOString();
   const preparingText = trialIntent
     ? copy("cloud.checkout.starting_trial")
@@ -318,13 +451,9 @@ export function CloudCheckoutPage() {
   if (!userId) {
     contentNode = (
       <div className="space-y-5">
-        <p className="text-sm leading-6 text-oai-gray-500 dark:text-oai-gray-400">
-          {copy("cloud.checkout.sign_in")}
-        </p>
         <Button
-          as={Link}
-          to={signInUrl}
-          className="w-full no-underline"
+          onClick={() => openLoginModal({ nextPath: checkoutPath, subtitle: loginSubtitle, closePath: "/cloud" })}
+          className="w-full"
           disabled={auth?.loading}
         >
           {copy("cloud.action.sign_in_continue")}
@@ -353,11 +482,16 @@ export function CloudCheckoutPage() {
                 date: formatCloudDate(membership.expires_at),
               })}
         </p>
-        <Button as={Link} to="/dashboard" className="w-full no-underline">
-          {copy("cloud.action.open_dashboard")}
+        {needsSyncSetup || !localHost ? (
+          <p className="text-sm leading-6 text-oai-gray-500 dark:text-oai-gray-400">
+            {copy(localHost ? "cloud.onboarding.local_next" : "cloud.onboarding.web_next")}
+          </p>
+        ) : null}
+        <Button as={Link} to={needsSyncSetup ? "/settings?section=cloud" : "/dashboard"} className="w-full no-underline">
+          {copy(needsSyncSetup ? "cloud.action.setup_sync" : "cloud.action.open_dashboard")}
         </Button>
-        <Link to="/settings?section=account" className="flex min-h-10 items-center justify-center text-sm underline underline-offset-4">
-          {copy("cloud.action.manage_membership")}
+        <Link to={needsSyncSetup ? "/dashboard" : "/settings?section=cloud"} className="flex min-h-10 items-center justify-center text-sm underline underline-offset-4">
+          {copy(needsSyncSetup ? "cloud.action.open_dashboard" : "cloud.action.manage_membership")}
         </Link>
       </div>
     );
@@ -365,7 +499,7 @@ export function CloudCheckoutPage() {
     contentNode = (
       <div className="space-y-5">
         <BillingNotice>{copy("cloud.gift.error_active")}</BillingNotice>
-        <Button as={Link} to="/settings?section=account" variant="secondary" className="w-full no-underline">
+        <Button as={Link} to="/settings?section=cloud" variant="secondary" className="w-full no-underline">
           {copy("cloud.action.manage_membership")}
         </Button>
       </div>
@@ -383,7 +517,10 @@ export function CloudCheckoutPage() {
           {copy("cloud.trial.expiry")}
         </p>
         {account?.membership && !account.membership.trial_available ? (
-          <BillingNotice>{copy("cloud.error.trial")}</BillingNotice>
+          <div className="space-y-3">
+            <BillingNotice>{copy("cloud.error.trial")}</BillingNotice>
+            {!price ? <Button as={Link} to="/cloud" variant="secondary" className="w-full no-underline">{copy("cloud.action.view_plans")}</Button> : null}
+          </div>
         ) : null}
         <Button
           onClick={startTrial}
@@ -392,6 +529,16 @@ export function CloudCheckoutPage() {
         >
           {copy("cloud.action.start_trial", { days: trialDays })}
         </Button>
+        {price && launched && providerAvailable && !busy ? (
+          <Button
+            as={Link}
+            to={`/billing/checkout?sku=${encodeURIComponent(price.sku)}`}
+            variant="ghost"
+            className="mx-auto flex w-fit no-underline"
+          >
+            {copy("cloud.plan.skip_trial")}
+          </Button>
+        ) : null}
       </div>
     );
   } else if (state === "review" && !orderId && price) {
@@ -410,11 +557,17 @@ export function CloudCheckoutPage() {
           </p>
         ) : null}
         {billingMode ? (
-          <p className="text-sm leading-6 text-oai-gray-500 dark:text-oai-gray-400">
-            {billingMode === "fixed"
-              ? copy("cloud.renewal.manual")
-              : copy("cloud.renewal.auto")}
-          </p>
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-sm leading-6 text-oai-gray-500 dark:text-oai-gray-400">
+              {billingMode === "fixed"
+                ? copy("cloud.renewal.manual")
+                : copy("cloud.renewal.auto")}
+            </p>
+            {canChooseBillingMode ? (
+              <ToggleSwitch checked={billingMode === "recurring"} onChange={switchBillingMode}
+                ariaLabel={copy("cloud.billing_mode.recurring")} />
+            ) : null}
+          </div>
         ) : null}
         {recent?.order_id ? (
           <Button
@@ -518,7 +671,7 @@ export function CloudCheckoutPage() {
           </Link>
         ) : null}
         {state === "refunded" ? (
-          <Button as={Link} to="/settings?section=account" className="w-full no-underline">
+          <Button as={Link} to="/settings?section=cloud" className="w-full no-underline">
             {copy("cloud.action.manage_membership")}
           </Button>
         ) : null}
@@ -555,13 +708,128 @@ export function CloudCheckoutPage() {
     );
   }
 
+  const notices = (
+    <div className="space-y-3">
+      {displayError ? (
+        <BillingNotice
+          error={displayError}
+          onRetry={orderId ? (error ? refreshOrder : reconcile) : undefined}
+        />
+      ) : null}
+      {displayError &&
+      [
+        "subscription_already_exists",
+        "fixed_term_still_active",
+        "checkout_request_conflict",
+        "pending_checkout_exists",
+        "gift_membership_active",
+      ].includes(displayError.code || displayError.message) ? (
+        <Button
+          as={Link}
+          to="/settings?section=cloud"
+          variant="secondary"
+          className="no-underline"
+        >
+          {copy("cloud.action.manage_membership")}
+        </Button>
+      ) : null}
+      {displayError &&
+      [
+        "authentication_required",
+        "invalid_token",
+        "invalid_authentication",
+      ].includes(displayError.code || displayError.message) ? (
+        <Button
+          onClick={async () => {
+            await auth?.signOut?.();
+            promptedLogin.current = checkoutPath;
+            openLoginModal({ nextPath: checkoutPath, subtitle: loginSubtitle, closePath: "/cloud" });
+          }}
+          variant="secondary"
+        >
+          {copy("cloud.action.sign_in_continue")}
+        </Button>
+      ) : null}
+      {catalogError ? (
+        <BillingNotice error={catalogError} onRetry={refreshCatalog} />
+      ) : null}
+      {accountError ? (
+        <BillingNotice error={accountError} onRetry={refreshAccount} />
+      ) : null}
+      {!catalogError && catalogLoading ? (
+        <BillingNotice>{copy("cloud.catalog.loading")}</BillingNotice>
+      ) : null}
+      {!catalogError && !catalogLoading && !launched ? (
+        <BillingNotice>{copy("cloud.catalog.preview")}</BillingNotice>
+      ) : null}
+      {!catalogError &&
+      !catalogLoading &&
+      launched &&
+      !trialIntent &&
+      !displayError &&
+      !providerAvailable &&
+      ["review", "creating", "awaiting"].includes(state) ? (
+        <BillingNotice>
+          {copy("cloud.catalog.provider_unavailable")}
+        </BillingNotice>
+      ) : null}
+      {!catalogError &&
+      !catalogLoading &&
+      launched &&
+      catalog?.environment === "sandbox" ? (
+        <BillingNotice>{copy("cloud.catalog.sandbox")}</BillingNotice>
+      ) : null}
+    </div>
+  );
+
   if (selfHostedInstance) {
     return <SelfHostedCloudState />;
   }
 
+  if (!userId && !orderId) {
+    return (
+      <>
+        <CloudPlanView
+          catalogState={{ catalog, loading: catalogLoading, error: catalogError, refresh: refreshCatalog }}
+          accountState={{ account, auth, loading: accountLoading, error: accountError, refresh: refreshAccount }}
+          selection={{ termMonths, billingMode }}
+        />
+      </>
+    );
+  }
+
+  if (directAction && userId && !orderId) {
+    return (
+      <div className="tt-cloud-theme flex flex-1 flex-col font-oai text-oai-black dark:text-oai-white">
+        <main className="mx-auto w-full max-w-lg px-4 py-12 sm:px-6">
+          <Link to="/cloud" onClick={() => clearCloudAction(checkoutPath)} className="mb-6 inline-flex min-h-10 items-center gap-2 text-sm text-oai-gray-500 dark:text-oai-gray-400">
+            <ArrowLeft size={16} aria-hidden />
+            {copy("cloud.checkout.back")}
+          </Link>
+          <h1 className="text-2xl font-semibold tracking-tight">{preparingText}</h1>
+          {busy || auth?.loading || catalogLoading || accountLoading ? (
+            <p role="status" className="mt-5 flex items-center gap-2 text-sm text-oai-gray-500 dark:text-oai-gray-400">
+              <Loader2 className="motion-safe:animate-spin" size={17} aria-hidden />
+              {preparingText}
+            </p>
+          ) : null}
+          <div className="mt-5">{notices}</div>
+          {displayError && !busy ? (
+            <Button onClick={() => trialIntent ? startTrial(true) : createOrder(true)}
+              disabled={accountLoading || Boolean(accountError) || catalogLoading || Boolean(catalogError) ||
+                !launched || (trialIntent ? !membership?.trial_available : !price || !providerAvailable || paymentConflict || hasGiftAccess || (hasPaidTerm && billingMode !== "fixed") || openSubscription)}
+              className="mt-5 w-full">
+              {copy("cloud.action.retry")}
+            </Button>
+          ) : null}
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="tt-cloud-theme flex flex-1 flex-col font-oai text-oai-black dark:text-oai-white">
-      <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
+      <main className="mx-auto w-full max-w-xl px-4 py-8 sm:px-6 sm:py-12">
         <Link
           to="/cloud"
           className="mb-7 inline-flex min-h-10 items-center gap-2 text-sm text-oai-gray-500 dark:text-oai-gray-400 hover:text-oai-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand"
@@ -575,9 +843,6 @@ export function CloudCheckoutPage() {
         >
           {loadingOrder ? copy("cloud.checkout.loading") : headings[state]}
         </h1>
-        <p className="mt-3 text-sm leading-6 text-oai-gray-500 dark:text-oai-gray-400">
-          {copy("cloud.checkout.local_free")}
-        </p>
         {catalog?.environment === "sandbox" && !trialIntent ? (
           <p className="mt-2 text-xs text-oai-gray-500 dark:text-oai-gray-400">
             {copy("cloud.price.draft")}
@@ -586,7 +851,7 @@ export function CloudCheckoutPage() {
 
         {paymentConflict ? <div className="mt-5"><CloudPaymentConflictNotice /></div> : null}
 
-        <div className="mt-7 grid items-start gap-5 md:grid-cols-[minmax(0,1fr)_18rem]">
+        <div className="mt-7">
           <Card bodyClassName="sm:p-7">
             {contentNode}
             {desktopReturnUrl ? (
@@ -601,109 +866,8 @@ export function CloudCheckoutPage() {
             ) : null}
           </Card>
 
-          <Card>
-            <h2 className="text-sm font-semibold">
-              {copy("cloud.checkout.summary")}
-            </h2>
-            {!trialIntent ? (
-              <div className="mt-4 border-b border-oai-gray-200 pb-4 dark:border-oai-gray-800">
-                <p className="text-2xl font-semibold tabular-nums">
-                  {amount != null && currency
-                    ? formatCloudMoney(amount, currency)
-                    : copy(catalogLoading ? "cloud.catalog.loading" : "cloud.price.pending")}
-                </p>
-                {termMonths ? (
-                  <p className="mt-1 text-xs leading-5 text-oai-gray-500 dark:text-oai-gray-400">
-                    {termMonths === 12
-                      ? copy("cloud.price.per_year")
-                      : copy("cloud.price.per_month")}
-                  </p>
-                ) : null}
-                {billingMode && currency ? (
-                  <p className="mt-2 text-xs leading-5 text-oai-gray-500 dark:text-oai-gray-400">
-                    {currency === "USD"
-                      ? copy("cloud.checkout.tax")
-                      : copy("cloud.renewal.manual")}
-                  </p>
-                ) : null}
-              </div>
-            ) : (
-              <p className="mt-3 text-sm text-oai-gray-500 dark:text-oai-gray-400">
-                {copy("cloud.trial.no_card")}
-              </p>
-            )}
-            <div className="mt-5">
-              <CloudFeatures limits={catalog?.limits} />
-            </div>
-          </Card>
         </div>
-        <div className="mt-5 space-y-3">
-          {displayError ? (
-            <BillingNotice
-              error={displayError}
-              onRetry={orderId ? (error ? refreshOrder : reconcile) : undefined}
-            />
-          ) : null}
-          {displayError &&
-          [
-            "subscription_already_exists",
-            "fixed_term_still_active",
-            "checkout_request_conflict",
-            "pending_checkout_exists",
-            "gift_membership_active",
-          ].includes(displayError.code || displayError.message) ? (
-            <Button
-              as={Link}
-              to="/settings?section=account"
-              variant="secondary"
-              className="no-underline"
-            >
-              {copy("cloud.action.manage_membership")}
-            </Button>
-          ) : null}
-          {displayError &&
-          [
-            "authentication_required",
-            "invalid_token",
-            "invalid_authentication",
-          ].includes(displayError.code || displayError.message) ? (
-            <Button
-              onClick={async () => {
-                await auth?.signOut?.();
-                navigate(signInUrl);
-              }}
-              variant="secondary"
-            >
-              {copy("cloud.action.sign_in_continue")}
-            </Button>
-          ) : null}
-          {catalogError ? (
-            <BillingNotice error={catalogError} onRetry={refreshCatalog} />
-          ) : null}
-          {!catalogError && catalogLoading ? (
-            <BillingNotice>{copy("cloud.catalog.loading")}</BillingNotice>
-          ) : null}
-          {!catalogError && !catalogLoading && !launched ? (
-            <BillingNotice>{copy("cloud.catalog.preview")}</BillingNotice>
-          ) : null}
-          {!catalogError &&
-          !catalogLoading &&
-          launched &&
-          !trialIntent &&
-          !displayError &&
-          !providerAvailable &&
-          ["review", "creating", "awaiting"].includes(state) ? (
-            <BillingNotice>
-              {copy("cloud.catalog.provider_unavailable")}
-            </BillingNotice>
-          ) : null}
-          {!catalogError &&
-          !catalogLoading &&
-          launched &&
-          catalog?.environment === "sandbox" ? (
-            <BillingNotice>{copy("cloud.catalog.sandbox")}</BillingNotice>
-          ) : null}
-        </div>
+        <div className="mt-5">{notices}</div>
       </main>
     </div>
   );

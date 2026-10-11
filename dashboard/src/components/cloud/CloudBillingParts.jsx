@@ -97,7 +97,7 @@ export function CloudPaymentConflictNotice({ showBillingLink = true }) {
     <BillingNotice role="alert">
       <p>{copy("cloud.checkout.duplicate_payment")}</p>
       {showBillingLink ? (
-        <Button as={Link} to="/settings?section=account" variant="secondary" className="mt-3 no-underline">
+        <Button as={Link} to="/settings?section=cloud" variant="secondary" className="mt-3 no-underline">
           {copy("cloud.action.view_bills")}
         </Button>
       ) : null}
@@ -150,7 +150,7 @@ export function SelfHostedCloudState() {
         <p className="text-sm leading-6 text-oai-gray-600 dark:text-oai-gray-300">{copy("cloud.self_host.instance_retention")}</p>
         <div className="flex flex-wrap gap-3">
           <Button as={Link} to="/dashboard" className="no-underline">{copy("cloud.action.open_dashboard")}</Button>
-          <Button as={Link} to="/settings?section=account" variant="secondary" className="no-underline">{copy("cloud.self_host.manage_devices")}</Button>
+          <Button as={Link} to="/settings?section=cloud" variant="secondary" className="no-underline">{copy("cloud.self_host.manage_devices")}</Button>
         </div>
       </main>
     </div>
@@ -172,9 +172,7 @@ export function CloudFeatures({ limits }) {
     {
       Icon: BarChart3,
       label: copy("cloud.feature.analysis"),
-      detail: copy("cloud.feature.analysis_detail", {
-        count: limits?.machines || 5,
-      }),
+      detail: copy("cloud.feature.analysis_detail"),
     },
     {
       Icon: History,

@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 import React from "react";
-import { act, fireEvent, render, screen, waitFor, cleanup } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, cleanup, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { CloudUsageExport } from "./CloudUsageExport.jsx";
 
@@ -35,9 +36,27 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 function mount() { return render(<CloudUsageExport from="2026-09-01" to="2026-10-10" />); }
 async function open() { fireEvent.click(screen.getByRole("button", { name: "Export Cloud usage" })); }
+function ControlledSettingsExport() {
+  const [dialogOpen, onDialogOpenChange] = React.useState(false);
+  return <CloudUsageExport from="2026-09-01" to="2026-10-10" layout="settings-row"
+    dialogOpen={dialogOpen} onDialogOpenChange={onDialogOpenChange} />;
+}
+function mountSettingsRow(controlled = false) {
+  return render(controlled ? <ControlledSettingsExport />
+    : <CloudUsageExport from="2026-09-01" to="2026-10-10" layout="settings-row" />);
+}
+async function openSettingsDialog(user) {
+  await act(async () => user.click(screen.getByRole("button", { name: "Export Cloud usage" })));
+  return screen.findByRole("dialog", { name: "Export Cloud usage" });
+}
+async function closeSettingsDialog(user) {
+  await act(async () => user.keyboard("{Escape}"));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+}
 
 it("downloads actual CSV and JSON Blob contents with accessible labels and effective range", async () => {
   mount(); await open();
+  expect(screen.getByText("Daily totals · UTC dates · USD estimates")).toBeVisible();
   expect(screen.getByLabelText("From (UTC)")).toHaveValue("2026-09-01");
   expect(screen.getByLabelText("To (UTC)")).toHaveValue("2026-10-10");
   fireEvent.click(screen.getByRole("button", { name: "Download CSV" }));
@@ -118,4 +137,108 @@ it("cancels waiting for native acknowledgement and discards a late acknowledgeme
   await act(async () => acknowledge({ saved: true, filename: "tokentracker-cloud-usage-2026-10-01-2026-10-10.json" }));
   expect(screen.queryByRole("status")).not.toBeInTheDocument();
   expect(blobs).toHaveLength(0);
+});
+
+it.each([false, true])("opens one settings export dialog and restores trigger focus on Escape (controlled: %s)", async controlled => {
+  const user = userEvent.setup();
+  mountSettingsRow(controlled);
+  const trigger = screen.getByRole("button", { name: "Export Cloud usage" });
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("From (UTC)")).not.toBeInTheDocument();
+  const dialog = await openSettingsDialog(user);
+  expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  expect(within(dialog).getByRole("heading", { name: "Export Cloud usage" })).toBeVisible();
+  expect(within(dialog).getByRole("button", { name: "Pick a date range" })).toHaveTextContent("2026-09-01 → 2026-10-10");
+  await closeSettingsDialog(user);
+  await waitFor(() => expect(trigger).toHaveFocus());
+});
+
+it("applies and cancels a draft range using the shared Dashboard calendar", async () => {
+  const user = userEvent.setup();
+  mountSettingsRow();
+  const dialog = await openSettingsDialog(user);
+  const range = within(dialog).getByRole("button", { name: "Pick a date range" });
+  await act(async () => user.click(range));
+  expect(screen.getAllByRole("grid")).toHaveLength(2);
+  await act(async () => user.keyboard("{Escape}"));
+  expect(dialog).toBeVisible();
+  expect(screen.queryByRole("grid")).not.toBeInTheDocument();
+  await act(async () => user.click(range));
+  await act(async () => user.click(screen.getByRole("button", { name: "Cancel", exact: true })));
+  expect(range).toHaveTextContent("2026-09-01 → 2026-10-10");
+  await act(async () => user.click(range));
+  await act(async () => user.click(screen.getByRole("button", { name: /September 15th, 2026/ })));
+  await act(async () => user.click(screen.getByRole("button", { name: "Apply", exact: true })));
+  expect(range).toHaveTextContent("2026-09-01 → 2026-09-15");
+  expect(screen.queryByRole("grid")).not.toBeInTheDocument();
+});
+
+it("cancels a delayed token on dialog close without downloading or leaking feedback after reopening", async () => {
+  let release;
+  state.getter = vi.fn(() => new Promise(resolve => { release = resolve; }));
+  const user = userEvent.setup();
+  mountSettingsRow();
+  const dialog = await openSettingsDialog(user);
+  await act(async () => user.click(within(dialog).getByRole("button", { name: "Download CSV" })));
+  await waitFor(() => expect(state.getter).toHaveBeenCalledOnce());
+  expect(within(dialog).getByRole("status")).toHaveTextContent("preparing your file");
+  await closeSettingsDialog(user);
+  const reopened = await openSettingsDialog(user);
+  await act(async () => release(jwt("account-a")));
+  expect(fetch).not.toHaveBeenCalled();
+  expect(state.save).not.toHaveBeenCalled();
+  expect(blobs).toHaveLength(0);
+  expect(links).toHaveLength(0);
+  expect(within(reopened).queryByRole("alert")).not.toBeInTheDocument();
+  expect(within(reopened).queryByRole("status")).not.toBeInTheDocument();
+  expect(within(reopened).getByRole("button", { name: "Download CSV" })).toBeEnabled();
+});
+
+it.each(["response", "error"])("aborts a delayed request on dialog close and ignores its late %s", async result => {
+  let settle, requestSignal;
+  vi.mocked(fetch).mockImplementationOnce((_url, options) => {
+    requestSignal = options.signal;
+    return new Promise((resolve, reject) => { settle = result === "error" ? reject : resolve; });
+  });
+  const user = userEvent.setup();
+  mountSettingsRow();
+  const dialog = await openSettingsDialog(user);
+  await act(async () => user.click(within(dialog).getByRole("button", { name: "Download CSV" })));
+  await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+  expect(requestSignal.aborted).toBe(false);
+  await closeSettingsDialog(user);
+  expect(requestSignal.aborted).toBe(true);
+  const reopened = await openSettingsDialog(user);
+  await act(async () => settle(result === "error" ? Error("late-request-canary")
+    : new Response(JSON.stringify(membership), { headers: { "Content-Type": "application/json" } })));
+  expect(fetch).toHaveBeenCalledOnce();
+  expect(state.save).not.toHaveBeenCalled();
+  expect(blobs).toHaveLength(0);
+  expect(links).toHaveLength(0);
+  expect(within(reopened).queryByRole("alert")).not.toBeInTheDocument();
+  expect(within(reopened).queryByRole("status")).not.toBeInTheDocument();
+  expect(within(reopened).getByRole("button", { name: "Download CSV" })).toBeEnabled();
+});
+
+it.each(["saved", "unhandled", "error"])("cancels native save on dialog close and ignores late %s without a browser fallback", async result => {
+  let settle;
+  state.save = vi.fn(() => new Promise((resolve, reject) => { settle = result === "error" ? reject : resolve; }));
+  const user = userEvent.setup();
+  mountSettingsRow();
+  const dialog = await openSettingsDialog(user);
+  await act(async () => user.click(within(dialog).getByRole("button", { name: "Download JSON" })));
+  await waitFor(() => expect(state.save).toHaveBeenCalledOnce());
+  const nativeSignal = state.save.mock.calls[0][0].signal;
+  expect(nativeSignal.aborted).toBe(false);
+  await closeSettingsDialog(user);
+  expect(nativeSignal.aborted).toBe(true);
+  const reopened = await openSettingsDialog(user);
+  await act(async () => settle(result === "error" ? Error("late-native-canary")
+    : result === "saved" ? { saved: true, filename: "tokentracker-cloud-usage-2026-10-01-2026-10-10.json" } : null));
+  expect(state.save).toHaveBeenCalledOnce();
+  expect(blobs).toHaveLength(0);
+  expect(links).toHaveLength(0);
+  expect(within(reopened).queryByRole("alert")).not.toBeInTheDocument();
+  expect(within(reopened).queryByRole("status")).not.toBeInTheDocument();
+  expect(within(reopened).getByRole("button", { name: "Download JSON" })).toBeEnabled();
 });

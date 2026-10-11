@@ -32,6 +32,33 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe("Cloud account refresh", () => {
+  it("keeps a confirmed same-owner snapshot through a temporary outage without reporting refresh success", async () => {
+    const account = { environment: "live", membership: { status: "free" }, gifts: [] };
+    const outage = Object.assign(new Error("offline"), { code: "billing_network_error" });
+    mocks.request.mockResolvedValueOnce(account).mockRejectedValueOnce(outage)
+      .mockResolvedValue({ ...account, gifts: [{ id: "server-confirmed-gift" }] });
+    const view = renderHook(() => useCloudAccount());
+    await waitFor(() => expect(view.result.current.account).toBe(account));
+    let refreshed;
+    await act(async () => { refreshed = await view.result.current.refresh(); });
+    expect(refreshed).toBeNull();
+    expect(view.result.current.account).toBe(account);
+    expect(view.result.current.error).toBe(outage);
+    await act(async () => { refreshed = await view.result.current.refresh(); });
+    expect(refreshed.gifts).toEqual([{ id: "server-confirmed-gift" }]);
+    expect(view.result.current.error).toBeNull();
+  });
+
+  it.each([401, 403])("clears a cached snapshot when authorization is denied (%s)", async status => {
+    mocks.request.mockResolvedValueOnce({ membership: { status: "active" } })
+      .mockRejectedValueOnce(Object.assign(new Error("denied"), { status }));
+    const view = renderHook(() => useCloudAccount());
+    await waitFor(() => expect(view.result.current.account?.membership.status).toBe("active"));
+    await act(async () => { await view.result.current.refresh(); });
+    expect(view.result.current.account).toBeNull();
+    expect(view.result.current.error.status).toBe(status);
+  });
+
   it("rejects a delayed response from the previous account", async () => {
     let resolvePrevious;
     mocks.request

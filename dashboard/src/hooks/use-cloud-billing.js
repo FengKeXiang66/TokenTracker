@@ -81,7 +81,13 @@ function refreshAccount(entry, force = false) {
       }
       return account;
     }, (error) => {
-      if (current()) publishAccount(entry, { account: null, loading: false, error });
+      if (current()) {
+        // A temporary outage must not unmount an already received redemption
+        // receipt. Owner/config changes and authorization errors still clear it.
+        const transient = error?.code === "billing_network_error" || error?.status >= 500
+          || error?.status === 408 || error?.status === 429;
+        publishAccount(entry, { account: transient ? entry.snapshot.account : null, loading: false, error });
+      }
       return null;
     })
     .finally(() => { if (generation === entry.generation) entry.pending = null; });

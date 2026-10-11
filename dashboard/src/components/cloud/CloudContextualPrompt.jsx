@@ -1,7 +1,8 @@
 import React, { useSyncExternalStore } from "react";
 import { Cloud, X } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { copy } from "../../lib/copy";
+import { beginCloudAction } from "../../lib/cloud-action-intent.js";
 import {
   cloudContextualPromptDecision,
   cloudDeadlinePromptDecision,
@@ -18,7 +19,7 @@ export function useCloudPromptState(userId) {
   return readCloudPromptState(userId);
 }
 
-function PromptPanel({ userId, decision, onContinueLocal, localHost }) {
+function PromptPanel({ userId, decision, onContinueLocal, localHost, onTrialClick }) {
   if (!decision) return null;
   const deadline = decision.kind === "deadline";
   return (
@@ -32,7 +33,7 @@ function PromptPanel({ userId, decision, onContinueLocal, localHost }) {
           {!deadline ? <p className="mt-2 text-xs leading-5 text-oai-gray-600 dark:text-oai-gray-400">{copy("cloud.prompt.free")}</p> : null}
           {!deadline ? (
             <div className="mt-3 flex flex-wrap gap-2">
-              <Button as={Link} to={decision.href} variant="secondary" className="no-underline">
+              <Button as={Link} to={onTrialClick ? "/cloud" : decision.href} onClick={onTrialClick} variant="secondary" className="no-underline">
                 {copy(decision.ctaKey)}
               </Button>
               {localHost && onContinueLocal ? (
@@ -52,11 +53,27 @@ function PromptPanel({ userId, decision, onContinueLocal, localHost }) {
 }
 
 export function CloudContextualPrompt({ userId, panel = "dashboard", onContinueLocal, localHost = false, className }) {
+  const navigate = useNavigate();
   const state = useCloudPromptState(userId);
   const intentional = Boolean(state.intent && (panel !== "sync" || state.intent === "sync"));
   const decision = cloudContextualPromptDecision({ ...state, userId, scene: state.intent, intentional });
   if (!decision) return null;
-  const content = <PromptPanel userId={userId} decision={decision} onContinueLocal={onContinueLocal} localHost={localHost} />;
+  const onTrialClick = decision.kind === "promotion" && decision.ctaKey === "cloud.prompt.try" ? (event) => {
+    // Modified clicks retain the ordinary plans link and create no action.
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    const current = readCloudPromptState(userId);
+    const currentDecision = cloudContextualPromptDecision({ ...current, userId, scene: current.intent,
+      intentional: Boolean(current.intent && (panel !== "sync" || current.intent === "sync")) });
+    const prices = Array.isArray(current.catalog?.prices) ? current.catalog.prices.filter((price) =>
+      typeof price?.sku === "string" && price.sku.trim() && Number.isFinite(price.amount_cents) && price.amount_cents > 0 &&
+      ["USD", "CNY"].includes(price.currency) && [1, 12].includes(price.term_months) && ["recurring", "fixed"].includes(price.billing_mode),
+    ) : [];
+    const price = prices.find((item) => item.term_months === 12 && item.billing_mode === "recurring") || prices[0];
+    navigate(currentDecision?.ctaKey === "cloud.prompt.try" && price
+      ? beginCloudAction({ trial: true, sku: price.sku, userId }) : "/cloud");
+  } : undefined;
+  const content = <PromptPanel userId={userId} decision={decision} onContinueLocal={onContinueLocal} localHost={localHost} onTrialClick={onTrialClick} />;
   if (className) { return <div className={className}>{content}</div>; }
   return content;
 }

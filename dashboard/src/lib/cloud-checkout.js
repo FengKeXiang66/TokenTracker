@@ -109,7 +109,7 @@ export function cloudOrderState(order, membership) {
   return order.checkout_url ? "awaiting" : "creating";
 }
 
-export async function openCloudExternal(url) {
+export async function openCloudExternal(url, { sameTab = false } = {}) {
   let target;
   try {
     target = new URL(url);
@@ -141,6 +141,9 @@ export async function openCloudExternal(url) {
       })
     )
       throw new Error("browser_open_failed");
+  } else if (sameTab) {
+    // Checkout follows an async request, so a new window may be blocked.
+    window.location.assign(target.toString());
   } else {
     window.open(target.toString(), "_blank", "noopener,noreferrer");
   }

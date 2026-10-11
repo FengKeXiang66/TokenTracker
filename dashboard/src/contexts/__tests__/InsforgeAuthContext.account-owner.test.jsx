@@ -8,6 +8,9 @@ import { CloudCheckoutPage } from "../../pages/CloudCheckoutPage.jsx";
 import { readCloudPurchase } from "../../lib/cloud-checkout.js";
 import { setCopyLocale } from "../../lib/copy";
 
+// This integration test exercises auth ownership, not the plan's browser animation.
+vi.mock("@lucasmarkes/hairline/react", () => ({ Hub: () => null }));
+
 const state = vi.hoisted(() => ({ token: null, user: null }));
 const client = vi.hoisted(() => ({
   tokenManager: {
@@ -28,6 +31,7 @@ vi.mock("../../lib/insforge-config", () => ({
   getInsforgeConfigurationError: () => null,
   getInsforgeConnectionHost: () => "account.example",
   getInsforgeRemoteUrl: () => "https://account.example",
+  getInsforgeInstanceFingerprint: () => "https://account.example",
   getInsforgeAnonKey: () => "public-anon",
   isOfficialInsforgeInstance: () => false,
   INSFORGE_INSTANCE_CHANGED_EVENT: "tt.insforgeInstanceChanged",

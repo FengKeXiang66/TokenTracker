@@ -16,7 +16,7 @@ There are three ways to use the product. Local is ready and free. Managed Cloud 
 | Local installations | Unlimited | Unlimited |
 | Community | Shared leaderboard, achievements, and basic public profile | Same ranking rules |
 | Personal cloud dashboard | Seven-day trial | Included |
-| Cross-device aggregation | Seven-day trial | Up to five registered synchronization devices |
+| Cross-device aggregation | Seven-day trial | Cross-device sync; 99-device safety cap against abuse |
 | Cloud synchronization | Daily community batches | Changed data every 15 minutes |
 | Cloud history | Basic public summaries | 90 days of hourly detail and 24 months of daily summaries |
 | Cross-device analysis | Per-device local charts | Combined usage, cost estimates, provider/model breakdowns and device filters |
@@ -45,13 +45,13 @@ Free community uploads use one registered synchronization device per account and
 
 Use the existing TokenTracker typography, controls and light/dark themes. At the owner's request, Cloud plans, checkout, membership and self-hosting use a scoped graphite/monochrome palette, including their shell selections. Existing unrelated product screens keep their current styling.
 
-Present Cloud value in three groups: cross-device analysis, hosted history/export, and ongoing synchronization/device management. Show free self-hosting as an explicit alternative with its technical-preview status and operating responsibilities. Do not sell the self-hosted software license or apply hosted five-device limits to the eventual self-hosted license.
+Present Cloud value in three groups: cross-device analysis, hosted history/export, and ongoing synchronization/device management. Show free self-hosting as an explicit alternative with its technical-preview status and operating responsibilities. Do not sell the self-hosted software license or apply hosted device safety caps to the eventual self-hosted license.
 
 - Pricing explains the Cloud benefit before listing features. Free remains a clearly available choice.
 - Monthly/yearly and auto-renewal/fixed-term selectors show the USD base price and term. Annual prices show the total annual base charge; the monthly equivalent is secondary. Explain that taxes and the final amount are shown at checkout.
 - Trial requires no payment card. Explain the trial end date, retained local functionality, and Cloud history limits before starting.
 - Checkout states distinguish creating an order, awaiting payment, payment received, and activating membership. Closing a payment window does not imply failure.
-- Account settings show status, expiration or renewal date, device allowance, payment history, and the relevant cancellation or renewal action.
+- Personal settings → Cloud shows status, expiration or renewal date, device allowance, payment history, and the relevant cancellation or renewal action.
 - Devices can be paused and explicitly resumed without deleting their local or cloud history. Errors preserve context and offer a specific recovery action. The allowance counts registered synchronization identities; it is not hardware attestation.
 - Existing cloud accounts with a device registered before launch receive 30 days of transition from the announced launch date. Trial, transition, and paid-term expiration stop personal Cloud uploads and preserve 30 days of read-only/export access. Retention and historical deletion require their own verified rollout and prior notice.
 - Show membership explanations only after deliberate personal Cloud actions. Never open a startup sales modal or place payment gates on the free leaderboard. Reuse existing responses instead of extra polling, show sales CTAs only for verified live availability, and remember dismissals per account for at least seven days. Paid users receive date/device notices, not sales prompts.

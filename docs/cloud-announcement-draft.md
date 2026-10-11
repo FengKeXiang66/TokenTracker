@@ -8,7 +8,7 @@ TokenTracker Cloud is available on the [official website](https://www.tokentrack
 
 Local tracking stays free and open source, including collection, providers, cost and quota tracking, charts, local exports and desktop features. The shared leaderboard, achievements and basic public profile remain free, with the same ranking rules for everyone.
 
-Cloud supports five registered synchronization devices per account. While clients are running and online, changed usage syncs every 15 minutes. Cloud history covers 90 days of hourly data and 24 months of daily summaries. Only usage metrics are uploaded, never prompts, responses, code, project/session records or provider credentials.
+Cloud supports cross-device synchronization with a 99-device safety cap against abuse. Free community uploads retain one device per account. While clients are running and online, changed usage syncs every 15 minutes. Cloud history covers 90 days of hourly data and 24 months of daily summaries. Only usage metrics are uploaded, never prompts, responses, code, project/session records or provider credentials.
 
 Base prices are USD4.99/month or USD39.99/year before tax. Fixed-term and recurring plans have the same base price; Waffo shows the final charge, tax and available payment methods before payment. Recurring plans require authorization at checkout. Canceling renewal preserves access until the paid term ends; fixed-term purchases do not renew automatically. A seven-day no-card trial, where offered, starts only when activated and does not automatically become a paid subscription.
 
@@ -24,7 +24,7 @@ First-time Cloud buyers may request a full refund within seven days of their ini
 
 本地功能继续免费开源，包括采集、provider、成本与额度、本地图表、导出和桌面功能。社区榜单、成就和基础 Profile 继续免费，所有账号使用相同排名公式。
 
-每个账号最多登记 5 台同步设备。客户端运行且联网时，有变化的用量每 15 分钟同步，可查看最近 90 天小时明细和 24 个月日汇总。只上传用量指标，不上传 prompt、回复、代码、项目/会话记录或 provider 凭证。
+Cloud 会员支持跨设备同步，仅保留 99 台设备的防滥用上限；免费社区上传仍为 1 台。客户端运行且联网时，有变化的用量每 15 分钟同步，可查看最近 90 天小时明细和 24 个月日汇总。只上传用量指标，不上传 prompt、回复、代码、项目/会话记录或 provider 凭证。
 
 未税基础价为 USD4.99/月、USD39.99/年，固定期与自动续费同价。税费、最终金额和可用付款方式以 Waffo 收银台为准。自动续费须在付款时授权；取消续费仍保留已付期限，固定期购买不会自动续费。符合条件时可主动开启 7 天无卡试用，不会自动转为付费订阅。
 

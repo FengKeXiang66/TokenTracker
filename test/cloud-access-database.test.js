@@ -454,3 +454,46 @@ test('early purchase preserves old over-limit slots only through the originally 
     assert.equal((await issue(id)).code,'cloud_machine_limit');
   } finally { await db.query("UPDATE tokentracker_cloud_policy SET launch_at=$1 WHERE environment='sandbox'",[originalLaunch]); }
 });
+
+test('Cloud uses a 99-device abuse guard while free uploads and upload protections stay enforced', async () => {
+  await db.exec(migration('20261010225755_cloud-device-safety-cap.sql'));
+  const id = await user();
+  const results = await Promise.all(Array.from({length:103}, () => issue(id)));
+  assert.equal(results.filter(result => result.ok).length,99);
+  assert.equal(results.filter(result => result.code === 'cloud_machine_limit').length,4);
+  const machines = await list(id);
+  assert.equal(machines.machine_limit,99);
+  assert.equal(machines.machine_count,99);
+  assert.equal((await db.query('SELECT count(*)::int n FROM tokentracker_devices WHERE user_id=$1',[id])).rows[0].n,99);
+  const first = results.find(result => result.ok);
+  const identity = (await db.query('SELECT machine_id FROM tokentracker_devices WHERE id=$1',[first.device_id])).rows[0].machine_id;
+  assert.equal((await issue(id,identity)).ok,true,'reusing an existing device does not consume a new slot');
+  assert.equal((await list(id)).machine_count,99);
+  assert.equal((await ingest(first.token)).ok,true,'an admitted device can still upload at the cap');
+  assert.equal((await ingest(first.token,[row(200)],[],randomUUID())).code,'cloud_sync_throttled');
+  assert.equal((await ingest(first.token,Array.from({length:501},() => row()),[],randomUUID())).code,'cloud_upload_size_exceeded');
+  assert.equal((await ingest(randomUUID())).ok,false,'unknown tokens cannot upload');
+  await expire(id,1);
+  assert.equal((await list(id)).machine_limit,1,'expired membership returns to the free community rule');
+  assert.equal((await issue(id)).code,'cloud_machine_limit');
+  const free = await user(false);
+  assert.equal((await issue(free)).ok,true);
+  assert.equal((await issue(free)).code,'cloud_machine_limit');
+  assert.equal((await list(free)).machine_limit,1);
+  const paid = await user(false);
+  const order = await rpc('cloud_create_order',[paid,'sandbox','wechat','cloud_cny_monthly',randomUUID()]);
+  await rpc('cloud_apply_event',['wechat','sandbox',JSON.stringify({event_id:randomUUID(),kind:'payment',action_id:randomUUID(),
+    order_id:order.id,occurred_at:new Date().toISOString(),currency:order.currency,base_amount_cents:order.amount_cents,amount_cents:order.amount_cents})]);
+  const membership = await rpc('cloud_membership',[paid,'sandbox']);
+  assert.equal(membership.status,'active');
+  assert.equal(membership.machine_limit,99);
+  assert.equal(membership.sync_interval_seconds,900);
+  await db.transaction(async tx => {
+    await tx.query("INSERT INTO tokentracker_devices(user_id,device_name,platform,machine_id,created_at) VALUES($1,'Transition','web','transition-cap',now()-interval '60 days')",[free]);
+    const transition = (await tx.query("SELECT cloud_membership($1,'sandbox') result",[free])).rows[0].result;
+    assert.equal(transition.status,'transition');
+    assert.equal(transition.machine_limit,99);
+  });
+  const permissions = (await db.query("SELECT has_function_privilege('authenticated','cloud_membership(uuid,text)','EXECUTE') allowed")).rows[0];
+  assert.equal(permissions.allowed,false);
+});

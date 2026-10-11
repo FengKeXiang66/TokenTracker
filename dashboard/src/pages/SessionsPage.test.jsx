@@ -743,8 +743,39 @@ describe("SessionsPage", () => {
     expect(screen.getByLabelText("Sessions through")).toHaveValue("");
     const scope = copy("sessions.summary.scope");
     expect(screen.queryByText(scope)).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: copy("sessions.summary.scope_help") }));
+    const user = userEvent.setup();
+    const help = screen.getByRole("button", { name: copy("sessions.summary.scope_help") });
+    await user.hover(help);
     expect(await screen.findByText(scope)).toBeInTheDocument();
+    await user.unhover(help);
+    await waitFor(() => expect(screen.queryByText(scope)).not.toBeInTheDocument());
+    await user.click(help);
+    expect(await screen.findByText(scope)).toBeInTheDocument();
+    expect(getSessions).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens the speed explanation on keyboard focus and dismisses it with Escape", async () => {
+    render(<SessionsPage />);
+    await screen.findByText("Fix authentication flow");
+    const user = userEvent.setup();
+    const help = screen.getByRole("button", { name: copy("sessions.summary.scope_help") });
+    expect(help.closest("dt")).toHaveTextContent(copy("sessions.summary.speed"));
+
+    screen.getByRole("button", { name: copy("sessions.filter.model_aria") }).focus();
+    await user.tab();
+    expect(help).toHaveFocus();
+    expect(await screen.findByText(copy("sessions.summary.scope"))).toHaveAttribute("role", "tooltip");
+    expect(help).toHaveAccessibleDescription(copy("sessions.summary.scope"));
+
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByText(copy("sessions.summary.scope"))).not.toBeInTheDocument());
+    expect(help).toHaveFocus();
+    expect(help).not.toHaveAttribute("aria-describedby");
+
+    await user.tab();
+    await user.tab({ shift: true });
+    expect(help).toHaveFocus();
+    expect(await screen.findByText(copy("sessions.summary.scope"))).toHaveAttribute("role", "tooltip");
     expect(getSessions).toHaveBeenCalledTimes(1);
   });
 });

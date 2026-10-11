@@ -1,21 +1,27 @@
 import React, { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { ChevronDown, Gift } from "lucide-react";
 import { CloudBillingError, cloudBillingRequest } from "../../lib/cloud-billing";
 import { resolveAuthAccessToken } from "../../lib/auth-token";
 import { getInsforgeRemoteUrl } from "../../lib/insforge-config";
 import { copy } from "../../lib/copy";
 import { Button } from "../../ui/components/Button.jsx";
-import { BillingNotice, formatCloudDate } from "./CloudBillingParts.jsx";
+import { BillingNotice, cloudBillingErrorText, formatCloudDate } from "./CloudBillingParts.jsx";
+import { CloudActionDialog } from "./CloudActionDialog.jsx";
 
 function normalizedCode(value) { return value.replace(/[\t\n\r\f\v -]/g, "").toUpperCase(); }
 
-export function RedeemProCode({ account, auth, refresh }) {
-  const [expanded, setExpanded] = useState(false);
+export function RedeemProCode({ account, auth, refresh, compact = false, panelContainer = null, layout = "default", dialogOpen, onDialogOpenChange }) {
+  const settingsRow = layout === "settings-row";
+  const [internalExpanded, setExpanded] = useState(false);
+  const expanded = settingsRow && typeof dialogOpen === "boolean" ? dialogOpen : internalExpanded;
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [receipt, setReceipt] = useState(null);
   const [confirmed, setConfirmed] = useState(false);
   const inputId = useId();
+  const inputRef = useRef(null);
   const operation = useRef(null);
   const lock = useRef(false);
   const mounted = useRef(false);
@@ -41,8 +47,15 @@ export function RedeemProCode({ account, auth, refresh }) {
   }, [accountKey]);
   const selfHosted = account?.membership?.status === "self_hosted" ||
     account?.membership?.hosting_mode === "self_hosted";
-  if (!auth?.signedIn || selfHosted || account?.gift_redemption_available !== true) return null;
+  const canRedeem = account?.gift_redemption_available === true;
+  const gifts = settingsRow ? account?.gifts || [] : [];
+  if (!auth?.signedIn || selfHosted || (!canRedeem && !gifts.length)) return null;
   const restriction = account.redemption_restriction;
+  const changeOpen = (next) => {
+    if (!next && lock.current) return;
+    if (typeof dialogOpen !== "boolean") setExpanded(next);
+    onDialogOpenChange?.(next);
+  };
   const confirmReceipt = async (gift, valid) => {
     const latest = await refresh();
     if (!valid()) return;
@@ -50,7 +63,11 @@ export function RedeemProCode({ account, auth, refresh }) {
     setConfirmed(Boolean(latest?.gifts?.some((item) => item.id === gift?.id)));
   };
   const perform = async (redeem) => {
-    if (lock.current || (redeem && (restriction || !code.trim()))) return;
+    if (lock.current || (redeem && (!canRedeem || !code.trim()))) return;
+    if (redeem && restriction) {
+      setError(new CloudBillingError(restriction));
+      return;
+    }
     lock.current = true;
     const id = ++generation.current;
     const owner = accountKey;
@@ -89,24 +106,19 @@ export function RedeemProCode({ account, auth, refresh }) {
       }
     }
   };
-  return (
-    <div className="mt-4">
-      <Button type="button" variant="ghost" aria-expanded={expanded}
-        aria-controls={expanded ? `${inputId}-panel` : undefined}
-        onClick={() => setExpanded((value) => !value)} disabled={busy}>
-        {copy("cloud.gift.redeem_action")}
-      </Button>
-      {expanded ? (
-        <div id={`${inputId}-panel`} className="mt-3 space-y-3">
-          <p id={`${inputId}-detail`} className="text-xs leading-5 text-oai-gray-600 dark:text-oai-gray-300">
+  let panel = null;
+  if (settingsRow || expanded) {
+    panel = (
+        <div id={`${inputId}-panel`} className={settingsRow ? "space-y-3" : compact ? "w-full space-y-3 rounded-lg bg-oai-gray-50 p-4 dark:bg-oai-gray-950/50" : "mt-3 space-y-3"}>
+          {canRedeem ? <>
+          <p id={`${inputId}-detail`} className={settingsRow ? "sr-only" : "text-xs leading-5 text-oai-gray-600 dark:text-oai-gray-300"}>
             {copy("cloud.gift.detail")}
           </p>
-          {restriction ? <BillingNotice error={{ code: restriction }} context="gift" /> : null}
           {!receipt ? (
             <form onSubmit={(event) => { event.preventDefault(); void perform(true); }} aria-busy={busy}>
-              <label htmlFor={inputId} className="text-sm font-medium">{copy("cloud.gift.code_label")}</label>
+              <label htmlFor={inputId} className={settingsRow ? "sr-only" : "text-sm font-medium"}>{copy("cloud.gift.code_label")}</label>
               <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                <input id={inputId} value={code} disabled={busy || Boolean(restriction)} maxLength={128}
+                <input id={inputId} ref={inputRef} value={code} disabled={busy} maxLength={128}
                   autoComplete="off" spellCheck={false} autoCapitalize="characters"
                   data-ph-no-capture="true"
                   aria-describedby={`${inputId}-detail${error ? ` ${inputId}-error` : ""}`}
@@ -117,7 +129,7 @@ export function RedeemProCode({ account, auth, refresh }) {
                     setError(null);
                   }}
                   className="min-h-10 min-w-0 flex-1 rounded-md border border-oai-gray-300 bg-transparent px-3 font-mono text-sm outline-none focus:border-oai-brand focus:ring-2 focus:ring-inset focus:ring-oai-brand/30 dark:border-oai-gray-700" />
-                <Button type="submit" variant="secondary" disabled={busy || !code.trim() || Boolean(restriction)}>
+                <Button type="submit" variant="secondary" disabled={busy || !code.trim()}>
                   {copy(busy ? "cloud.gift.redeeming" : "cloud.gift.confirm")}
                 </Button>
               </div>
@@ -136,9 +148,42 @@ export function RedeemProCode({ account, auth, refresh }) {
               </Button>}
             </div>
           )}
-          {error ? <div id={`${inputId}-error`}><BillingNotice error={error} context="gift" /></div> : null}
+          {error ? <div id={`${inputId}-error`}>
+            {["gift_checkout_pending", "gift_requires_renewal_cancel"].includes(error.code)
+              ? <p role="alert" className="text-xs leading-5 text-oai-gray-600 dark:text-oai-gray-300">{cloudBillingErrorText(error, "gift")}</p>
+              : <BillingNotice error={error} context="gift" />}
+          </div> : null}
+          </> : null}
+          {gifts.length ? <ul aria-label={copy("cloud.gift.history_title")} className="divide-y divide-oai-gray-200 dark:divide-oai-gray-800">
+            {gifts.map((gift) => <li key={gift.id} className="py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <span>{copy("cloud.gift.duration", { days: gift.duration_days })}</span>
+                <span>{copy(["active", "pending", "expired", "revoked"].includes(gift.state)
+                  ? `cloud.gift.state_${gift.state}` : "cloud.status.unknown")}</span>
+              </div>
+              <p className="mt-1 text-xs leading-5 text-oai-gray-600 dark:text-oai-gray-300">
+                {copy("cloud.history.term", { start: formatCloudDate(gift.starts_at), end: formatCloudDate(gift.ends_at) })}
+              </p>
+            </li>)}
+          </ul> : null}
         </div>
-      ) : null}
+      );
+  }
+  if (settingsRow) {
+    return <CloudActionDialog open={expanded} onOpenChange={changeOpen}
+      title={copy(canRedeem ? "cloud.gift.redeem_action" : "cloud.gift.history_title")}
+      icon={Gift} preventClose={busy} initialFocus={canRedeem && !receipt ? inputRef : undefined}>{panel}</CloudActionDialog>;
+  }
+  return (
+    <div className={settingsRow ? undefined : compact ? "contents" : "mt-4"}>
+      <Button type="button" variant="ghost" size={compact || settingsRow ? "sm" : "md"}
+        className={settingsRow ? "!h-11 !w-full !justify-start !px-0 !text-oai-black dark:!text-oai-white hover:!bg-oai-gray-100 dark:hover:!bg-oai-gray-800 active:!scale-100" : compact ? "!h-10 !px-0" : undefined} aria-expanded={expanded}
+        aria-controls={settingsRow || expanded ? `${inputId}-panel` : undefined}
+        onClick={() => setExpanded((value) => !value)} disabled={busy}>
+        {compact || settingsRow ? <Gift size={16} className={`${settingsRow ? "mr-3" : "mr-2"} shrink-0`} aria-hidden /> : null}{copy(canRedeem ? "cloud.gift.redeem_action" : "cloud.gift.history_title")}
+        {settingsRow ? <ChevronDown size={16} className={`ml-auto shrink-0 transition-transform motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`} aria-hidden /> : null}
+      </Button>
+      {!settingsRow && panelContainer && panel ? createPortal(panel, panelContainer) : panel}
     </div>
   );
 }

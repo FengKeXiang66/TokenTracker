@@ -67,7 +67,7 @@ export default async function billing(req: Request): Promise<Response> {
           ? Deno.env.get("PADDLE_CLIENT_TOKEN")
           : null,
         limits: {
-          machines: selfHosted ? null : 5,
+          machines: selfHosted ? null : 99,
           sync_minutes: selfHosted ? 0 : 15,
           hourly_history_days: selfHosted ? null : 90,
           daily_history_months: selfHosted ? null : 24,

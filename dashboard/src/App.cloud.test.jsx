@@ -99,12 +99,12 @@ describe("Cloud public routing", () => {
       expect(screen.getByLabelText(labels.shell)).toBeInTheDocument();
     },
   );
-  it("restores native purchase intent after the eager auth callback returns to dashboard", async () => {
+  it.each(["/", "/dashboard"])("restores purchase intent after auth returns to %s", async (callbackPath) => {
     auth.signedIn = true;
     auth.user = { id: "account-1" };
     sessionStorage.setItem("tt.cloud.return", "/billing/checkout?intent=trial");
     render(
-      <MemoryRouter initialEntries={["/dashboard"]}>
+      <MemoryRouter initialEntries={[callbackPath]}>
         <App />
       </MemoryRouter>,
     );

@@ -156,7 +156,7 @@ export default function App() {
 
   const normalizedPath = pathname.replace(/\/+$/, "") || "/";
   useEffect(() => {
-    if (!insforge.signedIn || insforge.loading || normalizedPath !== "/dashboard") return;
+    if (!insforge.signedIn || insforge.loading || !["/", "/dashboard"].includes(normalizedPath)) return;
     try {
       const next = window.sessionStorage.getItem("tt.cloud.return");
       if (!/^\/(cloud|billing\/checkout)(\?|$)/.test(next || "")) return;

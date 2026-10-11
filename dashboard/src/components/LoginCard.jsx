@@ -5,6 +5,7 @@ import { getNativeOAuthBridge } from "../lib/native-bridge.js";
 import { useLocale } from "../hooks/useLocale.js";
 import { copy } from "../lib/copy";
 import { cn } from "../lib/cn";
+import { cloudLoginNextPath } from "../contexts/LoginModalContext.jsx";
 
 const GOOGLE_ICON = (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -48,6 +49,8 @@ export function LoginCard({
   subtitle,
   className = "",
   onSuccess,
+  oauthReturnPath,
+  hideTitle = false,
   hideLogo = false,
   initialMode = "signin",
   tokenFromUrl = "",
@@ -106,10 +109,16 @@ export function LoginCard({
     (async () => {
       const { data, error: cfgErr } = await getPublicAuthConfig();
       if (!active) return;
-      if (cfgErr || !data) {
+      const validConfig = data && typeof data === "object" && !Array.isArray(data) &&
+        Array.isArray(data.oAuthProviders) && data.oAuthProviders.every((provider) => typeof provider === "string" && provider.length > 0) &&
+        (data.customOAuthProviders === undefined || (Array.isArray(data.customOAuthProviders) &&
+          data.customOAuthProviders.every((provider) => typeof provider === "string" && provider.length > 0)));
+      // A missing dev proxy can return a successful HTML SPA response. Treat
+      // that as unavailable config rather than an intentional empty provider list.
+      if (cfgErr || !validConfig) {
         setOauthProviders(["google", "github"]);
       } else {
-        const providers = Array.isArray(data.oAuthProviders) ? data.oAuthProviders : [];
+        const providers = data.oAuthProviders;
         const custom = Array.isArray(data.customOAuthProviders) ? data.customOAuthProviders : [];
         setOauthProviders([...providers, ...custom]);
         if (typeof data.passwordMinLength === "number" && data.passwordMinLength > 0) {
@@ -135,10 +144,6 @@ export function LoginCard({
   // browser then lands on the dashboard root with a code nobody exchanges.
   const oauthRedirectUrl = useCallback(() => {
     if (typeof window === "undefined") return "";
-    const next = new URLSearchParams(window.location.search).get("next");
-    if (!getNativeOAuthBridge() && /^\/(cloud|billing\/checkout)(\?|$)/.test(next || "")) {
-      return `${window.location.origin}/dashboard`;
-    }
     return getNativeOAuthBridge()
       ? "tokentracker://auth/callback"
       : `${window.location.origin}/`;
@@ -153,12 +158,16 @@ export function LoginCard({
     setError(null);
     setBusy(true);
     try {
+      const next = cloudLoginNextPath(oauthReturnPath);
+      if (next) {
+        try { window.sessionStorage.setItem("tt.cloud.return", next); } catch { /* Sign-in can still finish without a saved return. */ }
+      }
       const { error: err } = await signInWithOAuth(provider, oauthRedirectUrl());
       if (err) setError(err.message || String(err));
     } finally {
       setBusy(false);
     }
-  }, [signInWithOAuth, oauthRedirectUrl]);
+  }, [signInWithOAuth, oauthRedirectUrl, oauthReturnPath]);
 
   // Auto-trigger OAuth when opened with ?native=1&provider=xxx
   useEffect(() => {
@@ -288,6 +297,7 @@ export function LoginCard({
   }
 
   const isResetMode = mode === "reset_email" || mode === "reset_confirm";
+  const showOAuthChoices = configLoading || Boolean(oauthProviders.length);
 
   return (
     <div className={cn("w-full bg-white dark:bg-oai-gray-950 p-6 transition-colors duration-200", className)}>
@@ -320,12 +330,12 @@ export function LoginCard({
             </span>
           </div>
         )}
-        <h2 className={cn(
+        {!hideTitle || isResetMode ? <h2 className={cn(
           "text-sm font-semibold text-oai-black dark:text-white tracking-tight mb-1",
           (hideLogo || isResetMode) && "text-base font-bold md:text-lg"
         )}>
           {isResetMode ? copy("reset_password.title") : (title || copy("login_modal.subtitle"))}
-        </h2>
+        </h2> : null}
         {!isResetMode && subtitle && (
           <p className="text-xs text-oai-gray-500 dark:text-oai-gray-400 mt-1.5 leading-relaxed max-w-[320px] mx-auto">
             {subtitle}
@@ -482,7 +492,7 @@ export function LoginCard({
       {!isResetMode && (
         <>
           {/* OAuth buttons */}
-          <div className="space-y-2.5 mb-5">
+          {showOAuthChoices ? <div className="space-y-2.5 mb-5">
             {configLoading ? (
               <div className="space-y-2.5">
                 <div className="h-10 rounded-lg bg-oai-gray-100 dark:bg-oai-gray-900/50 animate-pulse" />
@@ -506,12 +516,12 @@ export function LoginCard({
                 </button>
               ))
             )}
-          </div>
+          </div> : null}
 
           {/* Email section */}
           {!emailExpanded ? (
             <>
-              <div className="relative mb-5">
+              {showOAuthChoices ? <div className="relative mb-5">
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t border-oai-gray-200 dark:border-oai-gray-800" />
                 </div>
@@ -520,7 +530,7 @@ export function LoginCard({
                     {copy("login.divider")}
                   </span>
                 </div>
-              </div>
+              </div> : null}
               <button
                 type="button"
                 onClick={() => setEmailExpanded(true)}
@@ -537,7 +547,7 @@ export function LoginCard({
           ) : (
             <>
               {/* Divider */}
-              <div className="relative mb-5">
+              {showOAuthChoices ? <div className="relative mb-5">
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t border-oai-gray-200 dark:border-oai-gray-800" />
                 </div>
@@ -546,7 +556,7 @@ export function LoginCard({
                     {copy("login_modal.divider_email")}
                   </span>
                 </div>
-              </div>
+              </div> : null}
 
               {/* Sign in / Sign up toggle */}
               <div className="flex rounded-lg border border-oai-gray-200 dark:border-oai-gray-800 p-0.5 bg-oai-gray-50 dark:bg-oai-gray-900/50 mb-4">

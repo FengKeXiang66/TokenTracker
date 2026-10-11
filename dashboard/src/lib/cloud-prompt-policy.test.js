@@ -60,9 +60,9 @@ describe("Cloud reminder eligibility", () => {
     const value = input({ membership: { ...free, status: "expired", expires_at: new Date(now + 30 * day).toISOString() },
       subscriptions: [{ status, cancel_at_period_end: false }] });
     expect(policy.cloudContextualPromptDecision(value)).toMatchObject({ kind: "operation",
-      bodyKey: "cloud.prompt.billing_recovery", ctaKey: "cloud.action.view_bills", href: "/settings?section=account" });
+      bodyKey: "cloud.prompt.billing_recovery", ctaKey: "cloud.action.view_bills", href: "/settings?section=cloud" });
     expect(policy.cloudContextualPromptDecision({ ...value, scene: "view", failure: { code: "cloud_membership_required" } }))
-      .toMatchObject({ kind: "operation", href: "/settings?section=account" });
+      .toMatchObject({ kind: "operation", href: "/settings?section=cloud" });
   });
   it.each([{ status: "canceled" }, { status: "expired" }, { status: "active", cancel_at_period_end: true }])("keeps plan discovery available after the renewal contract ends or is canceled %j", (subscription) => {
     expect(policy.cloudContextualPromptDecision(input({ membership: { ...free, status: "expired", trial_available: false },
@@ -75,7 +75,7 @@ describe("Cloud reminder eligibility", () => {
   it.each(["active", "trial", "transition"])("offers device/history management instead of an upgrade while %s access is available", (status) => {
     const membership = { ...free, status, can_read_cloud: true, can_upload_cloud: true };
     expect(policy.cloudContextualPromptDecision(input({ membership, scene: "view", failure: { code: "cloud_machine_limit" } })))
-      .toMatchObject({ kind: "operation", scene: "devices", href: "/settings?section=account" });
+      .toMatchObject({ kind: "operation", scene: "devices", href: "/settings?section=cloud" });
     expect(policy.cloudContextualPromptDecision(input({ membership, scene: "history", failure: { code: "cloud_history_window_exceeded" } })))
       .toMatchObject({ kind: "operation", bodyKey: "cloud.prompt.history_window" });
   });

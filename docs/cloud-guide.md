@@ -14,7 +14,7 @@ Official hosted synchronization, storage, bandwidth, backups and maintenance req
 
 Cloud is the officially hosted cross-device analytics service. Current capabilities combine device usage in one account, analyze estimated costs by provider/model/device and period, provide web access to retained history and existing exports, and synchronize/manage devices without maintaining a VPS.
 
-One account covers the CLI, macOS, Windows, Linux, and the web dashboard. The Cloud plan includes up to five registered synchronization devices, changed usage every 15 minutes while the client is running and online, and access to 90 days of hourly detail and 24 months of daily summaries. CLI and desktop installations sharing a registered machine identity use one slot. This identifies synchronization devices, without hardware attestation. Pausing a device frees its slot and keeps its history; resuming requires an available slot.
+One account covers the CLI, macOS, Windows, Linux, and the web dashboard. Cloud supports cross-device synchronization with a 99-device safety cap against abuse, changed usage every 15 minutes while the client is running and online, and access to 90 days of hourly detail and 24 months of daily summaries. CLI and desktop installations sharing a registered machine identity use one slot. This identifies synchronization devices, without hardware attestation. Pausing a device frees its slot and keeps its history; resuming requires an available slot.
 
 Free community uploads use one registered device per account with a bounded daily batch. Local installations remain unlimited. If Cloud expires with several active devices, pause the others and keep one for free community uploads. This retains existing history. The ranking formula is the same for both plans.
 
@@ -30,14 +30,14 @@ The complete self-hosted path is currently a technical preview. A clean private 
 
 ## Gifted Cloud access
 
-An eligible signed-in account can redeem a privately issued 30-, 90- or 365-day Cloud code in its account settings. A code is claimed once; repeating the same claim does not add another term. The server shows the actual dates and a separate gift history. Gifts do not create Waffo payments or automatic renewal.
+An eligible signed-in account can redeem a privately issued 30-, 90- or 365-day Cloud code in Personal settings → Cloud. A code is claimed once; repeating the same claim does not add another term. The server shows the actual dates and a separate gift history. Gifts do not create Waffo payments or automatic renewal.
 
 Resolve an unfinished payment or active automatic renewal before redeeming. Active or upcoming gifts prevent new paid checkout so the periods do not overlap. Disabling an unclaimed batch and revoking an already claimed gift are different operations. Gift redemption is available to eligible accounts on the official hosted service and unavailable on a free private self-hosted instance.
 
 ## Trial and transition
 
 - Eligible accounts can start a seven-day trial without a payment card. It starts when you choose to activate it, and does not become a paid plan automatically.
-- Existing users with a registered cloud device before the announced launch receive a 30-day transition from that launch date. Account settings will show the exact end date. We will not charge an existing account automatically.
+- Existing users with a registered cloud device before the announced launch receive a 30-day transition from that launch date. Personal settings → Cloud shows the exact end date. We will not charge an existing account automatically.
 - When a trial, transition, or paid term ends, new personal Cloud uploads stop. Existing personal Cloud history remains available to read and export for 30 days. Local tracking and the free community features continue.
 - After the export window, personal Cloud access follows the disclosed policy. The 90-day hourly and 24-month daily limits describe accessible history. Compressed usage metrics can remain longer to preserve and correct public lifetime statistics. Final storage and deletion schedules will be announced separately; local data is unaffected.
 

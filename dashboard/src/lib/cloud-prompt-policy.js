@@ -165,14 +165,14 @@ export function cloudContextualPromptDecision({ userId, intentional = false, sce
     const cooldown = cooling(userId, promptScene, false, now, storage);
     if (cooldown.hidden) return null;
     return { scene: promptScene, kind: "operation", bodyKey: "cloud.prompt.billing_recovery",
-      ctaKey: "cloud.action.view_bills", href: "/settings?section=account" };
+      ctaKey: "cloud.action.view_bills", href: "/settings?section=cloud" };
   }
   if (paid || (available && scene !== "sync") || (deviceIssue && !membership)) {
     if (!deviceIssue && !historyIssue) return null;
     const cooldown = cooling(userId, promptScene, false, now, storage);
     if (cooldown.hidden) return null;
     return { scene: promptScene, kind: "operation", bodyKey: deviceIssue ? "cloud.prompt.devices_manage" : "cloud.prompt.history_window",
-      ctaKey: "cloud.action.manage_membership", href: "/settings?section=account" };
+      ctaKey: "cloud.action.manage_membership", href: "/settings?section=cloud" };
   }
   if (membership?.can_upload_cloud) return null;
   if (scene !== "sync" && !limited) return null;
