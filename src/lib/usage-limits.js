@@ -4099,7 +4099,7 @@ async function fetchUsageLimitsUncached({
       .catch((reason) => ({ configured: true, error: reason?.message || "Unknown error" })),
     withProviderTimeout(fetchGrokLimits({ home, env, fetchImpl: providerFetch, timeoutMs: providerTimeoutMs }), "Grok Build", providerTimeoutMs)
       .catch((reason) => ({ configured: true, error: reason?.message || "Unknown error" })),
-    withProviderTimeout(fetchZcodeLimits({ home, env, fetchImpl: providerFetch }), "ZCode", providerTimeoutMs)
+    withProviderTimeout(fetchZcodeLimits({ home, env, fetchImpl: providerFetch, providerTimeoutMs }), "ZCode", providerTimeoutMs)
       .catch((reason) => ({ configured: true, error: reason?.message || "Unknown error" })),
     // OpenCode Go: authoritative subscription windows come from the dashboard
     // scrape; local opencode.db cost is available only as an explicit estimate.
